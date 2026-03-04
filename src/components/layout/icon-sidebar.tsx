@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Briefcase, FileText } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Briefcase, FileText, LogOut, SmilePlus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/jobs", icon: Briefcase, label: "Jobs" },
@@ -18,12 +19,19 @@ const navItems = [
 
 export function IconSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
       <nav className="flex h-full w-12 flex-col items-center gap-2 border-r bg-muted/40 py-3">
-        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">
-          L
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <SmilePlus className="h-4 w-4" />
         </div>
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
@@ -48,6 +56,17 @@ export function IconSidebar() {
             </Tooltip>
           );
         })}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleLogout}
+              className="mt-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Log out</TooltipContent>
+        </Tooltip>
       </nav>
     </TooltipProvider>
   );
