@@ -114,3 +114,14 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Optimistic updates** on status changes with rollback on error
 - **Resizable 3-panel layout** on both main pages
 - **ScrollArea height pattern**: `h-full` outer + `h-0 flex-1` on scroll container
+
+## Future Feature Development
+
+### AI Agent chat support and status monitoring
+
+- Chat with an AI agent who can research companies, edit your notes, and respond to specific questions
+- Agent will monitor your email and update job status automatically
+
+### AI Document generation
+
+- Use AI to generate tailored resumes and cover letters for jobs
