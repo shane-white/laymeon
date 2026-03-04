@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:supabase.com)",
+      "mcp__context7__query-docs",
+      "Bash(ls -la \"/c/Dev/laymeon/src/app/\\(app\\)/jobs/\")",
+      "Bash(cat \"/c/Dev/laymeon/src/app/\\(app\\)/jobs/page.tsx\")",
+      "Bash(ls -la \"/c/Dev/laymeon/src/app/\\(app\\)/\")",
+      "Bash(cat \"/c/Dev/laymeon/src/app/\\(app\\)/page.tsx\")",
+      "Bash(cat \"/c/Dev/laymeon/src/app/\\(app\\)/documents/page.tsx\")",
+      "Bash(cat \"/c/Dev/laymeon/src/app/\\(app\\)/layout.tsx\")",
+      "mcp__shadcn__search_items_in_registries",
+      "mcp__context7__resolve-library-id",
+      "Bash(ls /c/Dev/laymeon/src/app/api/jobs/[id]/)"
+    ]
+  }
+}
