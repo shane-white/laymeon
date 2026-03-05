@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/resizable";
 import { JobListSidebar } from "@/components/jobs/job-list-sidebar";
 import { JobDetail } from "@/components/jobs/job-detail";
-import { ChatPlaceholder } from "@/components/jobs/chat-placeholder";
+import { JobChat } from "@/components/jobs/job-chat";
 import { useJobs } from "@/hooks/use-jobs";
 
 export default function JobsPage() {
@@ -41,7 +41,7 @@ export default function JobsPage() {
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize="25%" minSize="15%" maxSize="35%">
-        <ChatPlaceholder />
+        <JobChat job={selectedJob} />
       </ResizablePanel>
     </ResizablePanelGroup>
   );
