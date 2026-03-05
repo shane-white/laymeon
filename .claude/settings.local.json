@@ -11,7 +11,12 @@
       "Bash(cat \"/c/Dev/laymeon/src/app/\\(app\\)/layout.tsx\")",
       "mcp__shadcn__search_items_in_registries",
       "mcp__context7__resolve-library-id",
-      "Bash(ls /c/Dev/laymeon/src/app/api/jobs/[id]/)"
+      "Bash(npx next build)",
+      "Bash(gh pr view --json number,headRefName,headRepository)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\")",
+      "Bash(gh pr list --json number,headRefName,title --limit 10)",
+      "Bash(gh api repos/shane-white/laymeon/issues/1/comments)",
+      "Bash(gh api repos/shane-white/laymeon/pulls/1/comments)"
     ]
   }
 }

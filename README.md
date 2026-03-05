@@ -5,6 +5,7 @@ Laymeon is a job tracking and document management application that helps job see
 ## Features
 
 ### Job Tracking
+
 - Import jobs from URLs (auto-scraped via Firecrawl) or paste raw job descriptions
 - Claude AI extracts job title, company name, and full description
 - Track application status: Interested → Applied → Interviewing → Closed
@@ -12,6 +13,7 @@ Laymeon is a job tracking and document management application that helps job see
 - Soft delete with data preservation
 
 ### Job Detail Tabs
+
 - **Description** — Full job posting text
 - **Job Match Analysis** — AI-evaluated resume-to-job fit with skill gaps and match percentage
 - **Resume Suggestions** — Actionable improvements tailored to the specific role
@@ -21,6 +23,7 @@ Laymeon is a job tracking and document management application that helps job see
 - Tab state persisted per job via localStorage
 
 ### Document Management
+
 - Upload resumes and cover letters (PDF, DOCX, DOC)
 - Documents parsed to markdown via Claude for AI processing
 - PDFs sent directly to Claude as base64 document blocks; DOCX extracted via Mammoth
@@ -28,6 +31,7 @@ Laymeon is a job tracking and document management application that helps job see
 - Files stored in Supabase Storage with RLS policies
 
 ### Authentication & PWA
+
 - Supabase Auth with email/password
 - Protected routes with automatic redirect
 - Installable as a Progressive Web App with offline caching
@@ -84,6 +88,10 @@ src/
 - Supabase project
 - Anthropic API key
 - Firecrawl API key
+
+### Database Setup
+
+After creating your Supabase project, create the tables using the schema in supabase/dump. You can do this in the Supabase SQL editor.
 
 ### Environment Variables
 
