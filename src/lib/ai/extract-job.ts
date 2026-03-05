@@ -49,7 +49,8 @@ export async function extractJobFromText(text: string): Promise<ExtractedJob> {
     throw new Error("Unexpected response format from Claude");
   }
 
-  const parsed = JSON.parse(content.text) as ExtractedJob;
+  const raw = content.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  const parsed = JSON.parse(raw) as ExtractedJob;
 
   if (!parsed.title) {
     throw new Error("Could not extract job title");
