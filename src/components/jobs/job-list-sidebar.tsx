@@ -19,14 +19,14 @@ export function JobListSidebar({
   const { data: jobs, isLoading } = useJobs();
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b px-3 py-3">
         <h2 className="text-sm font-semibold">Jobs</h2>
       </div>
       <div className="px-3 py-2">
         <AddJobDialog />
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 [&>div>div[style]]:block!">
         <div className="flex flex-col gap-0.5 px-2 pb-2">
           {isLoading &&
             Array.from({ length: 4 }).map((_, i) => (

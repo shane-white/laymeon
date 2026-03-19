@@ -33,16 +33,14 @@ export function JobListItem({ job, isSelected, onSelect }: JobListItemProps) {
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
 
-  const displayTitle = job.custom_job_title || job.job_listing.extracted_job_title;
-  const displayCompany = job.custom_job_company || job.job_listing.extracted_company_name;
+  const displayTitle =
+    job.custom_job_title || job.job_listing.extracted_job_title;
+  const displayCompany =
+    job.custom_job_company || job.job_listing.extracted_company_name;
 
   function openEdit(field: "title" | "company") {
     setEditField(field);
-    setEditValue(
-      field === "title"
-        ? displayTitle
-        : displayCompany ?? "",
-    );
+    setEditValue(field === "title" ? displayTitle : (displayCompany ?? ""));
   }
 
   async function handleSaveEdit() {
@@ -83,12 +81,10 @@ export function JobListItem({ job, isSelected, onSelect }: JobListItemProps) {
         }}
         className={cn(
           "flex w-full min-w-0 cursor-pointer flex-col gap-1 rounded-md px-3 py-2.5 text-left transition-colors",
-          isSelected
-            ? "bg-accent text-accent-foreground"
-            : "hover:bg-muted/50",
+          isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
         )}
       >
-        <span className="truncate text-sm font-medium">
+        <span className="truncate min-w-0 text-sm font-medium">
           {displayTitle}
         </span>
         {displayCompany && (
@@ -107,7 +103,10 @@ export function JobListItem({ job, isSelected, onSelect }: JobListItemProps) {
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e) => e.stopPropagation()}
+            >
               <DropdownMenuItem onClick={() => openEdit("title")}>
                 <Pencil className="mr-2 h-3.5 w-3.5" />
                 Edit title
@@ -128,7 +127,10 @@ export function JobListItem({ job, isSelected, onSelect }: JobListItemProps) {
         </div>
       </div>
 
-      <Dialog open={editField !== null} onOpenChange={(open) => !open && setEditField(null)}>
+      <Dialog
+        open={editField !== null}
+        onOpenChange={(open) => !open && setEditField(null)}
+      >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
