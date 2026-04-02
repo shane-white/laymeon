@@ -50,6 +50,17 @@ export async function POST(req: Request) {
     return new Response("Job not found", { status: 404 });
   }
 
+  // Load user's resume (if uploaded)
+  const { data: resumeDoc } = await supabase
+    .from("documents")
+    .select("parsed_markdown")
+    .eq("user_id", user.id)
+    .eq("document_type", "resume")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
   const listing = userJob.job_listing as unknown as {
     id: string;
     url: string | null;
@@ -62,9 +73,13 @@ export async function POST(req: Request) {
   const company =
     userJob.custom_job_company || listing.extracted_company_name || "Unknown";
 
-  let systemPrompt = `You are a helpful job search assistant for the Laymeon app. You are helping the user with a specific job application.
+  let systemPrompt = `You are a helpful job search assistant for the Laymeon app. You are helping the user with a specific job application.`;
 
-## Current Job
+  if (resumeDoc?.parsed_markdown) {
+    systemPrompt += `\n\n## User's Resume\n${resumeDoc.parsed_markdown}`;
+  }
+
+  systemPrompt += `\n\n## Current Job
 - **Title**: ${title}
 - **Company**: ${company}
 - **Status**: ${userJob.status}
