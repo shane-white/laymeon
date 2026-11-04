@@ -1,7 +1,6 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Send,
-  Trash2,
   MessageSquare,
+  MessageSquarePlus,
+  History,
   Search,
   ArrowRightLeft,
   FileEdit,
@@ -19,6 +19,12 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { UserJob } from "@/hooks/use-jobs";
+import { useLatestJobChat } from "@/hooks/use-job-chat";
+import {
+  getJobChatSession,
+  setConversation,
+  startNewConversation,
+} from "@/lib/chat/job-chat-store";
 
 interface JobChatProps {
   job: UserJob | null;
@@ -37,34 +43,6 @@ const TOOL_META: Record<string, { icon: typeof Search; label: string }> = {
 };
 
 export function JobChat({ job }: JobChatProps) {
-  const [input, setInput] = useState("");
-  const queryClient = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const jobIdRef = useRef(job?.id);
-
-  const { messages, sendMessage, status, stop, setMessages } = useChat({
-    id: job ? `job-chat-${job.id}` : undefined,
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
-    onFinish: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
-
-  // Reset messages when job changes
-  useEffect(() => {
-    if (job?.id !== jobIdRef.current) {
-      jobIdRef.current = job?.id;
-      setMessages([]);
-    }
-  }, [job?.id, setMessages]);
-
-  // Auto-scroll on new messages
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   if (!job) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 border-l text-muted-foreground">
@@ -75,15 +53,47 @@ export function JobChat({ job }: JobChatProps) {
     );
   }
 
+  return <JobChatPanel key={job.id} jobId={job.id} />;
+}
+
+function JobChatPanel({ jobId }: { jobId: string }) {
+  const [input, setInput] = useState("");
+  const queryClient = useQueryClient();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { chat } = getJobChatSession(jobId, () => {
+    queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    queryClient.invalidateQueries({ queryKey: ["job-chat-latest", jobId] });
+  });
+  const { messages, sendMessage, status, stop, setMessages } = useChat({ chat });
+
+  const { data: saved } = useLatestJobChat(jobId, messages.length === 0);
+  const canLoadPrevious =
+    messages.length === 0 && !!saved?.conversationId && saved.messages.length > 0;
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   const isLoading = status === "streaming" || status === "submitted";
 
   function handleSend(text: string) {
     if (!text.trim() || isLoading) return;
-    sendMessage(
-      { text },
-      { body: { userJobId: job!.id } },
-    );
+    sendMessage({ text });
     setInput("");
+  }
+
+  function handleNewConversation() {
+    startNewConversation(jobId);
+    setMessages([]);
+    queryClient.invalidateQueries({ queryKey: ["job-chat-latest", jobId] });
+  }
+
+  function handleLoadPrevious() {
+    if (!saved?.conversationId) return;
+    setConversation(jobId, saved.conversationId);
+    setMessages(saved.messages);
   }
 
   return (
@@ -102,9 +112,12 @@ export function JobChat({ job }: JobChatProps) {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => setMessages([])}
+              title="New conversation"
+              aria-label="New conversation"
+              disabled={isLoading}
+              onClick={handleNewConversation}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <MessageSquarePlus className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -117,6 +130,17 @@ export function JobChat({ job }: JobChatProps) {
             <div className="flex flex-col gap-2 pt-8 text-center text-xs text-muted-foreground">
               <MessageSquare className="mx-auto h-6 w-6" />
               <p>Ask about this job, search for company info, or update your application.</p>
+              {canLoadPrevious && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mx-auto mt-1 h-7 text-xs"
+                  onClick={handleLoadPrevious}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  Load previous conversation
+                </Button>
+              )}
               <div className="flex flex-wrap justify-center gap-1 pt-2">
                 {SUGGESTIONS.map((s) => (
                   <button

@@ -5,6 +5,7 @@ import {
   tool,
   convertToModelMessages,
   stepCountIs,
+  createIdGenerator,
   type UIMessage,
 } from "ai";
 import { z } from "zod";
@@ -21,11 +22,18 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { messages, userJobId }: { messages: UIMessage[]; userJobId: string } =
+  const {
+    messages,
+    userJobId,
+    conversationId,
+  }: { messages: UIMessage[]; userJobId: string; conversationId: string } =
     await req.json();
 
   if (!userJobId) {
     return new Response("Missing userJobId", { status: 400 });
+  }
+  if (!z.uuid().safeParse(conversationId).success) {
+    return new Response("Invalid conversationId", { status: 400 });
   }
 
   // Load job context
@@ -191,5 +199,25 @@ ${listing.description || "No description available."}`;
     stopWhen: stepCountIs(5),
   });
 
-  return result.toUIMessageStreamResponse();
+  // Finish generating (and saving) even if the client navigates away mid-stream.
+  result.consumeStream();
+
+  return result.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
+    onFinish: async ({ messages: finalMessages }) => {
+      const { error } = await supabase.from("job_chat_messages").upsert(
+        finalMessages.map((m) => ({
+          user_id: user.id,
+          user_job_id: userJobId,
+          conversation_id: conversationId,
+          message_id: m.id,
+          role: m.role,
+          message: m,
+        })),
+        { onConflict: "conversation_id,message_id", ignoreDuplicates: true },
+      );
+      if (error) console.error("Failed to save chat messages", error);
+    },
+  });
 }
