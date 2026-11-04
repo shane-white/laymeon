@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { clearJobChats } from "@/lib/chat/job-chat-store";
 
 const navItems = [
   { href: "/jobs", icon: Briefcase, label: "Jobs" },
@@ -24,6 +25,7 @@ export function IconSidebar() {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearJobChats();
     router.push("/login");
   }
 
