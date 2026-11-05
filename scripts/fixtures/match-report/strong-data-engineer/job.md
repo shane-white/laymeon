@@ -17,3 +17,5 @@ Fleetwise is hiring a Data Engineer to build the pipelines behind our logistics 
 - Terraform
 
 Bachelor's degree in Computer Science or related field.
+
+Must be authorized to work in the United States. We are unable to sponsor visas. This role requires a background check.

@@ -88,14 +88,20 @@ function YourMatch({ overall }: { overall: MatchReport["overall"] }) {
           </ol>
         </div>
       )}
-      <p className="flex items-start gap-1.5 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-        <Info className="mt-px h-3.5 w-3.5 shrink-0" />
-        <span>
-          <strong className="font-medium text-foreground">Missing</strong> means it isn&apos;t on
-          your resume, not that you don&apos;t have it. If you have the skill, add it.
-        </span>
-      </p>
     </section>
+  );
+}
+
+function MissingNote() {
+  return (
+    <p className="flex items-start gap-1.5 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+      <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+      <span>
+        <strong className="font-medium text-foreground">Missing</strong>{" "}
+        means it isn&apos;t on your resume, not that you don&apos;t have it. If you have the
+        skill, add it.
+      </span>
+    </p>
   );
 }
 
@@ -226,6 +232,8 @@ export function MatchReportView({ report }: { report: MatchReport }) {
       <YourMatch overall={report.overall} />
 
       <ScreenOutWarning screeners={report.screeners} />
+
+      <MissingNote />
 
       <RequirementsChecklist requirements={report.requirements} />
 

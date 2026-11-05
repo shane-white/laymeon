@@ -11,6 +11,10 @@ import { join } from "node:path";
 import { generateMatchReport } from "@/lib/match-report/generate";
 import type { MatchReport } from "@/lib/match-report/schema";
 
+// Eligibility questions applicants answer themselves; the report shouldn't list them.
+const ELIGIBILITY_PATTERN =
+  /authori[sz]|sponsor|citizen|visa\b|criminal|background check|drug (test|screen)/i;
+
 const FIXTURES_DIR = join(__dirname, "fixtures", "match-report");
 
 function parseArgs(argv: string[]) {
@@ -30,7 +34,10 @@ function summarize(report: MatchReport): string {
   const words = report.searchWords
     .map((w) => `${w.term}=${w.status}${w.resumeWording ? `(${w.resumeWording})` : ""}`)
     .join(", ");
-  return `${reqs}\n    search words: ${words}`;
+  const screeners = report.screeners
+    .map((s) => `${s.item}=${s.shown ? "shown" : "not shown"}`)
+    .join(", ");
+  return `${reqs}\n    screeners: ${screeners || "none"}\n    search words: ${words}`;
 }
 
 async function evalFixture(name: string, runs: number): Promise<boolean> {
@@ -45,13 +52,21 @@ async function evalFixture(name: string, runs: number): Promise<boolean> {
     Array.from({ length: runs }, () => generateMatchReport(resume, job)),
   );
   const labels = reports.map((r) => r.overall.label);
+  const eligibilityLeaks = reports.flatMap((r) =>
+    [...r.screeners.map((s) => s.item), ...r.requirements.map((q) => q.text)].filter((text) =>
+      ELIGIBILITY_PATTERN.test(text),
+    ),
+  );
   const consistent = labels.every((l) => l === labels[0]);
   const correct = labels.every((l) => l === expected.label);
-  const ok = consistent && correct;
+  const ok = consistent && correct && eligibilityLeaks.length === 0;
 
   console.log(
     `${ok ? "PASS" : "FAIL"} ${name}: expected ${expected.label}, got [${labels.join(", ")}]`,
   );
+  if (eligibilityLeaks.length) {
+    console.log(`  eligibility questions that should be left out: ${eligibilityLeaks.join("; ")}`);
+  }
   if (!ok) {
     reports.forEach((r, i) => console.log(`  run ${i + 1}:\n${summarize(r)}`));
   } else {

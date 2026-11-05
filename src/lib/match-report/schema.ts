@@ -35,7 +35,7 @@ export const modelReportSchema = z.object({
         item: z
           .string()
           .describe(
-            "A hard requirement employers often check with a yes/no question: work authorization, location, license or certification, minimum years of experience, or degree.",
+            "A hard requirement that a resume is expected to show and employers often check with a yes/no question: minimum years of experience, degree, license or certification, security clearance, or required location. Never work authorization, sponsorship, citizenship, criminal history, background checks or other eligibility questions the applicant answers themselves.",
           ),
         shown: z.boolean().describe("Whether the resume clearly shows this requirement is met."),
         evidence: z
