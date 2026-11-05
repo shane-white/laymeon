@@ -152,6 +152,7 @@ function RequirementsChecklist({ requirements }: { requirements: Requirement[] }
       title="Requirements checklist"
       why="Recruiters and screening software compare your resume to each requirement in the posting. Must-haves count the most."
     >
+      <MissingNote />
       <ul className="divide-y rounded-lg border">
         {requirements.map((r, i) => (
           <li key={i} className="flex flex-col gap-1.5 p-3">
@@ -232,8 +233,6 @@ export function MatchReportView({ report }: { report: MatchReport }) {
       <YourMatch overall={report.overall} />
 
       <ScreenOutWarning screeners={report.screeners} />
-
-      <MissingNote />
 
       <RequirementsChecklist requirements={report.requirements} />
 
