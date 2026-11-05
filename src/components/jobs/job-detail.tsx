@@ -33,7 +33,7 @@ interface JobDetailProps {
 }
 
 const TAB_OPTIONS = [
-  { key: "match_analysis" as const, label: "Job Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to get an analysis on how well you match for this job. Requires an uploaded resume." },
+  { key: "match_analysis" as const, label: "Job Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to see how well your resume matches this job: must-have requirements, search words recruiters use, and what to fix first. Requires an uploaded resume." },
   { key: "resume_suggestions" as const, label: "Resume Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get resume improvement suggestions for this job. Requires an uploaded resume." },
   { key: "cover_letter_suggestions" as const, label: "Cover Letter Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get cover letter suggestions for this job. Requires an uploaded resume." },
   { key: "interview_suggestions" as const, label: "Interview Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get interview preparation suggestions for this job. Requires an uploaded resume." },
@@ -196,6 +196,11 @@ export function JobDetail({ job }: JobDetailProps) {
             <TabsContent key={type} value={type} className="flex min-h-0 flex-1 flex-col">
               <AnalysisTab
                 content={job[type]}
+                {...(type === "match_analysis" && {
+                  report: job.match_report,
+                  legacyNotice:
+                    "This is an older analysis. Re-analyze to get the new match report with a requirements checklist and search words.",
+                })}
                 onAnalyze={() =>
                   analyzeJob.mutate(
                     { id: job.id, type },
