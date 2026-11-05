@@ -25,7 +25,7 @@ Rules:
 - Requirements: list every distinct requirement in the posting, one per entry. Mark must_have only when the posting says it is required (required, must, minimum, or listed under requirements/qualifications); preferred, bonus, plus, or nice-to-have items are nice_to_have.
 - Evidence: copy a short quote from the resume exactly, character for character. Do not paraphrase, fix typos, or join separate lines. If there is no quote that supports the match, the match is not strong.
 - Screeners: include only hard requirements the posting actually states (work authorization, location, license or certification, minimum years of experience, degree). Leave the list empty if there are none.
-- Search words: pick the 8–12 terms a recruiter would most likely type into an ATS search for this job, using the posting's exact wording. When the resume doesn't use that exact term but uses other wording for it, give that wording copied verbatim from the resume.
+- Search words: pick the 8–12 terms a recruiter would most likely type into an ATS search for this job, using the posting's exact wording (skills, tools, job titles, certifications). For each term, if the resume doesn't use that exact wording, list the resume's own wordings for it, copied verbatim from the resume, and say whether each is the same thing in different words or related but not the same. Exact matches are checked in code, so don't guess whether a term is present.
 - Actions and next steps: never suggest claiming skills or experience the candidate may not have. Phrase wording suggestions as "If true, add…".
 - Be consistent: the same resume and posting should always produce the same assessment.`;
 

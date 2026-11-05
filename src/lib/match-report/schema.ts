@@ -73,16 +73,21 @@ export const modelReportSchema = z.object({
     .array(
       z.object({
         term: z.string().describe("The exact wording used in the job posting."),
-        resumeWording: z
-          .string()
-          .nullable()
+        resumeWordings: z
+          .array(
+            z.object({
+              wording: z
+                .string()
+                .describe(
+                  "A short phrase (usually 1–3 words) copied verbatim from the resume that refers to this term, e.g. 'Postgres' or 'Mixpanel', not a whole sentence.",
+                ),
+              similarity: similaritySchema.describe(
+                "same_meaning: the same thing in different words (Postgres vs PostgreSQL, PM vs project management). related: related, but not the same (data pipelines vs ETL).",
+              ),
+            }),
+          )
           .describe(
-            "If the resume doesn't use the exact term, the closest wording that is copied verbatim from the resume. Null if there is none.",
-          ),
-        similarity: similaritySchema
-          .nullable()
-          .describe(
-            "same_meaning: same thing in different words (Postgres vs PostgreSQL). related: related but not the same (data pipelines vs ETL). Null when resumeWording is null.",
+            "If the resume doesn't use the term's exact wording, the resume's own wordings for it, closest first. Empty if the resume uses the exact term or has nothing comparable.",
           ),
       }),
     )
