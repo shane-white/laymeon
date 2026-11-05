@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MatchReport } from "@/lib/match-report/schema";
 
 export interface JobListing {
   id: string;
@@ -16,6 +17,7 @@ export interface UserJob {
   custom_job_title: string | null;
   custom_job_company: string | null;
   match_analysis: string | null;
+  match_report: MatchReport | null;
   resume_suggestions: string | null;
   cover_letter_suggestions: string | null;
   interview_suggestions: string | null;
@@ -137,7 +139,7 @@ export function useAnalyzeJob() {
         const data = await res.json();
         throw new Error(data.error || "Analysis failed");
       }
-      return res.json() as Promise<{ content: string }>;
+      return res.json() as Promise<{ content?: string; report?: MatchReport }>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });

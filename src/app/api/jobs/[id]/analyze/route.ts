@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic/client";
+import { generateMatchReport } from "@/lib/match-report/generate";
 import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
@@ -11,15 +12,11 @@ const VALID_TYPES = [
 
 type AnalysisType = (typeof VALID_TYPES)[number];
 
-const PROMPTS: Record<AnalysisType, string> = {
-  match_analysis: `Analyze how well the candidate from this resume matches this job description. Evaluate:
-- Skills alignment (what matches, what's missing)
-- Experience relevance
-- Education fit
-- Overall match percentage estimate
+// The structured match report can take over a minute, plus one retry.
+export const maxDuration = 180;
 
-Be specific and reference actual items from both the resume and job description. Format your response in markdown.`,
-
+// match_analysis returns a structured report instead (see generateMatchReport).
+const PROMPTS: Record<Exclude<AnalysisType, "match_analysis">, string> = {
   resume_suggestions: `Based on the job description below, suggest specific improvements to the candidate's resume to better match this role. Include:
 - Keywords to add
 - Experience to highlight or reframe
@@ -111,6 +108,31 @@ export async function POST(
       { error: "Job has no description to analyze" },
       { status: 400 },
     );
+  }
+
+  if (analysisType === "match_analysis") {
+    try {
+      const report = await generateMatchReport(resume.parsed_markdown, jobDescription);
+
+      // Clearing the old markdown analysis makes the UI show the new report.
+      const { error: updateError } = await supabase
+        .from("user_job_listings")
+        .update({ match_report: report, match_analysis: null })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return NextResponse.json(
+        { error: `Analysis failed: ${message}` },
+        { status: 500 },
+      );
+    }
   }
 
   try {
