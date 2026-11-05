@@ -21,6 +21,7 @@ export async function GET() {
       custom_job_title,
       custom_job_company,
       match_analysis,
+      match_report,
       resume_suggestions,
       cover_letter_suggestions,
       interview_suggestions,

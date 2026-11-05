@@ -9,6 +9,8 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
+import { formatMatchReportForPrompt } from "@/lib/match-report/format";
+import type { MatchReport } from "@/lib/match-report/schema";
 
 export const maxDuration = 60;
 
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     .select(
       `
       id, status, custom_job_title, custom_job_company,
-      match_analysis, resume_suggestions, cover_letter_suggestions,
+      match_analysis, match_report, resume_suggestions, cover_letter_suggestions,
       interview_suggestions, notes,
       job_listing:job_listings (
         id, url, extracted_job_title, extracted_company_name, description
@@ -96,7 +98,9 @@ export async function POST(req: Request) {
 ## Job Description
 ${listing.description || "No description available."}`;
 
-  if (userJob.match_analysis) {
+  if (userJob.match_report) {
+    systemPrompt += `\n\n## Existing Match Report\n${formatMatchReportForPrompt(userJob.match_report as MatchReport)}`;
+  } else if (userJob.match_analysis) {
     systemPrompt += `\n\n## Existing Match Analysis\n${userJob.match_analysis}`;
   }
   if (userJob.resume_suggestions) {
@@ -165,11 +169,10 @@ ${listing.description || "No description available."}`;
 
     update_analysis: tool({
       description:
-        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify match analysis, resume suggestions, cover letter suggestions, or interview suggestions.",
+        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify resume suggestions, cover letter suggestions, or interview suggestions. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Job Match tab.",
       inputSchema: z.object({
         type: z
           .enum([
-            "match_analysis",
             "resume_suggestions",
             "cover_letter_suggestions",
             "interview_suggestions",
