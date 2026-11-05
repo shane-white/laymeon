@@ -12,3 +12,8 @@
 
 - Experience in fintech
 - Familiarity with PCI compliance
+
+## Eligibility
+
+- Must be legally authorized to work in the US without sponsorship
+- Offer is contingent on a background check and drug screening
