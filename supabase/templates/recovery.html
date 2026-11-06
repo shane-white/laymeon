@@ -1,0 +1,6 @@
+<h2>Reset your password</h2>
+
+<p>Someone asked to reset the password for your LayMeOn account. If that was you, follow this link to choose a new one:</p>
+<p><a href="{{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Reset password</a></p>
+
+<p>The link expires in 1 hour. If you didn't ask for this, you can ignore this email and your password won't change.</p>
