@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ExternalLink, FileText, Plus } from "lucide-react";
-import {
-  useAnalyzeJob,
-  type UserJob,
-  type AnalysisType,
-} from "@/hooks/use-jobs";
+import { useAnalyzeJob, type UserJob } from "@/hooks/use-jobs";
+import { getInitialTabs, type TabKey } from "@/lib/job-tabs";
 import { useDocuments } from "@/hooks/use-documents";
 import { statusColors } from "@/components/jobs/job-status-select";
 import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
@@ -40,9 +37,7 @@ const TAB_OPTIONS = [
   { key: "notes" as const, label: "Notes" },
 ] as const;
 
-type TabKey = "description" | AnalysisType | "notes";
-
-function getStoredTabs(jobId: string): TabKey[] {
+function getStoredTabs(jobId: string): TabKey[] | null {
   try {
     const stored = localStorage.getItem(`job-tabs-${jobId}`);
     if (stored) {
@@ -50,7 +45,7 @@ function getStoredTabs(jobId: string): TabKey[] {
       if (Array.isArray(parsed) && parsed.includes("description")) return parsed;
     }
   } catch {}
-  return ["description"];
+  return null;
 }
 
 function storeJobTabs(jobId: string, tabs: TabKey[]) {
@@ -60,24 +55,6 @@ function storeJobTabs(jobId: string, tabs: TabKey[]) {
 }
 
 export function JobDetail({ job }: JobDetailProps) {
-  const [openTabs, setOpenTabs] = useState<TabKey[]>(["description"]);
-  const [activeTab, setActiveTab] = useState<TabKey>("description");
-  const analyzeJob = useAnalyzeJob();
-  const { data: documents } = useDocuments();
-
-  const hasResume = documents?.some(
-    (d) => d.document_type === "resume" && d.source === "uploaded",
-  ) ?? false;
-
-  // Sync open tabs when job changes
-  useEffect(() => {
-    if (job) {
-      const tabs = getStoredTabs(job.id);
-      setOpenTabs(tabs);
-      setActiveTab("description");
-    }
-  }, [job?.id]);
-
   if (!job) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -86,6 +63,22 @@ export function JobDetail({ job }: JobDetailProps) {
       </div>
     );
   }
+
+  // Keyed on the job so tab state starts fresh for each job.
+  return <JobDetailContent key={job.id} job={job} />;
+}
+
+function JobDetailContent({ job }: { job: UserJob }) {
+  const [openTabs, setOpenTabs] = useState<TabKey[]>(() =>
+    getInitialTabs(job, getStoredTabs(job.id)),
+  );
+  const [activeTab, setActiveTab] = useState<TabKey>("description");
+  const analyzeJob = useAnalyzeJob();
+  const { data: documents } = useDocuments();
+
+  const hasResume = documents?.some(
+    (d) => d.document_type === "resume" && d.source === "uploaded",
+  ) ?? false;
 
   const listing = job.job_listing;
   const displayTitle = job.custom_job_title || listing.extracted_job_title;
@@ -100,7 +93,7 @@ export function JobDetail({ job }: JobDetailProps) {
     const next = [...openTabs, key];
     setOpenTabs(next);
     setActiveTab(key);
-    storeJobTabs(job!.id, next);
+    storeJobTabs(job.id, next);
   }
 
   return (
