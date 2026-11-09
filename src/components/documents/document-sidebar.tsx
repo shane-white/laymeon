@@ -41,7 +41,9 @@ export function DocumentSidebar({
           <FileText className="h-4 w-4" />
           <h2 className="text-sm font-semibold">Documents</h2>
         </div>
-        <ScrollArea className="h-0 flex-1">
+        {/* Radix wraps content in a display:table div that grows to fit the
+            longest name; make it a block so rows truncate at the panel width. */}
+        <ScrollArea className="h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
           <div className="p-3">
             {SECTIONS.map(({ type, title, label }) => {
               const docs = sortDocuments(
