@@ -66,15 +66,16 @@ export async function POST(
 
   const analysisType = type as AnalysisType;
 
-  // Fetch user's resume
+  // Fetch user's default resume
   const { data: resume } = await supabase
     .from("documents")
     .select("parsed_markdown")
     .eq("user_id", user.id)
     .eq("document_type", "resume")
     .eq("source", "uploaded")
+    .eq("is_default", true)
     .is("deleted_at", null)
-    .single();
+    .maybeSingle();
 
   if (!resume?.parsed_markdown) {
     return NextResponse.json(

@@ -2,6 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { parseDocument } from "@/lib/ai/parse-document";
 import { NextResponse, type NextRequest } from "next/server";
 
+const MAX_DOCUMENTS_PER_TYPE = 20;
+const MAX_LABEL_LENGTH = 200;
+
+function cleanLabel(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().slice(0, MAX_LABEL_LENGTH);
+  return trimmed || null;
+}
+
 const ALLOWED_TYPES = [
   "application/pdf",
   "application/msword",
@@ -68,16 +77,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    // Soft-delete existing document in this slot
-    await supabase
-      .from("documents")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("user_id", user.id)
-      .eq("document_type", documentType)
-      .eq("source", "uploaded")
-      .is("deleted_at", null);
+  const { count, error: countError } = await supabase
+    .from("documents")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("document_type", documentType)
+    .eq("source", "uploaded")
+    .is("deleted_at", null);
 
+  if (countError) {
+    return NextResponse.json({ error: countError.message }, { status: 500 });
+  }
+
+  const existingCount = count ?? 0;
+  if (existingCount >= MAX_DOCUMENTS_PER_TYPE) {
+    return NextResponse.json(
+      {
+        error: `You can keep up to ${MAX_DOCUMENTS_PER_TYPE} of each document type. Delete one to upload another.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  const displayName = cleanLabel(formData.get("displayName")) ?? file.name;
+  const targetRole = cleanLabel(formData.get("targetRole"));
+
+  try {
     // Upload to Supabase Storage
     const folder = documentType === "resume" ? "resumes" : "cover-letters";
     const storagePath = `${folder}/${user.id}/${Date.now()}-${file.name}`;
@@ -94,22 +119,36 @@ export async function POST(request: NextRequest) {
     // Parse and convert to markdown
     const { markdown } = await parseDocument(buffer, file.type, file.name);
 
-    // Insert document record
-    const { data: doc, error: dbError } = await supabase
+    const record = {
+      user_id: user.id,
+      document_type: documentType,
+      source: "uploaded",
+      original_filename: file.name,
+      display_name: displayName,
+      target_role: targetRole,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_bucket: "imported-documents",
+      storage_path: storagePath,
+      parsed_markdown: markdown,
+      // The first document of a type becomes the default.
+      is_default: existingCount === 0,
+    };
+
+    let { data: doc, error: dbError } = await supabase
       .from("documents")
-      .insert({
-        user_id: user.id,
-        document_type: documentType,
-        source: "uploaded",
-        original_filename: file.name,
-        mime_type: file.type,
-        file_size_bytes: file.size,
-        storage_bucket: "imported-documents",
-        storage_path: storagePath,
-        parsed_markdown: markdown,
-      })
+      .insert(record)
       .select()
       .single();
+
+    // A concurrent upload may have claimed the default first.
+    if (dbError?.code === "23505" && record.is_default) {
+      ({ data: doc, error: dbError } = await supabase
+        .from("documents")
+        .insert({ ...record, is_default: false })
+        .select()
+        .single());
+    }
 
     if (dbError) {
       throw new Error(`Database insert failed: ${dbError.message}`);

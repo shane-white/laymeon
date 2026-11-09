@@ -67,7 +67,7 @@ export function DocumentSlot({
     >
       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">
-        {document.original_filename}
+        {document.display_name}
       </span>
       <button
         onClick={handleDelete}
