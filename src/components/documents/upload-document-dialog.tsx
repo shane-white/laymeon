@@ -11,6 +11,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useUploadDocument } from "@/hooks/use-documents";
 import { toast } from "sonner";
 import { Upload, Loader2, File, X } from "lucide-react";
@@ -28,6 +30,10 @@ const ACCEPT = {
   ],
 };
 
+function nameFromFilename(filename: string): string {
+  return filename.replace(/\.[^.]+$/, "").slice(0, 200);
+}
+
 const typeLabels: Record<string, string> = {
   resume: "Resume",
   cover_letter: "Cover Letter",
@@ -39,10 +45,14 @@ export function UploadDocumentDialog({
 }: UploadDocumentDialogProps) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [targetRole, setTargetRole] = useState("");
   const uploadDocument = useUploadDocument();
 
   const onDrop = useCallback((accepted: File[]) => {
-    setFile(accepted[0] ?? null);
+    const next = accepted[0] ?? null;
+    setFile(next);
+    setName(next ? nameFromFilename(next.name) : "");
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -53,7 +63,7 @@ export function UploadDocumentDialog({
     onDropRejected: (rejections) => {
       const error = rejections[0]?.errors[0];
       if (error?.code === "file-too-large") {
-        toast.error("File is too large. Maximum size is 5 MB.");
+        toast.error("File is too large. Maximum size is 10 MB.");
       } else if (error?.code === "file-invalid-type") {
         toast.error("Unsupported format. Please upload a PDF or DOCX file.");
       }
@@ -62,6 +72,14 @@ export function UploadDocumentDialog({
 
   function handleReset() {
     setFile(null);
+    setName("");
+    setTargetRole("");
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (!next && uploadDocument.isPending) return;
+    setOpen(next);
+    if (!next) handleReset();
   }
 
   async function handleUpload() {
@@ -70,11 +88,13 @@ export function UploadDocumentDialog({
     const formData = new FormData();
     formData.append("file", file);
     formData.append("documentType", documentType);
+    formData.append("displayName", name.trim() || file.name);
+    formData.append("targetRole", targetRole.trim());
 
     try {
       await uploadDocument.mutateAsync(formData);
       toast.success(`${typeLabels[documentType]} uploaded successfully.`);
-      setFile(null);
+      handleReset();
       setOpen(false);
     } catch (err) {
       toast.error(
@@ -90,13 +110,13 @@ export function UploadDocumentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Upload {typeLabels[documentType]}</DialogTitle>
           <DialogDescription>
-            Supported formats: PDF, DOCX, DOC. Maximum size: 5 MB.
+            Supported formats: PDF, DOCX, DOC. Maximum size: 10 MB.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -138,10 +158,37 @@ export function UploadDocumentDialog({
               </Button>
             </div>
           )}
+          {file && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="upload-document-name">Name</Label>
+                <Input
+                  id="upload-document-name"
+                  value={name}
+                  maxLength={200}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={uploadDocument.isPending}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="upload-document-role">
+                  Target role (optional)
+                </Label>
+                <Input
+                  id="upload-document-role"
+                  value={targetRole}
+                  maxLength={200}
+                  placeholder="e.g. Product Manager"
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  disabled={uploadDocument.isPending}
+                />
+              </div>
+            </>
+          )}
           <Button
             className="w-full"
             onClick={handleUpload}
-            disabled={!file || uploadDocument.isPending}
+            disabled={!file || !name.trim() || uploadDocument.isPending}
           >
             {uploadDocument.isPending ? (
               <>
