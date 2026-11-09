@@ -32,7 +32,7 @@ export function DocumentViewer({ document }: DocumentViewerProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold">
-              {document.original_filename}
+              {document.display_name}
             </h1>
           </div>
           <Badge variant="outline" className="shrink-0">

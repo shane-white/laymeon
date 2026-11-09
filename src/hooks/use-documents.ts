@@ -8,6 +8,9 @@ export interface Document {
   document_type: "resume" | "cover_letter";
   source: "uploaded" | "generated";
   original_filename: string;
+  display_name: string;
+  target_role: string | null;
+  is_default: boolean;
   mime_type: string;
   file_size_bytes: number;
   storage_bucket: string;
@@ -57,6 +60,57 @@ export function useDeleteDocument() {
       const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete document");
       return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+}
+
+export function useUpdateDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...fields
+    }: {
+      id: string;
+      display_name?: string;
+      target_role?: string | null;
+    }) => {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update document");
+      }
+      return res.json() as Promise<Document>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+}
+
+export function useSetDefaultDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_default: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to set default document");
+      }
+      return res.json() as Promise<Document>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });

@@ -60,16 +60,16 @@ export async function POST(req: Request) {
     return new Response("Job not found", { status: 404 });
   }
 
-  // Load user's resume (if uploaded)
+  // Load user's default resume (if uploaded)
   const { data: resumeDoc } = await supabase
     .from("documents")
     .select("parsed_markdown")
     .eq("user_id", user.id)
     .eq("document_type", "resume")
+    .eq("source", "uploaded")
+    .eq("is_default", true)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .maybeSingle();
 
   const listing = userJob.job_listing as unknown as {
     id: string;

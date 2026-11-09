@@ -21,9 +21,11 @@ export function DocumentSidebar({
   const uploaded = documents?.filter((d) => d.source === "uploaded") ?? [];
   const generated = documents?.filter((d) => d.source === "generated") ?? [];
 
-  const resume = uploaded.find((d) => d.document_type === "resume") ?? null;
+  const resume =
+    uploaded.find((d) => d.document_type === "resume" && d.is_default) ?? null;
   const coverLetter =
-    uploaded.find((d) => d.document_type === "cover_letter") ?? null;
+    uploaded.find((d) => d.document_type === "cover_letter" && d.is_default) ??
+    null;
 
   return (
     <div className="flex h-full min-w-0 flex-col border-r">
@@ -89,7 +91,7 @@ export function DocumentSidebar({
                 >
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">
-                    {doc.original_filename}
+                    {doc.display_name}
                   </span>
                 </div>
               ))}
