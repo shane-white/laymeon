@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic/client";
 import { generateMatchReport } from "@/lib/match-report/generate";
+import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
 import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
@@ -66,29 +67,14 @@ export async function POST(
 
   const analysisType = type as AnalysisType;
 
-  // Fetch user's default resume
-  const { data: resume } = await supabase
-    .from("documents")
-    .select("parsed_markdown")
-    .eq("user_id", user.id)
-    .eq("document_type", "resume")
-    .eq("source", "uploaded")
-    .eq("is_default", true)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (!resume?.parsed_markdown) {
-    return NextResponse.json(
-      { error: "No resume found. Please upload a resume first." },
-      { status: 400 },
-    );
-  }
-
   // Fetch job details
   const { data: userJob, error: jobError } = await supabase
     .from("user_job_listings")
     .select(`
       id,
+      resume_document_id,
+      cover_letter_document_id,
+      analysis_documents,
       job_listing:job_listings (
         description
       )
@@ -101,6 +87,34 @@ export async function POST(
   if (jobError || !userJob) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
+
+  // The job's selected resume and cover letter, or the defaults.
+  let resume, coverLetter;
+  try {
+    ({ resume, coverLetter } = await resolveJobDocuments(supabase, user.id, userJob));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  if (!resume?.parsed_markdown) {
+    return NextResponse.json(
+      { error: "No resume found. Please upload a resume first." },
+      { status: 400 },
+    );
+  }
+
+  // Recorded so the UI can show which documents each analysis used.
+  const analysisDocuments = {
+    ...((userJob.analysis_documents as Record<string, unknown> | null) ?? {}),
+    [analysisType]: {
+      resume_id: resume.id,
+      resume_name: resume.display_name,
+      cover_letter_id: coverLetter?.id ?? null,
+      cover_letter_name: coverLetter?.display_name ?? null,
+      generated_at: new Date().toISOString(),
+    },
+  };
 
   const jobDescription = (userJob.job_listing as unknown as { description: string | null })?.description;
 
@@ -118,7 +132,11 @@ export async function POST(
       // Clearing the old markdown analysis makes the UI show the new report.
       const { error: updateError } = await supabase
         .from("user_job_listings")
-        .update({ match_report: report, match_analysis: null })
+        .update({
+          match_report: report,
+          match_analysis: null,
+          analysis_documents: analysisDocuments,
+        })
         .eq("id", id)
         .eq("user_id", user.id);
 
@@ -150,7 +168,17 @@ export async function POST(
 ## Resume
 
 ${resume.parsed_markdown}
+${
+  coverLetter?.parsed_markdown
+    ? `
+---
 
+## Current Cover Letter
+
+${coverLetter.parsed_markdown}
+`
+    : ""
+}
 ---
 
 ## Job Description
@@ -170,7 +198,10 @@ ${jobDescription}`,
     // Save to database
     const { error: updateError } = await supabase
       .from("user_job_listings")
-      .update({ [analysisType]: analysisContent })
+      .update({
+        [analysisType]: analysisContent,
+        analysis_documents: analysisDocuments,
+      })
       .eq("id", id)
       .eq("user_id", user.id);
 

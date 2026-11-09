@@ -26,6 +26,9 @@ export async function GET() {
       cover_letter_suggestions,
       interview_suggestions,
       notes,
+      resume_document_id,
+      cover_letter_document_id,
+      analysis_documents,
       created_at,
       job_listing:job_listings (
         id,

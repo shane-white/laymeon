@@ -23,6 +23,7 @@ import { statusColors } from "@/components/jobs/job-status-select";
 import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
 import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
+import { JobDocumentSelect } from "@/components/jobs/job-document-select";
 import { toast } from "sonner";
 
 interface JobDetailProps {
@@ -76,9 +77,9 @@ function JobDetailContent({ job }: { job: UserJob }) {
   const analyzeJob = useAnalyzeJob();
   const { data: documents } = useDocuments();
 
-  const hasResume = documents?.some(
-    (d) => d.document_type === "resume" && d.source === "uploaded",
-  ) ?? false;
+  const uploadedDocuments =
+    documents?.filter((d) => d.source === "uploaded") ?? [];
+  const hasResume = uploadedDocuments.some((d) => d.document_type === "resume");
 
   const listing = job.job_listing;
   const displayTitle = job.custom_job_title || listing.extracted_job_title;
@@ -126,6 +127,10 @@ function JobDetailContent({ job }: { job: UserJob }) {
             View original listing
           </a>
         )}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <JobDocumentSelect job={job} type="resume" documents={uploadedDocuments} />
+          <JobDocumentSelect job={job} type="cover_letter" documents={uploadedDocuments} />
+        </div>
       </div>
 
       <Tabs
@@ -205,6 +210,7 @@ function JobDetailContent({ job }: { job: UserJob }) {
                   analyzeJob.variables?.type === type
                 }
                 hasResume={hasResume}
+                generatedWith={job.analysis_documents?.[type]?.resume_name}
                 analyzeLabel={"analyzeLabel" in opt ? opt.analyzeLabel : ""}
                 reanalyzeLabel={"reanalyzeLabel" in opt ? opt.reanalyzeLabel : ""}
                 description={"description" in opt ? opt.description : ""}

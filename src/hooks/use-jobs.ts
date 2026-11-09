@@ -11,6 +11,15 @@ export interface JobListing {
   description: string | null;
 }
 
+/** Which documents an analysis was generated with (names are snapshots). */
+export interface AnalysisDocumentsEntry {
+  resume_id: string;
+  resume_name: string;
+  cover_letter_id: string | null;
+  cover_letter_name: string | null;
+  generated_at: string;
+}
+
 export interface UserJob {
   id: string;
   status: string;
@@ -22,6 +31,9 @@ export interface UserJob {
   cover_letter_suggestions: string | null;
   interview_suggestions: string | null;
   notes: string | null;
+  resume_document_id: string | null;
+  cover_letter_document_id: string | null;
+  analysis_documents: Partial<Record<AnalysisType, AnalysisDocumentsEntry>> | null;
   created_at: string;
   job_listing: JobListing;
 }
@@ -104,13 +116,18 @@ export function useUpdateJob() {
       id: string;
       custom_job_title?: string;
       custom_job_company?: string;
+      resume_document_id?: string | null;
+      cover_letter_document_id?: string | null;
     }) => {
       const res = await fetch(`/api/jobs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields),
       });
-      if (!res.ok) throw new Error("Failed to update job");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update job");
+      }
       return res.json();
     },
     onSuccess: () => {
