@@ -11,6 +11,10 @@ import {
 import { z } from "zod";
 import { formatMatchReportForPrompt } from "@/lib/match-report/format";
 import type { MatchReport } from "@/lib/match-report/schema";
+import {
+  describeDocument,
+  resolveJobDocuments,
+} from "@/lib/documents/resolve-job-documents";
 
 export const maxDuration = 60;
 
@@ -45,7 +49,7 @@ export async function POST(req: Request) {
       `
       id, status, custom_job_title, custom_job_company,
       match_analysis, match_report, resume_suggestions, cover_letter_suggestions,
-      interview_suggestions, notes,
+      interview_suggestions, notes, resume_document_id, cover_letter_document_id,
       job_listing:job_listings (
         id, url, extracted_job_title, extracted_company_name, description
       )
@@ -60,16 +64,12 @@ export async function POST(req: Request) {
     return new Response("Job not found", { status: 404 });
   }
 
-  // Load user's default resume (if uploaded)
-  const { data: resumeDoc } = await supabase
-    .from("documents")
-    .select("parsed_markdown")
-    .eq("user_id", user.id)
-    .eq("document_type", "resume")
-    .eq("source", "uploaded")
-    .eq("is_default", true)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // The job's selected resume and cover letter, or the defaults.
+  const { resume, coverLetter } = await resolveJobDocuments(
+    supabase,
+    user.id,
+    userJob,
+  );
 
   const listing = userJob.job_listing as unknown as {
     id: string;
@@ -85,8 +85,11 @@ export async function POST(req: Request) {
 
   let systemPrompt = `You are a helpful job search assistant for the Laymeon app. You are helping the user with a specific job application.`;
 
-  if (resumeDoc?.parsed_markdown) {
-    systemPrompt += `\n\n## User's Resume\n${resumeDoc.parsed_markdown}`;
+  if (resume?.parsed_markdown) {
+    systemPrompt += `\n\n## User's Resume: ${describeDocument(resume)}\n${resume.parsed_markdown}`;
+  }
+  if (coverLetter?.parsed_markdown) {
+    systemPrompt += `\n\n## User's Cover Letter: ${describeDocument(coverLetter)}\n${coverLetter.parsed_markdown}`;
   }
 
   systemPrompt += `\n\n## Current Job

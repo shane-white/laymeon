@@ -16,11 +16,20 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const { status, custom_job_title, custom_job_company, notes } = body as {
+  const {
+    status,
+    custom_job_title,
+    custom_job_company,
+    notes,
+    resume_document_id,
+    cover_letter_document_id,
+  } = body as {
     status?: string;
     custom_job_title?: string;
     custom_job_company?: string;
     notes?: string;
+    resume_document_id?: string | null;
+    cover_letter_document_id?: string | null;
   };
 
   if (status) {
@@ -30,7 +39,37 @@ export async function PATCH(
     }
   }
 
-  const updates: Record<string, string> = {};
+  const updates: Record<string, string | null> = {};
+
+  // A selected document must be one of this user's live uploads of that type.
+  const selections = [
+    ["resume_document_id", resume_document_id, "resume"],
+    ["cover_letter_document_id", cover_letter_document_id, "cover_letter"],
+  ] as const;
+  for (const [field, docId, documentType] of selections) {
+    if (docId === undefined) continue;
+    if (docId === null) {
+      updates[field] = null;
+      continue;
+    }
+    if (typeof docId !== "string") {
+      return NextResponse.json({ error: `Invalid ${field}` }, { status: 400 });
+    }
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", docId)
+      .eq("user_id", user.id)
+      .eq("document_type", documentType)
+      .eq("source", "uploaded")
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!doc) {
+      return NextResponse.json({ error: `Invalid ${field}` }, { status: 400 });
+    }
+    updates[field] = docId;
+  }
+
   if (status) updates.status = status;
   if (custom_job_title !== undefined) updates.custom_job_title = custom_job_title;
   if (custom_job_company !== undefined) updates.custom_job_company = custom_job_company;

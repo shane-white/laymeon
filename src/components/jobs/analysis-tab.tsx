@@ -21,6 +21,8 @@ interface AnalysisTabProps {
   analyzeLabel: string;
   reanalyzeLabel: string;
   description: string;
+  /** Name of the resume the saved analysis was generated with, if recorded. */
+  generatedWith?: string;
 }
 
 export function AnalysisTab({
@@ -33,6 +35,7 @@ export function AnalysisTab({
   analyzeLabel,
   reanalyzeLabel,
   description,
+  generatedWith,
 }: AnalysisTabProps) {
   if (isPending) {
     return (
@@ -87,10 +90,15 @@ export function AnalysisTab({
           </>
         )}
       </ScrollArea>
-      <div className="border-t px-6 py-3">
+      <div className="flex items-center gap-3 border-t px-6 py-3">
         <Button variant="outline" size="sm" onClick={onAnalyze} disabled={!hasResume}>
           {reanalyzeLabel}
         </Button>
+        {generatedWith && (
+          <span className="min-w-0 truncate text-xs text-muted-foreground" title={`Generated with ${generatedWith}`}>
+            Generated with {generatedWith}
+          </span>
+        )}
       </div>
     </div>
   );
