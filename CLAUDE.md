@@ -12,6 +12,7 @@ Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use
   - **UI Improvements**: polish and bug fixes in existing screens.
   - **MMP Features**: new or changed functionality needed for a minimum marketable product.
   - **Launch**: work outside the app needed to launch, such as the landing site and purchases.
+  - **Optimizations**: post-launch improvements users don't see directly, such as lower AI token cost, faster responses and better performance.
 - Use sub-issues when one task breaks into several steps.
 - Before creating an issue, search for an existing one to avoid duplicates.
 - When starting non-trivial work, make sure an issue exists and move it to **In Progress**.
