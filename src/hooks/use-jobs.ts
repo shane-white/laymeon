@@ -34,6 +34,8 @@ export interface UserJob {
   resume_document_id: string | null;
   cover_letter_document_id: string | null;
   analysis_documents: Partial<Record<AnalysisType, AnalysisDocumentsEntry>> | null;
+  /** The user's drag order. Lower shows first. */
+  sort_order: number;
   created_at: string;
   job_listing: JobListing;
 }
@@ -103,6 +105,63 @@ export function useUpdateJobStatus() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
+}
+
+/**
+ * Moves a job between two neighbors (null at the top or bottom). The list
+ * reorders right away; it rolls back if saving fails.
+ */
+export function useReorderJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      aboveId,
+      belowId,
+    }: {
+      id: string;
+      aboveId: string | null;
+      belowId: string | null;
+      /** Position to show until the server responds. */
+      optimisticSortOrder: number;
+    }) => {
+      const res = await fetch(`/api/jobs/${id}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aboveId, belowId }),
+      });
+      if (!res.ok) throw new Error("Failed to reorder job");
+      return res.json() as Promise<{ id: string; sort_order: number }>;
+    },
+    onMutate: async ({ id, optimisticSortOrder }) => {
+      await queryClient.cancelQueries({ queryKey: ["jobs"] });
+      const previous = queryClient.getQueryData<UserJob[]>(["jobs"]);
+
+      queryClient.setQueryData<UserJob[]>(["jobs"], (old) =>
+        old
+          ?.map((job) =>
+            job.id === id ? { ...job, sort_order: optimisticSortOrder } : job,
+          )
+          .sort(compareSortOrder),
+      );
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["jobs"], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+}
+
+/** The server's order: sort_order, then newest first. */
+export function compareSortOrder(a: UserJob, b: UserJob): number {
+  return a.sort_order - b.sort_order || b.created_at.localeCompare(a.created_at);
 }
 
 export function useUpdateJob() {
