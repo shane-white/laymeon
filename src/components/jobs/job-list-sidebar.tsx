@@ -11,6 +11,7 @@ import {
 } from "@/components/jobs/job-list-item";
 import { JobSearchInput } from "@/components/jobs/job-search-input";
 import { JobStatusFilter } from "@/components/jobs/job-status-filter";
+import { JobSortMenu } from "@/components/jobs/job-sort-menu";
 import { SortableJobList } from "@/components/jobs/sortable-job-list";
 import { useJobs, type UserJob } from "@/hooks/use-jobs";
 import {
@@ -20,6 +21,7 @@ import {
 import { displayCompany, displayTitle } from "@/lib/jobs/display";
 import { JOB_STATUSES } from "@/lib/jobs/statuses";
 import { countByStatus, matchesStatusFilter } from "@/lib/jobs/status-filter";
+import { sortJobs } from "@/lib/jobs/sort-jobs";
 import {
   findMatch,
   foldQuery,
@@ -46,6 +48,7 @@ export function JobListSidebar({
   useHydrateJobListView();
   const statusFilter = useJobListView((s) => s.statusFilter);
   const setStatusFilter = useJobListView((s) => s.setStatusFilter);
+  const sort = useJobListView((s) => s.sort);
   const search = useJobListView((s) => s.search);
   const setSearch = useJobListView((s) => s.setSearch);
 
@@ -70,7 +73,7 @@ export function JobListSidebar({
   const { visibleJobs, hiddenMatches } = useMemo(() => {
     const visible: UserJob[] = [];
     const hidden: UserJob[] = [];
-    for (const job of jobs ?? []) {
+    for (const job of sortJobs(jobs ?? [], sort)) {
       if (isSearching) {
         const folded = foldedJobs.get(job.id)!;
         const matches =
@@ -83,11 +86,12 @@ export function JobListSidebar({
       else if (isSearching) hidden.push(job);
     }
     return { visibleJobs: visible, hiddenMatches: hidden };
-  }, [jobs, foldedJobs, query, isSearching, statusFilter]);
+  }, [jobs, foldedJobs, query, isSearching, statusFilter, sort]);
 
   const hasJobs = !!jobs && jobs.length > 0;
-  // Search results are temporary, so drop positions would be unclear.
-  const dragEnabled = !isSearching;
+  // Dragging sets the custom order, so it only works in Custom sort. Search
+  // results are temporary, so drop positions would be unclear.
+  const dragEnabled = sort === "custom" && !isSearching;
 
   function highlightFor(job: UserJob): JobSearchHighlight | undefined {
     if (!isSearching) return undefined;
@@ -113,6 +117,7 @@ export function JobListSidebar({
       <div className="flex items-center gap-1 border-b px-3 py-3">
         <h2 className="text-sm font-semibold">Jobs</h2>
         <JobStatusFilter counts={counts} />
+        <JobSortMenu />
       </div>
       <div className="flex flex-col gap-2 px-3 py-2">
         {hasJobs && <JobSearchInput />}
