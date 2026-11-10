@@ -12,13 +12,15 @@ import {
 } from "@/lib/jobs/status-filter";
 
 /**
- * How the jobs list is shown: which statuses it includes. Shared between the
- * list and the status select (which warns when a job moves to a hidden status).
- * Saved in this browser only.
+ * How the jobs list is shown: which statuses it includes and the search.
+ * Shared between the list and the status select (which warns when a job moves
+ * to a hidden status). The filter is saved in this browser; the search isn't.
  */
 interface JobListViewState {
   hydrated: boolean;
   statusFilter: JobStatus[];
+  search: string;
+  setSearch: (search: string) => void;
   hydrate: () => void;
   toggleStatus: (status: JobStatus) => void;
   showStatus: (status: JobStatus) => void;
@@ -41,6 +43,8 @@ export const useJobListView = create<JobListViewState>((set, get) => {
   return {
     hydrated: false,
     statusFilter: [...DEFAULT_STATUS_FILTER],
+    search: "",
+    setSearch: (search) => set({ search }),
     hydrate: () => {
       if (get().hydrated) return;
       let raw: string | null = null;

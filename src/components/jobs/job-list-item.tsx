@@ -24,6 +24,15 @@ import {
   displayCompany as getDisplayCompany,
   displayTitle as getDisplayTitle,
 } from "@/lib/jobs/display";
+import type { FoldedText } from "@/lib/jobs/search";
+import { HighlightedText } from "@/components/jobs/highlighted-text";
+
+/** The active search, for highlighting matches in the title and company. */
+export interface JobSearchHighlight {
+  query: string;
+  title: FoldedText;
+  company: FoldedText | null;
+}
 
 interface JobListItemProps {
   job: UserJob;
@@ -32,6 +41,9 @@ interface JobListItemProps {
   /** The drag handle, present when the list can be reordered by dragging. */
   dragHandle?: ReactNode;
   isDragging?: boolean;
+  highlight?: JobSearchHighlight;
+  /** Shown faded, e.g. a search match in a status the filter hides. */
+  dimmed?: boolean;
 }
 
 export function JobListItem({
@@ -40,6 +52,8 @@ export function JobListItem({
   onSelect,
   dragHandle,
   isDragging = false,
+  highlight,
+  dimmed = false,
 }: JobListItemProps) {
   const [editField, setEditField] = useState<"title" | "company" | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -95,16 +109,33 @@ export function JobListItem({
           dragHandle ? "pl-0.5" : "pl-3",
           isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
           isDragging && "bg-muted shadow-md ring-1 ring-border",
+          dimmed && !isSelected && "opacity-60 hover:opacity-100",
         )}
       >
         {dragHandle}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="truncate min-w-0 text-sm font-medium">
-            {displayTitle}
+            {highlight ? (
+              <HighlightedText
+                text={displayTitle}
+                folded={highlight.title}
+                foldedQuery={highlight.query}
+              />
+            ) : (
+              displayTitle
+            )}
           </span>
           {displayCompany && (
             <span className="truncate text-xs text-muted-foreground">
-              {displayCompany}
+              {highlight?.company ? (
+                <HighlightedText
+                  text={displayCompany}
+                  folded={highlight.company}
+                  foldedQuery={highlight.query}
+                />
+              ) : (
+                displayCompany
+              )}
             </span>
           )}
           <div className="flex items-center gap-1">
