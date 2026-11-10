@@ -19,7 +19,7 @@ import { ExternalLink, FileText, Plus } from "lucide-react";
 import { useAnalyzeJob, type UserJob } from "@/hooks/use-jobs";
 import { getInitialTabs, type TabKey } from "@/lib/job-tabs";
 import { useDocuments } from "@/hooks/use-documents";
-import { statusColors } from "@/components/jobs/job-status-select";
+import { statusColors } from "@/lib/jobs/statuses";
 import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
 import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
