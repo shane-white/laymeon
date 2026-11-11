@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { anthropic } from "@ai-sdk/anthropic";
+import { CLAUDE_MODEL } from "@/lib/anthropic/client";
 import {
   streamText,
   tool,
@@ -197,12 +198,34 @@ ${listing.description || "No description available."}`;
     }),
   };
 
+  // The system prompt is rebuilt from the job on every request, and the tools can
+  // change the job (status, analysis). Claude rejects replayed thinking blocks
+  // once the system prompt has changed since they were produced, so earlier
+  // turns are sent without their reasoning. Reasoning within this turn's tool
+  // steps is still passed along.
+  const history = messages.map((m) =>
+    m.role === "assistant"
+      ? { ...m, parts: m.parts.filter((p) => p.type !== "reasoning") }
+      : m,
+  );
+
   const result = streamText({
-    model: anthropic("claude-sonnet-4-5"),
+    model: anthropic(CLAUDE_MODEL),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(history),
     tools,
     stopWhen: stepCountIs(5),
+    // The provider doesn't know this model ID and would default to 4096 tokens,
+    // which now has to cover thinking as well as the reply.
+    maxOutputTokens: 16000,
+    providerOptions: {
+      anthropic: { effort: "low" },
+    },
+    onFinish: ({ finishReason }) => {
+      if (finishReason === "content-filter") {
+        console.warn("Claude declined a chat request", { userJobId, conversationId });
+      }
+    },
   });
 
   // Finish generating (and saving) even if the client navigates away mid-stream.

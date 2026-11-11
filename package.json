@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "eval:match-report": "tsx --env-file=.env scripts/match-report-eval.ts"
+    "eval:match-report": "tsx --env-file=.env.local scripts/match-report-eval.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",

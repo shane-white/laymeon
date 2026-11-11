@@ -1,10 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic/client";
+import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { firecrawl } from "@/lib/firecrawl/client";
 import { seniorityLevelSchema, workArrangementSchema } from "@/lib/jobs/details";
-
-const TOOL_NAME = "submit_job_listing";
 
 const extractedJobSchema = z.object({
   title: z.string().describe('The job title, e.g. "Senior Software Engineer" or "Product Manager".'),
@@ -51,17 +49,7 @@ const lenientJobSchema = extractedJobSchema.extend({
   description: z.string().catch(""),
 });
 
-// The API expects a plain object schema, without the "$schema" dialect key.
-const inputSchema: Record<string, unknown> = { ...z.toJSONSchema(extractedJobSchema) };
-delete inputSchema.$schema;
-
-const EXTRACT_TOOL: Anthropic.Tool = {
-  name: TOOL_NAME,
-  description: "Submit the fields extracted from this job listing.",
-  input_schema: inputSchema as Anthropic.Tool.InputSchema,
-};
-
-const SYSTEM_PROMPT = `You parse job listings. Read the listing the user gives you and report its fields through the ${TOOL_NAME} tool. Use only what the listing says; return null for any optional field it doesn't cover.`;
+const SYSTEM_PROMPT = `You parse job listings. Read the listing the user gives you and return its fields. Use only what the listing says; return null for any optional field it doesn't cover.`;
 
 export async function extractJobFromUrl(url: string): Promise<ExtractedJob> {
   const scrapeResult = await firecrawl.scrape(url, {
@@ -80,11 +68,13 @@ export async function extractJobFromUrl(url: string): Promise<ExtractedJob> {
 export async function extractJobFromText(text: string): Promise<ExtractedJob> {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 8000,
-    temperature: 0,
+    // Thinking counts toward max_tokens, and the description is returned in full.
+    max_tokens: 16000,
     system: SYSTEM_PROMPT,
-    tools: [EXTRACT_TOOL],
-    tool_choice: { type: "tool", name: TOOL_NAME },
+    output_config: {
+      effort: "low",
+      format: zodOutputFormat(extractedJobSchema),
+    },
     messages: [{ role: "user", content: text }],
   });
 
@@ -92,15 +82,17 @@ export async function extractJobFromText(text: string): Promise<ExtractedJob> {
     throw new Error("The job listing was too long to process");
   }
 
-  const toolUse = response.content.find(
-    (block): block is Anthropic.ToolUseBlock =>
-      block.type === "tool_use" && block.name === TOOL_NAME,
-  );
-  if (!toolUse) {
-    throw new Error("Unexpected response format from Claude");
+  let output: unknown;
+  try {
+    output = JSON.parse(getResponseText(response));
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error("Could not read the job listing details");
+    }
+    throw err;
   }
 
-  const parsed = lenientJobSchema.safeParse(toolUse.input);
+  const parsed = lenientJobSchema.safeParse(output);
   if (!parsed.success) {
     throw new Error("Could not read the job listing details");
   }
