@@ -9,6 +9,12 @@ export interface JobListing {
   url: string | null;
   extracted_job_title: string;
   extracted_company_name: string | null;
+  location: string | null;
+  /** on_site, hybrid or remote. See src/lib/jobs/details.ts. */
+  work_arrangement: string | null;
+  salary: string | null;
+  /** intern … executive. See src/lib/jobs/details.ts. */
+  seniority_level: string | null;
   description: string | null;
 }
 
