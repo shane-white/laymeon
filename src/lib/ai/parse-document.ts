@@ -1,4 +1,4 @@
-import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic/client";
+import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { extractTextFromFile } from "@/lib/parsers/extract-text";
 
 const MARKDOWN_PROMPT = `You are a document parser. Convert the following document into clean, simplified markdown.
@@ -37,7 +37,9 @@ async function parsePdfWithClaude(
 ): Promise<{ markdown: string }> {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 4096,
+    // Thinking counts toward max_tokens alongside the markdown.
+    max_tokens: 16000,
+    output_config: { effort: "low" },
     messages: [
       {
         role: "user",
@@ -59,12 +61,7 @@ async function parsePdfWithClaude(
     ],
   });
 
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response format from Claude");
-  }
-
-  return { markdown: content.text };
+  return { markdown: getResponseText(response) };
 }
 
 async function parseTextWithClaude(
@@ -73,7 +70,9 @@ async function parseTextWithClaude(
 ): Promise<{ markdown: string }> {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 4096,
+    // Thinking counts toward max_tokens alongside the markdown.
+    max_tokens: 16000,
+    output_config: { effort: "low" },
     messages: [
       {
         role: "user",
@@ -82,10 +81,5 @@ async function parseTextWithClaude(
     ],
   });
 
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response format from Claude");
-  }
-
-  return { markdown: content.text };
+  return { markdown: getResponseText(response) };
 }

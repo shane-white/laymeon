@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { anthropic, CLAUDE_MODEL } from "@/lib/anthropic/client";
+import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { generateMatchReport } from "@/lib/match-report/generate";
 import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
 import { NextResponse, type NextRequest } from "next/server";
@@ -157,7 +157,9 @@ export async function POST(
   try {
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      // Thinking counts toward max_tokens alongside the suggestions.
+      max_tokens: 16000,
+      output_config: { effort: "low" },
       messages: [
         {
           role: "user",
@@ -188,12 +190,7 @@ ${jobDescription}`,
       ],
     });
 
-    const content = response.content[0];
-    if (content.type !== "text") {
-      throw new Error("Unexpected response format from Claude");
-    }
-
-    const analysisContent = content.text;
+    const analysisContent = getResponseText(response);
 
     // Save to database
     const { error: updateError } = await supabase

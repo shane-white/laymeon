@@ -40,7 +40,7 @@ Laymeon is a job tracking and document management application that helps job see
 
 - **Framework**: Next.js 16, React 19, TypeScript
 - **Database & Auth**: Supabase (Postgres, Auth, Storage)
-- **AI**: Claude claude-opus-4-5-20251101 via Anthropic SDK
+- **AI**: Claude Sonnet 5.5 (`claude-sonnet-5-5`, set in `src/lib/anthropic/client.ts`) via the Anthropic SDK; job chat uses the Vercel AI SDK's Anthropic provider
 - **Web Scraping**: Firecrawl
 - **UI**: Tailwind CSS v4, Shadcn/ui, Radix primitives, Lucide icons
 - **State**: TanStack React Query (server), Zustand (client)
