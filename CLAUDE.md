@@ -2,7 +2,9 @@
 
 ## Database
 
-Schema changes go in `supabase/migrations`: create one with `npx supabase migration new <name>` and apply it with `npx supabase db push`. Don't change the live schema from the Supabase dashboard.
+Schema changes go in `supabase/migrations`: create one with `npx supabase migration new <name>` and apply it with `npx supabase db push --remote`. Don't change the live schema from the Supabase dashboard.
+
+There's no local or branch database yet, so `--remote` is required: Supabase CLI v3 targets the local stack by default and fails without it. The remote is the production database, so run `npx supabase db push --remote --dry-run` first to see what will be applied.
 
 ## Task tracking (Linear)
 
