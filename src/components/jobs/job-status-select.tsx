@@ -8,20 +8,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateJobStatus } from "@/hooks/use-jobs";
-
-const statuses = [
-  { value: "interested", label: "Interested" },
-  { value: "applied", label: "Applied" },
-  { value: "interviewing", label: "Interviewing" },
-  { value: "closed", label: "Closed" },
-] as const;
-
-export const statusColors: Record<string, string> = {
-  interested: "bg-green-500/20 text-green-400",
-  applied: "bg-yellow-500/20 text-yellow-400",
-  interviewing: "bg-blue-500/20 text-blue-400",
-  closed: "bg-muted text-muted-foreground",
-};
+import { useJobListView } from "@/hooks/use-job-list-view";
+import {
+  JOB_STATUSES,
+  isJobStatus,
+  statusColors,
+  statusLabel,
+} from "@/lib/jobs/statuses";
+import { matchesStatusFilter } from "@/lib/jobs/status-filter";
+import { toast } from "sonner";
 
 interface JobStatusSelectProps {
   userJobId: string;
@@ -34,13 +29,20 @@ export function JobStatusSelect({
 }: JobStatusSelectProps) {
   const updateStatus = useUpdateJobStatus();
 
+  function handleChange(value: string) {
+    if (value === currentStatus) return;
+    updateStatus.mutate({ id: userJobId, status: value });
+
+    const { statusFilter, showStatus } = useJobListView.getState();
+    if (isJobStatus(value) && !matchesStatusFilter(value, statusFilter)) {
+      toast(`Moved to ${statusLabel(value)}. Hidden by your filter.`, {
+        action: { label: "Show", onClick: () => showStatus(value) },
+      });
+    }
+  }
+
   return (
-    <Select
-      value={currentStatus}
-      onValueChange={(value) =>
-        updateStatus.mutate({ id: userJobId, status: value })
-      }
-    >
+    <Select value={currentStatus} onValueChange={handleChange}>
       <SelectTrigger
         className={`h-6 w-auto gap-1 rounded-full border-none px-2 text-xs ${statusColors[currentStatus] ?? ""}`}
         onClick={(e) => e.stopPropagation()}
@@ -48,7 +50,7 @@ export function JobStatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {statuses.map((s) => (
+        {JOB_STATUSES.map((s) => (
           <SelectItem key={s.value} value={s.value}>
             {s.label}
           </SelectItem>
