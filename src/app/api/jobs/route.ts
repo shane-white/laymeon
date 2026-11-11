@@ -29,6 +29,7 @@ export async function GET() {
       resume_document_id,
       cover_letter_document_id,
       analysis_documents,
+      sort_order,
       created_at,
       job_listing:job_listings (
         id,
@@ -41,6 +42,7 @@ export async function GET() {
     )
     .eq("user_id", user.id)
     .is("deleted_at", null)
+    .order("sort_order")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: jobError.message }, { status: 500 });
     }
 
-    // Link to the user
+    // Link to the user. A trigger puts the new job at the top of their order.
     const { data: userJob, error: linkError } = await supabase
       .from("user_job_listings")
       .insert({
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
         `
         id,
         status,
+        sort_order,
         created_at,
         job_listing:job_listings (
           id,

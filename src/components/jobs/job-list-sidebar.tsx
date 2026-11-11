@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AddJobDialog } from "@/components/jobs/add-job-dialog";
 import { JobListItem } from "@/components/jobs/job-list-item";
 import { JobStatusFilter } from "@/components/jobs/job-status-filter";
+import { SortableJobList } from "@/components/jobs/sortable-job-list";
 import { useJobs } from "@/hooks/use-jobs";
 import {
   useHydrateJobListView,
@@ -37,6 +38,8 @@ export function JobListSidebar({
   );
 
   const hasJobs = !!jobs && jobs.length > 0;
+  // Search and non-custom sorts turn this off.
+  const dragEnabled = true;
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
@@ -76,14 +79,29 @@ export function JobListSidebar({
               </Button>
             </div>
           )}
-          {visibleJobs.map((job) => (
-            <JobListItem
-              key={job.id}
-              job={job}
-              isSelected={selectedJobId === job.job_listing.id}
-              onSelect={onSelectJob}
+          {dragEnabled ? (
+            <SortableJobList
+              jobs={visibleJobs}
+              renderItem={(job, drag) => (
+                <JobListItem
+                  job={job}
+                  isSelected={selectedJobId === job.job_listing.id}
+                  onSelect={onSelectJob}
+                  dragHandle={drag.handle}
+                  isDragging={drag.isDragging}
+                />
+              )}
             />
-          ))}
+          ) : (
+            visibleJobs.map((job) => (
+              <JobListItem
+                key={job.id}
+                job={job}
+                isSelected={selectedJobId === job.job_listing.id}
+                onSelect={onSelectJob}
+              />
+            ))
+          )}
         </div>
       </ScrollArea>
     </div>
