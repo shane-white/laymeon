@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { extractJobFromUrl, extractJobFromText } from "@/lib/ai/extract-job";
+import { toJobListingRow } from "@/lib/jobs/listing";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function GET() {
@@ -84,16 +85,7 @@ export async function POST(request: NextRequest) {
     // Insert the job listing
     const { data: jobListing, error: jobError } = await supabase
       .from("job_listings")
-      .insert({
-        url: url || null,
-        extracted_job_title: extracted.title,
-        extracted_company_name: extracted.company,
-        location: extracted.location,
-        work_arrangement: extracted.work_arrangement,
-        salary: extracted.salary,
-        seniority_level: extracted.seniority_level,
-        description: extracted.description,
-      })
+      .insert(toJobListingRow(url || null, extracted))
       .select()
       .single();
 

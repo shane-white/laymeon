@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { JobStatusSelect } from "@/components/jobs/job-status-select";
-import { useUpdateJob, useDeleteJob, type UserJob } from "@/hooks/use-jobs";
+import {
+  useUpdateJob,
+  useDeleteJob,
+  useRefetchJob,
+  type UserJob,
+} from "@/hooks/use-jobs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,12 +18,21 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Pencil, Building2, Trash2 } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Building2,
+  RefreshCw,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   displayCompany as getDisplayCompany,
@@ -59,6 +73,14 @@ export function JobListItem({
   const [editValue, setEditValue] = useState("");
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
+  const refetchJob = useRefetchJob();
+  const [refetchOpen, setRefetchOpen] = useState(false);
+
+  // Read when a refetch finishes, which may be after the selection changed.
+  const isSelectedRef = useRef(isSelected);
+  useEffect(() => {
+    isSelectedRef.current = isSelected;
+  }, [isSelected]);
 
   const displayTitle = getDisplayTitle(job);
   const displayCompany = getDisplayCompany(job);
@@ -83,6 +105,18 @@ export function JobListItem({
     } catch {
       toast.error("Failed to update.");
     }
+  }
+
+  function handleRefetch() {
+    refetchJob.mutate(job.id, {
+      onSuccess: ({ job_listing_id }) => {
+        // The job now points at a new listing, so keep it selected.
+        if (isSelectedRef.current) onSelect(job_listing_id);
+        setRefetchOpen(false);
+        toast.success("Job description refetched.");
+      },
+      onError: (err) => toast.error(err.message),
+    });
   }
 
   function handleDelete() {
@@ -161,6 +195,12 @@ export function JobListItem({
                   <Building2 className="mr-2 h-3.5 w-3.5" />
                   Edit company
                 </DropdownMenuItem>
+                {job.job_listing.url && (
+                  <DropdownMenuItem onClick={() => setRefetchOpen(true)}>
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Refetch description
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={handleDelete}
                   className="text-destructive focus:text-destructive"
@@ -211,6 +251,42 @@ export function JobListItem({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={refetchOpen}
+        onOpenChange={(open) => !refetchJob.isPending && setRefetchOpen(open)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Refetch job description?</DialogTitle>
+            <DialogDescription>
+              We&rsquo;ll fetch &ldquo;{displayTitle}&rdquo; again from its URL
+              and replace the description and job details with the latest
+              version. Your status, notes and chat won&rsquo;t change.
+            </DialogDescription>
+            <DialogDescription>
+              If the description changes significantly, you&rsquo;ll need to
+              redo your analyses, such as the match report, so they reflect
+              the new version.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRefetchOpen(false)}
+              disabled={refetchJob.isPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRefetch} disabled={refetchJob.isPending}>
+              {refetchJob.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {refetchJob.isPending ? "Refetching…" : "Refetch"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
