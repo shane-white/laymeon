@@ -244,6 +244,28 @@ export function useUpdateNotes() {
   });
 }
 
+/**
+ * Fetches the job's description again from its URL. The job then points at a
+ * new listing, so its job_listing.id changes.
+ */
+export function useRefetchJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/jobs/${id}/refetch`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to refetch job");
+      }
+      return res.json() as Promise<{ job_listing_id: string }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+}
+
 export function useDeleteJob() {
   const queryClient = useQueryClient();
 
