@@ -32,3 +32,11 @@ export function neighborsAfterMove<T>(
     below: toIndex < without.length ? without[toIndex] : null,
   };
 }
+
+/** The user's custom order, as the server returns it: sort_order, then newest first. */
+export function compareSortOrder(
+  a: { sort_order: number; created_at: string },
+  b: { sort_order: number; created_at: string },
+): number {
+  return a.sort_order - b.sort_order || b.created_at.localeCompare(a.created_at);
+}

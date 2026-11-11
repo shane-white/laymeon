@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MatchReport } from "@/lib/match-report/schema";
+import { compareSortOrder } from "@/lib/jobs/sort-order";
 
 export interface JobListing {
   id: string;
@@ -157,11 +158,6 @@ export function useReorderJob() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
-}
-
-/** The server's order: sort_order, then newest first. */
-export function compareSortOrder(a: UserJob, b: UserJob): number {
-  return a.sort_order - b.sort_order || b.created_at.localeCompare(a.created_at);
 }
 
 export function useUpdateJob() {
