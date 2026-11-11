@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
+  arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
@@ -38,8 +39,17 @@ interface SortableJobListProps {
   renderItem: (job: UserJob, drag: DragHandleProps) => ReactNode;
 }
 
-export function SortableJobList({ jobs, renderItem }: SortableJobListProps) {
+export function SortableJobList({ jobs: jobsProp, renderItem }: SortableJobListProps) {
   const reorderJob = useReorderJob();
+
+  // The query cache updates a tick after the drop, but dnd-kit clears the
+  // items' transforms right away. Show the dropped order until `jobsProp`
+  // changes (the optimistic cache update or a rollback), so the items don't
+  // slide back to their old slots and then jump.
+  const [dropped, setDropped] = useState<{ from: UserJob[]; order: UserJob[] } | null>(
+    null,
+  );
+  const jobs = dropped?.from === jobsProp ? dropped.order : jobsProp;
 
   const sensors = useSensors(
     // A short distance or press delay keeps clicks and scrolling working.
@@ -83,6 +93,7 @@ export function SortableJobList({ jobs, renderItem }: SortableJobListProps) {
     const optimisticSortOrder =
       positionBetween(aboveOrder, belowOrder) ?? (aboveOrder! + belowOrder!) / 2;
 
+    setDropped({ from: jobsProp, order: arrayMove(jobs, fromIndex, toIndex) });
     reorderJob.mutate(
       {
         id: String(active.id),
