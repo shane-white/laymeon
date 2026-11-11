@@ -2,6 +2,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { firecrawl } from "@/lib/firecrawl/client";
+import { findAtsPostingUrl, withListingDescription } from "@/lib/firecrawl/page-metadata";
 import { seniorityLevelSchema, workArrangementSchema } from "@/lib/jobs/details";
 
 const extractedJobSchema = z.object({
@@ -52,17 +53,34 @@ const lenientJobSchema = extractedJobSchema.extend({
 const SYSTEM_PROMPT = `You parse job listings. Read the listing the user gives you and return its fields. Use only what the listing says; return null for any optional field it doesn't cover.`;
 
 export async function extractJobFromUrl(url: string): Promise<ExtractedJob> {
+  let page = await scrapePage(url);
+
+  // Careers pages that embed a posting from an applicant tracking system
+  // don't include it in the markdown, so scrape the posting itself. Fall back
+  // to the original page if that fails.
+  const postingUrl = findAtsPostingUrl(url, page.metadata);
+  if (postingUrl) {
+    try {
+      page = await scrapePage(postingUrl);
+    } catch (err) {
+      console.warn(`Failed to scrape ATS posting ${postingUrl}`, err);
+    }
+  }
+
+  return extractJobFromText(withListingDescription(page.markdown, page.metadata));
+}
+
+async function scrapePage(url: string) {
   const scrapeResult = await firecrawl.scrape(url, {
     formats: ["markdown"],
   });
 
-  if (!("markdown" in scrapeResult) || !scrapeResult.markdown) {
-    const errorMsg =
-      "error" in scrapeResult ? scrapeResult.error : "Unknown scrape error";
+  if (!scrapeResult.markdown) {
+    const errorMsg = scrapeResult.metadata?.error ?? "Unknown scrape error";
     throw new Error(`Failed to scrape URL: ${errorMsg}`);
   }
 
-  return extractJobFromText(scrapeResult.markdown);
+  return { markdown: scrapeResult.markdown, metadata: scrapeResult.metadata };
 }
 
 export async function extractJobFromText(text: string): Promise<ExtractedJob> {
