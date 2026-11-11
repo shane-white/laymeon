@@ -36,6 +36,10 @@ export async function GET() {
         url,
         extracted_job_title,
         extracted_company_name,
+        location,
+        work_arrangement,
+        salary,
+        seniority_level,
         description
       )
     `,
@@ -84,6 +88,10 @@ export async function POST(request: NextRequest) {
         url: url || null,
         extracted_job_title: extracted.title,
         extracted_company_name: extracted.company,
+        location: extracted.location,
+        work_arrangement: extracted.work_arrangement,
+        salary: extracted.salary,
+        seniority_level: extracted.seniority_level,
         description: extracted.description,
       })
       .select()
@@ -112,6 +120,10 @@ export async function POST(request: NextRequest) {
           url,
           extracted_job_title,
           extracted_company_name,
+          location,
+          work_arrangement,
+          salary,
+          seniority_level,
           description
         )
       `,

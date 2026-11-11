@@ -15,7 +15,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ExternalLink, FileText, Plus } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  ExternalLink,
+  FileText,
+  MapPin,
+  Plus,
+} from "lucide-react";
+import { formatLocation, formatSeniorityLevel } from "@/lib/jobs/details";
 import { useAnalyzeJob, type UserJob } from "@/hooks/use-jobs";
 import { getInitialTabs, type TabKey } from "@/lib/job-tabs";
 import { useDocuments } from "@/hooks/use-documents";
@@ -85,6 +93,13 @@ function JobDetailContent({ job }: { job: UserJob }) {
   const displayTitle = job.custom_job_title || listing.extracted_job_title;
   const displayCompany =
     job.custom_job_company || listing.extracted_company_name;
+  const location = formatLocation(listing);
+  const level = formatSeniorityLevel(listing.seniority_level);
+  const details = [
+    location && { icon: MapPin, label: "Location", text: location },
+    listing.salary && { icon: Banknote, label: "Salary", text: listing.salary },
+    level && { icon: BarChart3, label: "Level", text: level },
+  ].filter((d) => !!d);
 
   const availableTabs = TAB_OPTIONS.filter(
     (t) => !openTabs.includes(t.key),
@@ -107,6 +122,16 @@ function JobDetailContent({ job }: { job: UserJob }) {
               <p className="text-sm text-muted-foreground">
                 {displayCompany}
               </p>
+            )}
+            {details.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {details.map(({ icon: Icon, label, text }) => (
+                  <span key={label} className="inline-flex items-center gap-1">
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-label={label} />
+                    {text}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
           <Badge
