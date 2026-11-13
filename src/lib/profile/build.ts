@@ -44,7 +44,7 @@ import {
   type Evidence,
   type Extraction,
 } from "./schema";
-import { sameAccomplishment, sameEmployer } from "./similar";
+import { sameAccomplishment, sameEmployer, similarTitle } from "./similar";
 
 export interface ProfileSourceDocument {
   id: string;
@@ -110,15 +110,35 @@ function clean(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+/**
+ * True when two résumé entries list the same accomplishments: at least two in
+ * common, or every one when either lists only one.
+ */
+function shareAchievements(a: WorkingPosition, b: WorkingPosition): boolean {
+  const smaller = Math.min(a.achievements.length, b.achievements.length);
+  if (smaller === 0) return false;
+  const shared = a.achievements.filter((x) => b.achievements.some((y) => sameAccomplishment(x.text, y.text))).length;
+  return shared >= Math.min(2, smaller);
+}
+
+/**
+ * Whether two résumé entries are the same job: the same employer, plus the
+ * same role (same title family, or titles that mostly match) or the same
+ * accomplishments. When both have dates they must also overlap, so a
+ * promotion at the same employer stays a separate job.
+ */
 function samePosition(a: WorkingPosition, b: WorkingPosition): boolean {
   if (!sameEmployer(a.employerKey, b.employerKey)) return false;
-  if (a.familyKey !== b.familyKey && a.titleKey !== b.titleKey) return false;
+  const sameRole =
+    a.familyKey === b.familyKey || a.titleKey === b.titleKey || similarTitle(a.title, b.title);
   if (a.interval && b.interval) {
     const shorter = Math.min(a.interval.end - a.interval.start, b.interval.end - b.interval.start);
-    return overlapMonths(a.interval, b.interval) >= shorter * SAME_POSITION_OVERLAP;
+    if (overlapMonths(a.interval, b.interval) < shorter * SAME_POSITION_OVERLAP) return false;
+    return sameRole || shareAchievements(a, b);
   }
-  // Without dates on both sides, only the exact same title is safe to merge.
-  return a.titleKey === b.titleKey;
+  // Without dates on both sides, the family alone isn't enough: two jobs at
+  // one employer often share it. The title or accomplishments must match.
+  return a.titleKey === b.titleKey || similarTitle(a.title, b.title) || shareAchievements(a, b);
 }
 
 /** True when two dates can't both be right: different years, or different months when both give one. */

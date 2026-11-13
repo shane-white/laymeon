@@ -77,3 +77,22 @@ export function sameEmployer(a: string, b: string): boolean {
   // A one- or two-letter name ("ge", "hp") is too short to match on.
   return short.length >= 3 && long.startsWith(`${short}-`);
 }
+
+// Most of the shorter title's words are in the longer one, and at least two
+// words are shared: "Data Engineer" ≈ "Senior Data Engineer", but "Product
+// Manager" ≠ "Project Manager".
+const MIN_TITLE_CONTAINMENT = 0.75;
+const MIN_SHARED_TITLE_WORDS = 2;
+
+/**
+ * True when two job titles are probably the same title, even with a word
+ * added, dropped or run together: "SelfAI Systems Developer & Architect" and
+ * "AI Systems Developer & Architect".
+ */
+export function similarTitle(a: string, b: string): boolean {
+  const ta = tokens(a);
+  const tb = tokens(b);
+  const shared = [...ta].filter((w) => tb.has(w)).length;
+  const shorter = Math.min(ta.size, tb.size);
+  return shared >= MIN_SHARED_TITLE_WORDS && shared / shorter >= MIN_TITLE_CONTAINMENT;
+}

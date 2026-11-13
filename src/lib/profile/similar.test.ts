@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sameAccomplishment, sameEmployer } from "./similar";
+import { sameAccomplishment, sameEmployer, similarTitle } from "./similar";
 
 describe("sameAccomplishment", () => {
   it("matches the same result reworded between résumé versions", () => {
@@ -70,5 +70,18 @@ describe("sameEmployer", () => {
     expect(sameEmployer("lumen", "luminary")).toBe(false);
     expect(sameEmployer("ge", "ge-healthcare")).toBe(false);
     expect(sameEmployer("", "acme")).toBe(false);
+  });
+});
+
+describe("similarTitle", () => {
+  it("matches a title with a word added or run together", () => {
+    expect(similarTitle("SelfAI Systems Developer & Architect", "AI Systems Developer & Architect")).toBe(true);
+    expect(similarTitle("Data Engineer", "Senior Data Engineer")).toBe(true);
+  });
+
+  it("keeps different titles apart", () => {
+    expect(similarTitle("Product Manager", "Project Manager")).toBe(false);
+    expect(similarTitle("Software Engineer", "Engineering Manager")).toBe(false);
+    expect(similarTitle("UX Researcher", "Product Manager")).toBe(false);
   });
 });
