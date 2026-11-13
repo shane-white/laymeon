@@ -32,7 +32,8 @@ const TYPE_INSTRUCTIONS: Record<SourceDocumentType, string> = {
 - education, certifications, languages: only if the letter states them.`,
 
   project: `This is a description of a project the person worked on.
-- positions: if the project says where it happened, one position with that employer and the person's title (empty if not stated). Leave start and end empty unless the document gives the dates of the job itself, not just of the project. If it doesn't say where it happened, use one position with an empty employer and title.
+- positions: if the project says where it happened, one position with that employer and the person's title (empty if not stated). If it doesn't say where it happened, use one position with an empty employer and title.
+- start and end: the dates of the project itself, if the document gives them ("present" if it's ongoing). Never the dates of the job it happened in. Empty if the project's dates aren't given.
 - achievements: the project's outcomes and what the person did, especially measurable results. Put the metric in metric.
 - skills: every skill, tool and method the project shows, also listed in that position's skills.
 - headline: empty. seniority: unknown.

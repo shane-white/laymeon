@@ -200,6 +200,8 @@ function newItem(section: ListSection, key: string, fields: Record<string, unkno
       months: null,
       lastUsed: null,
       positionKeys: [],
+      yearsFromKeys: null,
+      projectDates: [],
       monthsOverride: null,
     },
     accomplishment: { text: "", metric: null, positionKey: null },
@@ -320,6 +322,13 @@ export function applyUserChanges(base: CareerProfile, changes: ProfileChange[]):
         });
       }
       fields[field] = { documents };
+      // Jobs the user links a skill to count toward its years; the ones that
+      // didn't count before (only a project showed it there) still don't.
+      if (section === "skill" && field === "positionKeys" && Array.isArray(value)) {
+        const before = (item.positionKeys as string[]) ?? [];
+        const counted = (item.yearsFromKeys as string[] | null) ?? before;
+        item.yearsFromKeys = (value as string[]).filter((k) => counted.includes(k) || !before.includes(k));
+      }
       item[field] = value;
     }
     user.edits.push({ changeId: change.id, section, key, fields });
@@ -365,7 +374,11 @@ export function applyUserChanges(base: CareerProfile, changes: ProfileChange[]):
             .filter((a) => a.toLowerCase() !== targetName)
             .sort();
           target.evidence = [...(target.evidence as unknown[]), ...other.evidence];
+          const countedOf = (s: Record<string, unknown>) =>
+            (s.yearsFromKeys as string[] | null) ?? (s.positionKeys as string[]);
+          target.yearsFromKeys = [...new Set([...countedOf(target), ...countedOf(other)])];
           target.positionKeys = [...new Set([...(target.positionKeys as string[]), ...other.positionKeys])];
+          target.projectDates = [...(target.projectDates as unknown[]), ...other.projectDates];
           profile.skills = profile.skills.filter((s) => s !== other);
           mergedNames.push(other.name);
         }

@@ -116,6 +116,7 @@ function ItemMeta({ section, itemKey, evidence, profile, children }: {
 
 function SkillDetails({ skill, profile }: { skill: Skill; profile: Profile }) {
   const used = profile.positions.filter((p) => skill.positionKeys.includes(p.key));
+  const notCounted = skill.yearsFromKeys === null ? [] : used.filter((p) => !skill.yearsFromKeys!.includes(p.key));
   const duration = formatDuration(skill.months);
   return (
     <div className="flex flex-col gap-1.5 text-sm">
@@ -146,6 +147,12 @@ function SkillDetails({ skill, profile }: { skill: Skill; profile: Profile }) {
       )}
       {skill.monthsOverride !== null && (
         <p className="text-xs text-muted-foreground">You set the years for this skill.</p>
+      )}
+      {skill.monthsOverride === null && notCounted.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Only a project or cover letter ties it to {notCounted.map((p) => p.employer).join(", ")}, so
+          that job&apos;s dates don&apos;t add years. Edit it to set its years.
+        </p>
       )}
       {used.length === 0 && !duration && (
         <p className="text-xs text-muted-foreground">

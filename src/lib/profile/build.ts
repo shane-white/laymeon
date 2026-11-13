@@ -44,6 +44,7 @@ import {
   type Evidence,
   type Extraction,
 } from "./schema";
+import { recomputeDerived } from "./derive";
 import { sameAccomplishment, sameEmployer, similarTitle } from "./similar";
 
 export interface ProfileSourceDocument {
@@ -90,6 +91,10 @@ interface WorkingPosition {
   titleKey: string;
   /** Skill match keys (see skillMatchKey). */
   skillKeys: Set<string>;
+  /** The skills a résumé ties to this job. Only these count the job's dates toward their years. */
+  resumeSkillKeys: Set<string>;
+  /** From a project description, whose dates are the project's, not the job's. */
+  fromProject: boolean;
   evidence: Evidence[];
   achievements: { text: string; metric: string | null; evidence: Evidence[] }[];
   order: number;
@@ -177,7 +182,8 @@ function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
   winner.location ??= other.location;
   winner.employmentType ??= other.employmentType;
   winner.peopleManaged ??= other.peopleManaged;
-  if (!winner.interval && other.interval) {
+  // A project's dates are the project's, not the job's.
+  if (!winner.interval && other.interval && !other.fromProject) {
     winner.start = other.start;
     winner.end = other.end;
     winner.interval = other.interval;
@@ -185,6 +191,7 @@ function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
   }
   other.documentIds.forEach((id) => winner.documentIds.add(id));
   other.skillKeys.forEach((key) => winner.skillKeys.add(key));
+  other.resumeSkillKeys.forEach((key) => winner.resumeSkillKeys.add(key));
   addEvidence(winner.evidence, other.evidence);
   for (const achievement of other.achievements) {
     const existing = winner.achievements.find((a) => sameAccomplishment(a.text, achievement.text));
@@ -270,6 +277,8 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
   // tied to a job are kept as accomplishments of their own.
   const working: WorkingPosition[] = [];
   const unattached: WorkingPosition["achievements"] = [];
+  // Project dates per skill match key: a project's skills get the project's length.
+  const projectDates = new Map<string, { start: string | null; end: string | null }[]>();
   let order = 0;
   for (const { document, extraction } of ordered) {
     const fromResume = document.type === "resume";
@@ -309,6 +318,8 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
         familyKey: titleFamily ? roleKey(titleFamily) : "",
         titleKey: title ? slugify(title) : "",
         skillKeys: new Set(p.skills.map((s) => clean(s)).filter((s) => s !== null).map(skillMatchKey)),
+        resumeSkillKeys: new Set(),
+        fromProject: document.type === "project",
         evidence: verified(document, p.evidence),
         achievements: p.achievements
           .filter((a) => clean(a.text))
@@ -321,11 +332,20 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       };
 
       if (fromResume) {
+        candidate.resumeSkillKeys = new Set(candidate.skillKeys);
         if (!employer || !title) continue;
         const match = working.find((w) => !w.documentIds.has(document.id) && samePosition(w, candidate));
         if (match) mergePosition(match, candidate);
         else working.push(candidate);
         continue;
+      }
+
+      if (candidate.fromProject && (start || end)) {
+        for (const key of candidate.skillKeys) {
+          const dates = projectDates.get(key) ?? [];
+          if (!dates.some((d) => d.start === start && d.end === end)) dates.push({ start, end });
+          projectDates.set(key, dates);
+        }
       }
 
       // A cover letter's or project's job needs a real quote naming it.
@@ -335,7 +355,12 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       if (referenced) {
         mergePosition(referenced, candidate);
       } else if (named && title && !employerKnown) {
-        // A job no résumé lists.
+        // A job no résumé lists. A project's dates aren't the job's.
+        if (candidate.fromProject) {
+          candidate.start = null;
+          candidate.end = null;
+          candidate.interval = null;
+        }
         working.push(candidate);
       } else {
         unattached.push(...candidate.achievements);
@@ -394,31 +419,31 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
   }));
 
   const intervalOf = new Map(keyedPositions.map(({ key, w }) => [key, w.interval]));
+  const resumeLinks = new Map(
+    keyedPositions.map(({ key, w }) => [
+      key,
+      new Set([...w.resumeSkillKeys].filter((k) => skillMap.has(k)).map(finalSkillKey)),
+    ]),
+  );
 
-  const skills = [...skillMap.values()]
-    .map((skill) => {
-      const key = skillKey(skill.name);
-      const linked = positions.filter((p) => p.skillKeys.includes(key));
-      const intervals = linked.map((p) => intervalOf.get(p.key) ?? null);
-      const ends = intervals.filter((i) => i !== null).map((i) => i.end);
-      const lastUsed = linked.some((p) => p.isCurrent)
-        ? "present"
-        : ends.length
-          ? formatMonth(Math.max(...ends) - 1)
-          : null;
-      const lower = skill.name.toLowerCase();
-      return {
-        key,
-        name: skill.name,
-        aliases: [...skill.aliases].filter((a) => a.toLowerCase() !== lower).sort(),
-        category: skill.category,
-        months: totalMonths(intervals),
-        lastUsed,
-        positionKeys: linked.map((p) => p.key),
-        evidence: skill.evidence,
-      };
-    })
-    .sort((a, b) => (b.months ?? -1) - (a.months ?? -1) || b.evidence.length - a.evidence.length || a.key.localeCompare(b.key));
+  // Years and last use are filled in by recomputeDerived below.
+  const skills = [...skillMap.entries()].map(([matchKey, skill]) => {
+    const key = skillKey(skill.name);
+    const linked = positions.filter((p) => p.skillKeys.includes(key));
+    const lower = skill.name.toLowerCase();
+    return {
+      key,
+      name: skill.name,
+      aliases: [...skill.aliases].filter((a) => a.toLowerCase() !== lower).sort(),
+      category: skill.category,
+      months: null,
+      lastUsed: null,
+      positionKeys: linked.map((p) => p.key),
+      yearsFromKeys: linked.filter((p) => resumeLinks.get(p.key)?.has(key)).map((p) => p.key),
+      projectDates: projectDates.get(matchKey) ?? [],
+      evidence: skill.evidence,
+    };
+  });
 
   // Experience by role
   const roleMap = new Map<string, { titleFamily: string; positionKeys: string[] }>();
@@ -552,7 +577,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     if (role && !targetRoles.some((r) => r.toLowerCase() === role.toLowerCase())) targetRoles.push(role);
   }
 
-  return careerProfileSchema.parse({
+  const built = careerProfileSchema.parse({
     version: PROFILE_VERSION,
     builtAt,
     sources: ordered.map(({ document }) => ({
@@ -577,4 +602,6 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     accomplishments: dedupeKeys(accomplishments),
     conflicts,
   });
+  // Skill years, roles and totals, by the same rules used after the user's changes.
+  return recomputeDerived(built);
 }

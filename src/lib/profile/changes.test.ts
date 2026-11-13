@@ -202,6 +202,24 @@ describe("edits", () => {
     expect(positionOf(profile, NORTHWIND)?.skillKeys).toContain("python");
   });
 
+  it("counts a job the user links, but not one only a project tied the skill to", () => {
+    // As if only a project tied Snowflake to the Northwind job.
+    const projectOnly: CareerProfile = {
+      ...base,
+      skills: base.skills.map((s) => (s.key === "snowflake" ? { ...s, yearsFromKeys: [] } : s)),
+    };
+    const derived = recomputeDerived(projectOnly);
+    expect(derived.skills.find((s) => s.key === "snowflake")!.months).toBeNull();
+
+    const { profile } = applyUserChanges(derived, [
+      edit(derived, "skill", "snowflake", { positionKeys: [NORTHWIND, BRIGHTSIDE] }),
+    ]);
+    const snowflake = profile.skills.find((s) => s.key === "snowflake")!;
+    expect(snowflake.yearsFromKeys).toEqual([BRIGHTSIDE]);
+    expect(snowflake.months).toBe(36);
+    expect(snowflake.lastUsed).toBe("present");
+  });
+
   it("uses the years the user set instead of the job's, and keeps when it was last used", () => {
     // Snowflake is only on the Northwind job, but the user only used it for its last 2 years.
     const { profile } = applyUserChanges(base, [edit(base, "skill", "snowflake", { monthsOverride: 24 })]);

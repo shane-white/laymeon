@@ -48,12 +48,20 @@ export function recomputeDerived(profile: CareerProfile): CareerProfile {
       const linked = s.positionKeys
         .filter((k) => positionKeys.has(k))
         .sort((a, b) => positionOrder.get(a)! - positionOrder.get(b)!);
-      const intervals = linked.map((k) => intervalOf.get(k) ?? null);
-      const months = s.monthsOverride ?? totalMonths(intervals);
-      const ends = intervals.filter((i) => i !== null).map((i) => i.end);
+      // Only jobs a résumé (or the user) ties the skill to count their dates,
+      // plus the dates of projects that show it.
+      const counted = s.yearsFromKeys === null ? linked : linked.filter((k) => s.yearsFromKeys!.includes(k));
+      const projectIntervals = s.projectDates.map((d) => rangeToInterval(d.start, d.end, present));
+      const months =
+        s.monthsOverride ?? totalMonths([...counted.map((k) => intervalOf.get(k) ?? null), ...projectIntervals]);
+      // When it was last used comes from every job and project that shows it.
+      const ends = [...linked.map((k) => intervalOf.get(k) ?? null), ...projectIntervals]
+        .filter((i) => i !== null)
+        .map((i) => i.end);
       const current = linked.some((k) => profile.positions.find((p) => p.key === k)?.end === "present");
       const lastUsed = current ? "present" : ends.length ? formatMonth(Math.max(...ends) - 1) : null;
-      return { ...s, positionKeys: linked, months, lastUsed };
+      const yearsFromKeys = s.yearsFromKeys === null ? null : linked.filter((k) => s.yearsFromKeys!.includes(k));
+      return { ...s, positionKeys: linked, yearsFromKeys, months, lastUsed };
     })
     .sort(
       (a, b) =>

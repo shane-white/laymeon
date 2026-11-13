@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Bump when the extraction prompt or schema changes, so cached extractions are redone. */
-export const EXTRACTION_VERSION = 2;
+export const EXTRACTION_VERSION = 3;
 
 /** Turns the extraction's "unknown" into null. */
 export function knownOrNull<T extends string>(value: T | "unknown"): T | null {
@@ -90,9 +90,9 @@ export const extractionSchema = z.object({
         employmentType: z
           .enum([...employmentTypeSchema.options, UNKNOWN])
           .describe('Only if the document says so or the title makes it clear (e.g. "Intern", "Volunteer"). unknown otherwise.'),
-        start: date("Start date"),
+        start: date("Start date (for a project description: the project's start)"),
         end: text(
-          'End date as "YYYY-MM", or "YYYY" if the document only gives the year, or "present" if this is a current job.',
+          'End date as "YYYY-MM", or "YYYY" if the document only gives the year, or "present" if this is a current job (for a project description: the project\'s end, or "present" if it\'s ongoing).',
         ),
         peopleManaged: z
           .number()
@@ -278,6 +278,15 @@ export const careerProfileSchema = z.object({
       /** "YYYY-MM", "present", or null. */
       lastUsed: z.string().nullable(),
       positionKeys: z.array(z.string()),
+      /**
+       * The jobs in positionKeys whose dates count toward the skill's years: the
+       * ones a résumé (or the user) ties it to. A job only a project or cover
+       * letter ties it to doesn't count. Null for profiles built before this
+       * existed, where every linked job counts.
+       */
+      yearsFromKeys: z.array(z.string()).nullable().default(null),
+      /** Dates of projects that show the skill, which count toward its years. */
+      projectDates: z.array(z.object({ start: z.string().nullable(), end: z.string().nullable() })).default([]),
       /**
        * Months of experience the user set themselves, e.g. when they only used
        * the skill in part of a long job. Replaces the months counted from jobs.
