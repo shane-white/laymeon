@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildProfile, type ExtractedDocument, type ProfileSourceDocument } from "./build";
 import { extractDocument } from "./extract";
+import { findSkillSynonyms, synonymsHash, type SkillSynonyms } from "./synonyms";
 import { saveUserView } from "./user-changes";
 import {
   careerProfileSchema,
@@ -52,6 +53,28 @@ async function mapWithConcurrency<T, R>(
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
+}
+
+/**
+ * Which of these skills mean the same thing. Reuses the last result when the
+ * skills are the same, so the groups (and skill keys) don't change between
+ * rebuilds. A failure here only means skills aren't grouped this time.
+ */
+async function skillSynonymsFor(
+  supabase: SupabaseClient,
+  userId: string,
+  draft: CareerProfile,
+): Promise<SkillSynonyms | null> {
+  const hash = synonymsHash(draft.skills);
+  const { data } = await supabase.from("career_profiles").select("base").eq("user_id", userId).maybeSingle();
+  const previous = (data?.base as { skillSynonyms?: SkillSynonyms | null } | undefined)?.skillSynonyms;
+  if (previous?.hash === hash) return previous;
+  try {
+    return { hash, map: await findSkillSynonyms(draft.skills) };
+  } catch (err) {
+    console.error("Couldn't group similar skills", err);
+    return previous ?? null;
+  }
 }
 
 export interface RebuildResult {
@@ -159,7 +182,8 @@ ${doc.parsed_markdown!}`
   }
 
   const now = new Date().toISOString();
-  const base = buildProfile(inputs, now);
+  const skillSynonyms = await skillSynonymsFor(supabase, userId, buildProfile(inputs, now));
+  const base = buildProfile(inputs, now, { skillSynonyms });
 
   const { error: saveError } = await supabase.from("career_profiles").upsert(
     {

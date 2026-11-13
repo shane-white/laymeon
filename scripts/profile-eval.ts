@@ -14,6 +14,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildProfile, type ExtractedDocument } from "@/lib/profile/build";
 import { extractDocument, type SourceDocumentType } from "@/lib/profile/extract";
+import { findSkillSynonyms, synonymsHash } from "@/lib/profile/synonyms";
 import type { CareerProfile } from "@/lib/profile/schema";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "profile");
@@ -124,7 +125,11 @@ async function runOnce(dir: string, expected: Expected): Promise<CareerProfile> 
       };
     }),
   );
-  return buildProfile(docs, new Date().toISOString());
+  // Same as rebuildProfile: group skills that mean the same thing, then build again.
+  const builtAt = new Date().toISOString();
+  const draft = buildProfile(docs, builtAt);
+  const map = await findSkillSynonyms(draft.skills);
+  return buildProfile(docs, builtAt, { skillSynonyms: { hash: synonymsHash(draft.skills), map } });
 }
 
 async function evalFixture(name: string, runs: number): Promise<boolean> {

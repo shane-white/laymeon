@@ -357,6 +357,15 @@ export const careerProfileSchema = z.object({
     )
     // Profiles built before conflicts were recorded have none.
     .default([]),
+  /**
+   * Skills that mean the same thing, found by findSkillSynonyms: each match key
+   * mapped to its group's. Kept with the hash of the skill names it was found
+   * for, so a rebuild with the same skills reuses it.
+   */
+  skillSynonyms: z
+    .object({ hash: z.string(), map: z.record(z.string(), z.string()) })
+    .nullable()
+    .default(null),
   /** What the user changed, for the UI. Empty in `base`; filled in `data` by applyUserChanges. */
   user: userChangesSummarySchema.default({ edits: [], added: [], removed: [], merges: [], reviews: [] }),
 });
