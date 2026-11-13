@@ -1,21 +1,51 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CareerProfile, ProfileSection } from "@/lib/profile/schema";
 
-const PROFILE_KEY = ["career-profile"];
+export const PROFILE_KEY = ["career-profile"];
 
-/** The user's Career Story, or null if it hasn't been built yet. */
+// How often to check back while the Career Story is being rebuilt.
+const REBUILD_POLL_MS = 3000;
+
+export interface RebuildStatus {
+  running: boolean;
+  /** The last automatic update failed, and none has finished since. */
+  error: string | null;
+}
+
+export interface ProfileState {
+  /** Null if it hasn't been built yet. */
+  profile: CareerProfile | null;
+  rebuild: RebuildStatus;
+}
+
+/** The user's Career Story, and whether it's being rebuilt. Checks back while it is. */
 export function useProfile() {
-  return useQuery<CareerProfile | null>({
+  return useQuery<ProfileState>({
     queryKey: PROFILE_KEY,
     queryFn: async () => {
       const res = await fetch("/api/profile");
       if (!res.ok) throw new Error("Failed to load your Career Story");
-      const data = (await res.json()) as { profile: CareerProfile | null };
-      return data.profile;
+      return (await res.json()) as ProfileState;
     },
+    refetchInterval: (query) => (query.state.data?.rebuild.running ? REBUILD_POLL_MS : false),
   });
+}
+
+/**
+ * Call after a document changes: the server starts rebuilding the Career
+ * Story, so fetch it again to show that it's updating.
+ */
+export function invalidateProfile(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+}
+
+function setProfile(queryClient: QueryClient, profile: CareerProfile) {
+  queryClient.setQueryData<ProfileState>(PROFILE_KEY, (old) => ({
+    profile,
+    rebuild: old?.rebuild ?? { running: false, error: null },
+  }));
 }
 
 export type ProfileChangeRequest =
@@ -46,7 +76,7 @@ export function useProfileChange() {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) },
         "Couldn't save your change",
       ),
-    onSuccess: (profile) => queryClient.setQueryData(PROFILE_KEY, profile),
+    onSuccess: (profile) => setProfile(queryClient, profile),
   });
 }
 
@@ -56,7 +86,7 @@ export function useUndoProfileChange() {
   return useMutation({
     mutationFn: (changeId: string) =>
       profileRequest(`/api/profile/changes/${changeId}`, { method: "DELETE" }, "Couldn't undo that"),
-    onSuccess: (profile) => queryClient.setQueryData(PROFILE_KEY, profile),
+    onSuccess: (profile) => setProfile(queryClient, profile),
   });
 }
 
@@ -70,11 +100,15 @@ export function useResolveProfileChange() {
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) },
         "Couldn't save that",
       ),
-    onSuccess: (profile) => queryClient.setQueryData(PROFILE_KEY, profile),
+    onSuccess: (profile) => setProfile(queryClient, profile),
   });
 }
 
-/** Rebuilds the Career Story from the user's documents. Can take a minute or two. */
+/**
+ * Rebuilds the Career Story from the user's documents. Can take a minute or
+ * two. Resolves to null when a rebuild was already running; the profile query
+ * then checks back until it's done.
+ */
 export function useRebuildProfile() {
   const queryClient = useQueryClient();
 
@@ -83,10 +117,17 @@ export function useRebuildProfile() {
       const res = await fetch("/api/profile/rebuild", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't build your Career Story");
-      return data.profile as CareerProfile;
+      return res.status === 202 ? null : (data.profile as CareerProfile);
     },
     onSuccess: (profile) => {
-      queryClient.setQueryData(PROFILE_KEY, profile);
+      if (profile) {
+        queryClient.setQueryData<ProfileState>(PROFILE_KEY, {
+          profile,
+          rebuild: { running: false, error: null },
+        });
+      } else {
+        void invalidateProfile(queryClient);
+      }
     },
   });
 }

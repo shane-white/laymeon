@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateProfile } from "@/hooks/use-profile";
 
 export interface Document {
   id: string;
@@ -49,6 +50,8 @@ export function useUploadDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
     },
   });
 }
@@ -79,6 +82,8 @@ export function useAddProjects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
     },
   });
 }
@@ -94,6 +99,8 @@ export function useDeleteDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
     },
   });
 }
@@ -124,6 +131,8 @@ export function useUpdateDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
     },
   });
 }
@@ -146,6 +155,8 @@ export function useSetDefaultDocument() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
     },
   });
 }
