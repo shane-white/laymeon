@@ -49,7 +49,8 @@
     "sql"
   ],
   "absentSkills": [
-    "kubernetes"
+    "kubernetes",
+    "ux-research"
   ],
   "absentEmployers": [
     "Initech"
@@ -65,5 +66,5 @@
   "forbidden": [
     "marcus.bell@example.com"
   ],
-  "_comment": "Looker and BigQuery only come from an undated project, so they get no years from the Lumen job. Swift comes from a project dated Mar\u2013Aug 2024, so it gets about 6 months (LAY-60)."
+  "_comment": "Looker and BigQuery only come from an undated project, so they get no years from the Lumen job. Swift comes from a project dated Mar\u2013Aug 2024, so it gets about 6 months (LAY-60). \"UX Research\" means the same as \"User Research\" and is merged into it (LAY-59); Swift and SwiftUI, and SQL and BigQuery, stay apart."
 }

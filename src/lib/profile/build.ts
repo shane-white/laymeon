@@ -256,8 +256,23 @@ function bySourceOrder(docs: ExtractedDocument[]): ExtractedDocument[] {
   );
 }
 
-export function buildProfile(docs: ExtractedDocument[], builtAt: string): CareerProfile {
+export interface BuildOptions {
+  /** Skills that mean the same thing (see findSkillSynonyms), merged into one. */
+  skillSynonyms?: CareerProfile["skillSynonyms"];
+}
+
+export function buildProfile(
+  docs: ExtractedDocument[],
+  builtAt: string,
+  options: BuildOptions = {},
+): CareerProfile {
   const ordered = bySourceOrder(docs);
+  // A skill's match key, with synonyms folded into their group.
+  const synonyms = options.skillSynonyms?.map ?? {};
+  const matchKeyOf = (name: string) => {
+    const key = skillMatchKey(name);
+    return synonyms[key] ?? key;
+  };
   const resumes = ordered.filter(({ document }) => document.type === "resume");
   const newestResumeAsOf = resumes[0]?.document.asOf;
   // A current job runs until the newest document. (See presentMonth, which
@@ -317,7 +332,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
         employerKey: employer ? normalizeEmployer(employer) : "",
         familyKey: titleFamily ? roleKey(titleFamily) : "",
         titleKey: title ? slugify(title) : "",
-        skillKeys: new Set(p.skills.map((s) => clean(s)).filter((s) => s !== null).map(skillMatchKey)),
+        skillKeys: new Set(p.skills.map((s) => clean(s)).filter((s) => s !== null).map(matchKeyOf)),
         resumeSkillKeys: new Set(),
         fromProject: document.type === "project",
         evidence: verified(document, p.evidence),
@@ -383,7 +398,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     for (const s of extraction.skills) {
       const name = clean(s.canonicalName) ?? clean(s.name);
       if (!name) continue;
-      const matchKey = skillMatchKey(name);
+      const matchKey = matchKeyOf(name);
       let skill = skillMap.get(matchKey);
       if (!skill) {
         skill = { name, aliases: new Set(), category: s.category, evidence: [] };
@@ -601,6 +616,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     languages: [...languageMap.values()],
     accomplishments: dedupeKeys(accomplishments),
     conflicts,
+    skillSynonyms: options.skillSynonyms ?? null,
   });
   // Skill years, roles and totals, by the same rules used after the user's changes.
   return recomputeDerived(built);
