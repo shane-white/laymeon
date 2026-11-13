@@ -7,8 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DocumentListItem } from "@/components/documents/document-list-item";
 import { UploadDocumentDialog } from "@/components/documents/upload-document-dialog";
+import { AddProjectDialog } from "@/components/documents/add-project-dialog";
 import { useDocuments, type Document } from "@/hooks/use-documents";
-import { FileText, Plus, Upload } from "lucide-react";
+import { FileText, Lightbulb, Plus, Upload } from "lucide-react";
 
 interface DocumentSidebarProps {
   selectedDocId: string | null;
@@ -18,7 +19,23 @@ interface DocumentSidebarProps {
 const SECTIONS = [
   { type: "resume", title: "Resumes", label: "Resume" },
   { type: "cover_letter", title: "Cover Letters", label: "Cover Letter" },
+  { type: "project", title: "Example Works", label: "Project" },
 ] as const;
+
+/** The dialog that adds a document of `type`, opened by `children`. */
+function AddDocumentDialog({
+  type,
+  children,
+}: {
+  type: (typeof SECTIONS)[number]["type"];
+  children: React.ReactNode;
+}) {
+  return type === "project" ? (
+    <AddProjectDialog>{children}</AddProjectDialog>
+  ) : (
+    <UploadDocumentDialog documentType={type}>{children}</UploadDocumentDialog>
+  );
+}
 
 /** Default first, then newest first (the API already returns newest first). */
 function sortDocuments(docs: Document[]): Document[] {
@@ -31,7 +48,8 @@ export function DocumentSidebar({
 }: DocumentSidebarProps) {
   const { data: documents, isLoading } = useDocuments();
 
-  const uploaded = documents?.filter((d) => d.source === "uploaded") ?? [];
+  // Projects can be written in the app as well as uploaded.
+  const uploaded = documents?.filter((d) => d.source !== "generated") ?? [];
   const generated = documents?.filter((d) => d.source === "generated") ?? [];
 
   return (
@@ -46,6 +64,7 @@ export function DocumentSidebar({
         <ScrollArea className="h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!">
           <div className="p-3">
             {SECTIONS.map(({ type, title, label }) => {
+              const verb = type === "project" ? "Add" : "Upload";
               const docs = sortDocuments(
                 uploaded.filter((d) => d.document_type === type),
               );
@@ -56,28 +75,34 @@ export function DocumentSidebar({
                       {title}
                     </p>
                     {docs.length > 0 && (
-                      <UploadDocumentDialog documentType={type}>
+                      <AddDocumentDialog type={type}>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          aria-label={`Upload ${label}`}
-                          title={`Upload ${label}`}
+                          aria-label={`${verb} ${label}`}
+                          title={`${verb} ${label}`}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
-                      </UploadDocumentDialog>
+                      </AddDocumentDialog>
                     )}
                   </div>
                   {isLoading ? (
                     <Skeleton className="h-9 w-full" />
                   ) : docs.length === 0 ? (
-                    <UploadDocumentDialog documentType={type}>
+                    <AddDocumentDialog type={type}>
                       <button className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
-                        <Upload className="h-4 w-4 shrink-0" />
-                        <span>Upload {label}</span>
+                        {type === "project" ? (
+                          <Lightbulb className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <Upload className="h-4 w-4 shrink-0" />
+                        )}
+                        <span>
+                          {verb} {label}
+                        </span>
                       </button>
-                    </UploadDocumentDialog>
+                    </AddDocumentDialog>
                   ) : (
                     <div className="space-y-1">
                       {docs.map((doc) => (

@@ -42,6 +42,7 @@ interface DocumentListItemProps {
 const typeLabels: Record<Document["document_type"], string> = {
   resume: "resume",
   cover_letter: "cover letter",
+  project: "project",
 };
 
 export function DocumentListItem({
@@ -54,6 +55,8 @@ export function DocumentListItem({
   const setDefault = useSetDefaultDocument();
   const deleteDocument = useDeleteDocument();
   const typeLabel = typeLabels[document.document_type];
+  // Projects have no default.
+  const canBeDefault = document.document_type !== "project";
 
   function handleSetDefault() {
     setDefault.mutate(document.id, {
@@ -124,9 +127,9 @@ export function DocumentListItem({
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuItem onSelect={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4" />
-              Edit details
+              {canBeDefault ? "Edit details" : "Edit project"}
             </DropdownMenuItem>
-            {!document.is_default && (
+            {canBeDefault && !document.is_default && (
               <DropdownMenuItem onSelect={handleSetDefault}>
                 <Star className="h-4 w-4" />
                 Set as default

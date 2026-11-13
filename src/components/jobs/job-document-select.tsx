@@ -22,7 +22,7 @@ const config = {
 
 interface JobDocumentSelectProps {
   job: UserJob;
-  type: Document["document_type"];
+  type: keyof typeof config;
   /** The user's live uploaded documents of all types. */
   documents: Document[];
 }

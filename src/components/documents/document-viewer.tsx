@@ -14,6 +14,7 @@ interface DocumentViewerProps {
 const typeLabels: Record<string, string> = {
   resume: "Resume",
   cover_letter: "Cover Letter",
+  project: "Example Work",
 };
 
 export function DocumentViewer({ document }: DocumentViewerProps) {
@@ -34,6 +35,12 @@ export function DocumentViewer({ document }: DocumentViewerProps) {
             <h1 className="truncate text-lg font-semibold">
               {document.display_name}
             </h1>
+            {document.document_type === "project" &&
+              document.original_filename && (
+                <p className="truncate text-xs text-muted-foreground">
+                  From {document.original_filename}
+                </p>
+              )}
           </div>
           <Badge variant="outline" className="shrink-0">
             {typeLabels[document.document_type]}
