@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupeKeys, normalizeEmployer, positionKey, skillKey, slugify } from "./keys";
+import { dedupeKeys, normalizeEmployer, positionKey, skillKey, skillMatchKey, slugify } from "./keys";
 
 describe("slugify", () => {
   it("keeps symbols that change a skill's meaning", () => {
@@ -45,6 +45,15 @@ describe("keys", () => {
 
   it("keys skills by canonical name", () => {
     expect(skillKey("PostgreSQL")).toBe("postgresql");
+  });
+
+  it("matches skill spellings loosely", () => {
+    for (const name of ["React.js", "ReactJS", "React JS", "react"]) {
+      expect(skillMatchKey(name)).toBe(skillMatchKey("React"));
+    }
+    expect(skillMatchKey("Power BI")).toBe(skillMatchKey("PowerBI"));
+    expect(skillMatchKey("JS")).toBe("js");
+    expect(skillMatchKey("C++")).not.toBe(skillMatchKey("C"));
   });
 
   it("suffixes repeated keys in order", () => {

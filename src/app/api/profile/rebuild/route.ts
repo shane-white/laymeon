@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rebuildProfile } from "@/lib/profile/rebuild";
 import { NextResponse } from "next/server";
 
-// Each changed résumé is one model call; several run in parallel.
+// Each changed document is one model call; several run in parallel.
 export const maxDuration = 300;
 
 /** Rebuilds the user's Career Story from their documents and returns it. */

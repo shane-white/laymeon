@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Bump when the extraction prompt or schema changes, so cached extractions are redone. */
-export const EXTRACTION_VERSION = 1;
+export const EXTRACTION_VERSION = 2;
 
 /** Turns the extraction's "unknown" into null. */
 export function knownOrNull<T extends string>(value: T | "unknown"): T | null {
@@ -114,7 +114,7 @@ export const extractionSchema = z.object({
         evidence: quote.describe("A quote with the job title or employer, copied character-for-character."),
       }),
     )
-    .describe("Every job, most recent first. Include internships and volunteer roles."),
+    .describe("Every job the document describes, most recent first. Include internships and volunteer roles."),
   skills: z
     .array(
       z.object({
@@ -278,6 +278,22 @@ export const careerProfileSchema = z.object({
       evidence: z.array(evidenceSchema),
     }),
   ),
+  /**
+   * Places where two résumés disagree. The chosen value (from the most recent
+   * résumé) is the one in the profile; the user can review the rest.
+   */
+  conflicts: z
+    .array(
+      z.object({
+        section: z.literal("position"),
+        key: z.string(),
+        field: z.enum(["start", "end"]),
+        chosen: z.object({ documentId: z.string(), value: z.string().nullable() }),
+        other: z.object({ documentId: z.string(), value: z.string().nullable() }),
+      }),
+    )
+    // Profiles built before conflicts were recorded have none.
+    .default([]),
 });
 
 export type CareerProfile = z.infer<typeof careerProfileSchema>;

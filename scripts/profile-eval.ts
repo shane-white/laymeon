@@ -13,7 +13,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildProfile, type ExtractedDocument } from "@/lib/profile/build";
-import { extractDocument } from "@/lib/profile/extract";
+import { extractDocument, type SourceDocumentType } from "@/lib/profile/extract";
 import type { CareerProfile } from "@/lib/profile/schema";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "profile");
@@ -21,7 +21,8 @@ const FIXTURES_DIR = join(__dirname, "fixtures", "profile");
 type Range = [number, number];
 
 interface Expected {
-  documents: { file: string; asOf: string }[];
+  /** `type` defaults to "resume". */
+  documents: { file: string; asOf: string; type?: SourceDocumentType }[];
   positions: number;
   totalMonths: Range;
   roles: Record<string, Range>;
@@ -30,6 +31,14 @@ interface Expected {
   certifications: number;
   languages: number;
   forbidden: string[];
+  /** Expected number of résumé date conflicts. Not checked if left out. */
+  conflicts?: number;
+  /** Accomplishments that must be found, matched by a phrase in their text. */
+  accomplishments?: string[];
+  /** Skills that must not be found, e.g. a cover letter's job requirements. */
+  absentSkills?: string[];
+  /** Employers that must not appear as positions, e.g. the company a cover letter applies to. */
+  absentEmployers?: string[];
 }
 
 function parseArgs(argv: string[]) {
@@ -65,11 +74,25 @@ function check(profile: CareerProfile, expected: Expected): string[] {
   const skillKeys = new Set(profile.skills.map((s) => s.key));
   const missing = expected.requiredSkills.filter((k) => !skillKeys.has(k));
   if (missing.length) problems.push(`missing skills: ${missing.join(", ")}`);
+  const unexpected = (expected.absentSkills ?? []).filter((k) => skillKeys.has(k));
+  if (unexpected.length) problems.push(`skills that shouldn't be there: ${unexpected.join(", ")}`);
+  const wrongEmployers = (expected.absentEmployers ?? []).filter((name) =>
+    profile.positions.some((p) => p.employer.toLowerCase().includes(name.toLowerCase())),
+  );
+  if (wrongEmployers.length) problems.push(`positions that shouldn't be there: ${wrongEmployers.join(", ")}`);
   if (profile.certifications.length !== expected.certifications) {
     problems.push(`expected ${expected.certifications} certifications, got ${profile.certifications.length}`);
   }
   if (profile.languages.length !== expected.languages) {
     problems.push(`expected ${expected.languages} languages, got ${profile.languages.length}`);
+  }
+  if (expected.conflicts !== undefined && profile.conflicts.length !== expected.conflicts) {
+    problems.push(`expected ${expected.conflicts} conflicts, got ${profile.conflicts.length}`);
+  }
+  for (const phrase of expected.accomplishments ?? []) {
+    if (!profile.accomplishments.some((a) => a.text.toLowerCase().includes(phrase.toLowerCase()))) {
+      problems.push(`missing accomplishment: "${phrase}"`);
+    }
   }
   const json = JSON.stringify(profile);
   const leaked = expected.forbidden.filter((text) => json.includes(text));
@@ -85,16 +108,19 @@ function summarize(profile: CareerProfile): string {
   const skills = profile.skills
     .map((s) => `${s.name}${s.months != null ? ` ${s.months}` : ""}`)
     .join(", ");
-  return `${positions}\n    total: ${profile.summary.totalMonths} mo · ${profile.summary.seniority}\n    roles: ${roles}\n    skills: ${skills}`;
+  const conflicts = profile.conflicts
+    .map((c) => `${c.key} ${c.field}: ${c.chosen.value} vs ${c.other.value}`)
+    .join("; ");
+  return `${positions}\n    conflicts: ${conflicts || "none"} · accomplishments: ${profile.accomplishments.length}\n    total: ${profile.summary.totalMonths} mo · ${profile.summary.seniority}\n    roles: ${roles}\n    skills: ${skills}`;
 }
 
 async function runOnce(dir: string, expected: Expected): Promise<CareerProfile> {
   const docs: ExtractedDocument[] = await Promise.all(
-    expected.documents.map(async ({ file, asOf }) => {
+    expected.documents.map(async ({ file, asOf, type = "resume" }) => {
       const markdown = readFileSync(join(dir, file), "utf8");
       return {
-        document: { id: file, name: file, type: "resume" as const, markdown, asOf, targetRole: null },
-        extraction: await extractDocument(markdown, file, asOf),
+        document: { id: file, name: file, type, markdown, asOf, targetRole: null },
+        extraction: await extractDocument(markdown, file, type, asOf),
       };
     }),
   );
