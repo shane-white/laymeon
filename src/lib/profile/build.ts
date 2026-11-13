@@ -253,6 +253,11 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
   const ordered = bySourceOrder(docs);
   const resumes = ordered.filter(({ document }) => document.type === "resume");
   const newestResumeAsOf = resumes[0]?.document.asOf;
+  // A current job runs until the newest document. (See presentMonth, which
+  // recomputes durations the same way after the user's changes.)
+  const latestMonth = ordered.length
+    ? Math.max(...ordered.map(({ document }) => monthOfIsoDate(document.asOf)))
+    : monthOfIsoDate(builtAt);
 
   const verified = (doc: ProfileSourceDocument, quote: string | null | undefined): Evidence[] => {
     const trimmed = clean(quote);
@@ -275,10 +280,14 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       const titleFamily = clean(p.titleFamily) ?? title;
       const start = cleanProfileDate(p.start);
       const present = isPresent(p.end);
-      const interval = rangeToInterval(start, present ? "present" : p.end, asOf);
       // "present" on a document older than the newest résumé only means
       // "still there when it was written", so it ends at that document's date.
       const stillCurrent = !newestResumeAsOf || document.asOf >= newestResumeAsOf;
+      const interval = rangeToInterval(
+        start,
+        present ? "present" : p.end,
+        present && stillCurrent ? latestMonth : asOf,
+      );
       const end = present ? (stillCurrent ? "present" : formatMonth(asOf)) : cleanProfileDate(p.end);
 
       const candidate: WorkingPosition = {

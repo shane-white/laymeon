@@ -99,6 +99,11 @@ export function EvidencePopover({
     }, delay);
   }
 
+  function pin() {
+    if (timer.current) clearTimeout(timer.current);
+    openedByHover.current = false;
+  }
+
   const hoverHandlers = {
     onPointerEnter: (e: React.PointerEvent) => {
       if (e.pointerType === "mouse") schedule(true, OPEN_DELAY_MS);
@@ -143,6 +148,10 @@ export function EvidencePopover({
       </PopoverTrigger>
       <PopoverContent
         {...hoverHandlers}
+        // Clicking or tabbing into a popover opened by hovering pins it open,
+        // so its buttons and menus (which render outside it) can be used.
+        onPointerDownCapture={pin}
+        onFocusCapture={pin}
         align="start"
         className="flex max-h-80 w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto p-3"
         onOpenAutoFocus={(e) => {
