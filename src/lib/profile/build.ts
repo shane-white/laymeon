@@ -44,6 +44,7 @@ import {
   type Evidence,
   type Extraction,
 } from "./schema";
+import { sameAccomplishment, sameEmployer } from "./similar";
 
 export interface ProfileSourceDocument {
   id: string;
@@ -110,7 +111,7 @@ function clean(value: string | null | undefined): string | null {
 }
 
 function samePosition(a: WorkingPosition, b: WorkingPosition): boolean {
-  if (a.employerKey !== b.employerKey) return false;
+  if (!sameEmployer(a.employerKey, b.employerKey)) return false;
   if (a.familyKey !== b.familyKey && a.titleKey !== b.titleKey) return false;
   if (a.interval && b.interval) {
     const shorter = Math.min(a.interval.end - a.interval.start, b.interval.end - b.interval.start);
@@ -166,8 +167,7 @@ function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
   other.skillKeys.forEach((key) => winner.skillKeys.add(key));
   addEvidence(winner.evidence, other.evidence);
   for (const achievement of other.achievements) {
-    const text = normalizeText(achievement.text);
-    const existing = winner.achievements.find((a) => normalizeText(a.text) === text);
+    const existing = winner.achievements.find((a) => sameAccomplishment(a.text, achievement.text));
     if (existing) {
       existing.metric ??= achievement.metric;
       addEvidence(existing.evidence, achievement.evidence);
@@ -186,24 +186,24 @@ function findReferencedPosition(
   working: WorkingPosition[],
   reference: WorkingPosition,
 ): WorkingPosition | undefined {
-  const sameEmployer = working.filter((w) => w.employerKey === reference.employerKey);
-  if (sameEmployer.length === 0) return undefined;
+  const atEmployer = working.filter((w) => sameEmployer(w.employerKey, reference.employerKey));
+  if (atEmployer.length === 0) return undefined;
 
   const referenceInterval = reference.interval;
   if (referenceInterval) {
-    const overlapping = sameEmployer
+    const overlapping = atEmployer
       .map((w) => ({ w, overlap: w.interval ? overlapMonths(w.interval, referenceInterval) : 0 }))
       .filter((o) => o.overlap > 0)
       .sort((a, b) => b.overlap - a.overlap || a.w.order - b.w.order);
     if (overlapping.length) return overlapping[0].w;
   }
 
-  const sameRole = sameEmployer
+  const sameRole = atEmployer
     .filter((w) => w.familyKey === reference.familyKey || w.titleKey === reference.titleKey)
     .sort(comparePositions);
   if (sameRole.length) return sameRole[0];
 
-  return sameEmployer.length === 1 ? sameEmployer[0] : undefined;
+  return atEmployer.length === 1 ? atEmployer[0] : undefined;
 }
 
 function comparePositions(a: WorkingPosition, b: WorkingPosition): number {
@@ -302,7 +302,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       // A cover letter's or project's job needs a real quote naming it.
       const named = employer !== null && candidate.evidence.length > 0;
       const referenced = named ? findReferencedPosition(working, candidate) : undefined;
-      const employerKnown = working.some((w) => w.employerKey === candidate.employerKey);
+      const employerKnown = working.some((w) => sameEmployer(w.employerKey, candidate.employerKey));
       if (referenced) {
         mergePosition(referenced, candidate);
       } else if (named && title && !employerKnown) {
@@ -481,30 +481,35 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
   }
 
   // Accomplishments come from positions' achievements and need a verified quote.
-  const accomplishmentMap = new Map<string, CareerProfile["accomplishments"][number]>();
+  // The same accomplishment reworded on another document is merged into the
+  // first one (from the most recent résumé), keeping both quotes. One that
+  // isn't tied to a job is dropped if it repeats one that is.
+  const accomplishments: CareerProfile["accomplishments"] = [];
+  function addAccomplishment(
+    positionKey: string | null,
+    a: WorkingPosition["achievements"][number],
+  ): void {
+    if (a.evidence.length === 0) return;
+    const existing = accomplishments.find(
+      (b) => (positionKey === null || b.positionKey === positionKey) && sameAccomplishment(b.text, a.text),
+    );
+    if (existing) {
+      existing.metric ??= a.metric;
+      addEvidence(existing.evidence, a.evidence);
+      return;
+    }
+    accomplishments.push({
+      key: accomplishmentKey(positionKey, a.text),
+      text: a.text,
+      metric: a.metric,
+      positionKey,
+      evidence: [...a.evidence],
+    });
+  }
   for (const { key: posKey, w } of keyedPositions) {
-    for (const a of w.achievements) {
-      if (a.evidence.length === 0) continue;
-      const key = accomplishmentKey(posKey, a.text);
-      if (!accomplishmentMap.has(key)) {
-        accomplishmentMap.set(key, {
-          key,
-          text: a.text,
-          metric: a.metric,
-          positionKey: posKey,
-          evidence: a.evidence,
-        });
-      }
-    }
+    for (const a of w.achievements) addAccomplishment(posKey, a);
   }
-
-  for (const a of unattached) {
-    if (a.evidence.length === 0) continue;
-    const key = accomplishmentKey(null, a.text);
-    if (!accomplishmentMap.has(key)) {
-      accomplishmentMap.set(key, { key, text: a.text, metric: a.metric, positionKey: null, evidence: a.evidence });
-    }
-  }
+  for (const a of unattached) addAccomplishment(null, a);
 
   const conflicts = keyedPositions.flatMap(({ key, w }) => w.conflicts.map((c) => ({ ...c, key })));
 
@@ -540,7 +545,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     education: [...educationMap.values()].sort((a, b) => (b.end ?? "").localeCompare(a.end ?? "")),
     certifications: [...certificationMap.values()],
     languages: [...languageMap.values()],
-    accomplishments: [...accomplishmentMap.values()],
+    accomplishments: dedupeKeys(accomplishments),
     conflicts,
   });
 }
