@@ -2,6 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
+import { formatCareerStoryForPrompt, type CareerStoryContext } from "@/lib/profile/for-prompt";
+import type { CareerProfile } from "@/lib/profile/schema";
 import { buildMatchReport } from "./build";
 import { modelReportSchema, type MatchReport, type ModelReport } from "./schema";
 
@@ -17,9 +19,10 @@ Rules:
 - Never include eligibility questions applicants answer for themselves, which resumes don't usually cover: work authorization, visa sponsorship, citizenship or residency status, criminal history, background checks, drug tests, age, or willingness to travel, relocate or work certain shifts. Don't list them anywhere in the report: not as screeners, requirements, search words, fixes or next steps.
 - Search words: pick the 8–12 terms a recruiter would most likely type into an ATS search for this job, using the posting's exact wording (skills, tools, job titles, certifications). For each term, if the resume doesn't use that exact wording, list the resume's own wordings for it, copied verbatim from the resume, and say whether each is the same thing in different words or related but not the same. Exact matches are checked in code, so don't guess whether a term is present.
 - Actions and next steps: never suggest claiming skills or experience the candidate may not have. Phrase wording suggestions as "If true, add…".
-- Be consistent: the same resume and posting should always produce the same assessment.`;
+- Be consistent: the same resume and posting should always produce the same assessment.
+- Career Story: the candidate may also have a Career Story, built from their other documents and their own edits. It is not the resume. Never use it to decide a match, evidence, screener "shown", search words or the first impression: those are only about the resume. Use it only to fill careerStoryIds: for a requirement that isn't strong, or a screener that isn't shown, list the IDs of Career Story items that clearly show the candidate has it, most relevant first, or an empty list. For years-of-experience requirements and screeners, use the "Time in each role" items (R1, R2…) and the jobs' dates. Items marked "stated by the candidate" are the candidate's own statement and count the same. When an item shows a requirement, the action should suggest adding it to this resume, still phrased "If true, add…". Without a Career Story, leave every careerStoryIds empty.`;
 
-function buildUserMessage(resume: string, jobDescription: string): string {
+function buildUserMessage(resume: string, jobDescription: string, careerStory?: CareerStoryContext): string {
   return `## Resume
 
 ${resume}
@@ -28,7 +31,13 @@ ${resume}
 
 ## Job posting
 
-${jobDescription}`;
+${jobDescription}
+
+---
+
+## Career Story (not the resume)
+
+${careerStory?.text || "No Career Story."}`;
 }
 
 type ParsedReport = ReturnType<typeof modelReportSchema.safeParse>;
@@ -66,9 +75,10 @@ async function requestModelReport(
 export async function generateModelReport(
   resume: string,
   jobDescription: string,
+  careerStory?: CareerStoryContext,
 ): Promise<ModelReport> {
   const messages: Anthropic.MessageParam[] = [
-    { role: "user", content: buildUserMessage(resume, jobDescription) },
+    { role: "user", content: buildUserMessage(resume, jobDescription, careerStory) },
   ];
 
   const first = await requestModelReport(messages);
@@ -88,11 +98,17 @@ export async function generateModelReport(
   throw new Error("Claude returned a match report that didn't match the expected format");
 }
 
-/** Generates, verifies and labels a match report for a resume and job posting. */
+/**
+ * Generates, verifies and labels a match report for a resume and job posting.
+ * With the user's Career Story, the report also shows where it covers
+ * requirements the resume doesn't.
+ */
 export async function generateMatchReport(
   resume: string,
   jobDescription: string,
+  profile?: CareerProfile | null,
 ): Promise<MatchReport> {
-  const model = await generateModelReport(resume, jobDescription);
-  return buildMatchReport(model, resume);
+  const careerStory = profile ? formatCareerStoryForPrompt(profile) : undefined;
+  const model = await generateModelReport(resume, jobDescription, careerStory);
+  return buildMatchReport(model, resume, careerStory);
 }

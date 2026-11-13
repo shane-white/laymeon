@@ -72,6 +72,7 @@ describe("verifyEvidence", () => {
     match,
     evidence,
     action: null,
+    careerStoryIds: [],
   });
 
   it("keeps verified evidence", () => {
@@ -111,15 +112,15 @@ describe("verifyEvidence", () => {
       {
         ...base,
         screeners: [
-          { item: "US work authorization", shown: true, evidence: "Authorized to work in the US" },
-          { item: "Bachelor's degree", shown: true, evidence: "BS in Computer Science" },
+          { item: "US work authorization", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
+          { item: "Bachelor's degree", shown: true, evidence: "BS in Computer Science", careerStoryIds: [] },
         ],
       },
       RESUME,
     );
     expect(screeners).toEqual([
-      { item: "US work authorization", shown: true, evidence: "Authorized to work in the US" },
-      { item: "Bachelor's degree", shown: false, evidence: null },
+      { item: "US work authorization", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
+      { item: "Bachelor's degree", shown: false, evidence: null, careerStoryIds: [] },
     ]);
   });
 });

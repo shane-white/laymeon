@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { generateMatchReport } from "@/lib/match-report/generate";
 import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
+import { loadProfile } from "@/lib/profile/rebuild";
 import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
@@ -127,7 +128,13 @@ export async function POST(
 
   if (analysisType === "match_analysis") {
     try {
-      const report = await generateMatchReport(resume.parsed_markdown, jobDescription);
+      // The Career Story (with the user's removals left out) shows what this
+      // resume could add. A problem loading it shouldn't stop the report.
+      const profile = await loadProfile(supabase, user.id).catch((err) => {
+        console.error("Couldn't load the Career Story for a match report", err);
+        return null;
+      });
+      const report = await generateMatchReport(resume.parsed_markdown, jobDescription, profile);
 
       // Clearing the old markdown analysis makes the UI show the new report.
       const { error: updateError } = await supabase
