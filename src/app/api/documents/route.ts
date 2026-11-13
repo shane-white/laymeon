@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseDocument } from "@/lib/ai/parse-document";
+import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
 import { NextResponse, type NextRequest } from "next/server";
+
+// Changing a document rebuilds the Career Story in the background, after the
+// response is sent; that work counts toward this limit.
+export const maxDuration = 300;
 
 const MAX_DOCUMENTS_PER_TYPE = 20;
 const MAX_LABEL_LENGTH = 200;
@@ -154,6 +159,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`Database insert failed: ${dbError.message}`);
     }
 
+    await scheduleRebuild(supabase, user.id);
     return NextResponse.json(doc, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

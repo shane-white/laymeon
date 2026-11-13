@@ -6,7 +6,12 @@ import {
   MAX_PROJECT_TITLE_LENGTH,
 } from "@/lib/projects";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
 import { NextResponse, type NextRequest } from "next/server";
+
+// Changing a document rebuilds the Career Story in the background, after the
+// response is sent; that work counts toward this limit.
+export const maxDuration = 300;
 
 const ALLOWED_TYPES = [
   "application/pdf",
@@ -105,6 +110,7 @@ async function addWrittenProject(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  await scheduleRebuild(supabase, userId);
   return NextResponse.json([data], { status: 201 });
 }
 
@@ -177,6 +183,7 @@ async function importProjects(
       throw new Error(`Database insert failed: ${error.message}`);
     }
 
+    await scheduleRebuild(supabase, userId);
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

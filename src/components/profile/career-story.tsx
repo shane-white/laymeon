@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDocuments } from "@/hooks/use-documents";
-import { useProfile, useRebuildProfile } from "@/hooks/use-profile";
+import { useProfile, useRebuildProfile, type RebuildStatus } from "@/hooks/use-profile";
 import { formatDuration, isProfileStale, SENIORITY_LABELS, topSkills } from "@/lib/profile/format";
 import type { CareerProfile } from "@/lib/profile/schema";
 import { ChangeMarkers, ItemActions, ProfileEditor, ReviewBanner, useEditor } from "./editor";
@@ -42,13 +42,19 @@ function Title() {
   );
 }
 
-function useRebuild() {
+/** A rebuild the user started, or one the server is running after a document changed. */
+function useRebuild(status: RebuildStatus | undefined) {
   const rebuild = useRebuildProfile();
   return {
-    pending: rebuild.isPending,
+    pending: rebuild.isPending || Boolean(status?.running),
+    /** Set when the last automatic update failed. */
+    error: rebuild.isPending ? null : (status?.error ?? null),
     run: () =>
       rebuild.mutate(undefined, {
-        onSuccess: () => toast.success("Your Career Story is up to date"),
+        onSuccess: (profile) =>
+          profile
+            ? toast.success("Your Career Story is up to date")
+            : toast.info("It's already updating. This page refreshes when it's done."),
         onError: (err) => toast.error(err.message),
       }),
   };
@@ -129,11 +135,26 @@ function Header({
 
       {rebuild.pending && (
         <p className="text-sm text-muted-foreground">
-          This can take a minute or two. Only documents that changed are read again.
+          Updating with your latest documents. This can take a minute or two, and only documents
+          that changed are read again. You can keep using the app.
         </p>
       )}
 
-      {stale && !rebuild.pending && (
+      {rebuild.error && !rebuild.pending && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertTitle>Couldn&apos;t update your Career Story</AlertTitle>
+          <AlertDescription>
+            <p>
+              It&apos;s showing what was there before your last document change. Rebuild to try
+              again.
+            </p>
+            <p className="text-xs">{rebuild.error}</p>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {stale && !rebuild.pending && !rebuild.error && (
         <Alert>
           <AlertCircle />
           <AlertTitle>Your documents have changed</AlertTitle>
@@ -242,7 +263,7 @@ function EmptyState({
 export function CareerStory() {
   const profileQuery = useProfile();
   const documentsQuery = useDocuments();
-  const rebuild = useRebuild();
+  const rebuild = useRebuild(profileQuery.data?.rebuild);
 
   if (profileQuery.isPending || documentsQuery.isPending) return <LoadingState />;
 
@@ -269,7 +290,7 @@ export function CareerStory() {
   const sourceDocuments = (documentsQuery.data ?? []).filter(
     (d) => d.source !== "generated" && d.parsed_markdown?.trim(),
   );
-  const profile = profileQuery.data;
+  const profile = profileQuery.data.profile;
 
   if (!profile) {
     return <EmptyState hasDocuments={sourceDocuments.length > 0} rebuild={rebuild} />;

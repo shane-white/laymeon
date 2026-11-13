@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { MAX_PROJECT_DESCRIPTION_LENGTH } from "@/lib/projects";
+import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
 import { NextResponse, type NextRequest } from "next/server";
+
+// Changing a document rebuilds the Career Story in the background, after the
+// response is sent; that work counts toward this limit.
+export const maxDuration = 300;
 
 const MAX_LABEL_LENGTH = 200;
 // Raised by set_default_document / delete_document when the row isn't visible.
@@ -141,6 +146,8 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // A new name or target role shows in the Career Story too.
+  await scheduleRebuild(supabase, user.id);
   return NextResponse.json(doc);
 }
 
@@ -166,5 +173,6 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status });
   }
 
+  await scheduleRebuild(supabase, user.id);
   return NextResponse.json({ success: true });
 }
