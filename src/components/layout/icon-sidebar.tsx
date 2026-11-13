@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, FileText, LogOut, SmilePlus } from "lucide-react";
+import { BookUser, Briefcase, FileText, LogOut, SmilePlus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -16,6 +16,7 @@ import { clearJobChats } from "@/lib/chat/job-chat-store";
 const navItems = [
   { href: "/jobs", icon: Briefcase, label: "Jobs" },
   { href: "/documents", icon: FileText, label: "Documents" },
+  { href: "/profile", icon: BookUser, label: "Career Story" },
 ];
 
 export function IconSidebar() {
@@ -42,6 +43,7 @@ export function IconSidebar() {
               <TooltipTrigger asChild>
                 <Link
                   href={item.href}
+                  aria-label={item.label}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
                     isActive
