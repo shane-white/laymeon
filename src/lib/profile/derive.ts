@@ -49,8 +49,7 @@ export function recomputeDerived(profile: CareerProfile): CareerProfile {
         .filter((k) => positionKeys.has(k))
         .sort((a, b) => positionOrder.get(a)! - positionOrder.get(b)!);
       const intervals = linked.map((k) => intervalOf.get(k) ?? null);
-      const fromJobs = totalMonths(intervals);
-      const months = fromJobs === null && !s.extraMonths ? null : (fromJobs ?? 0) + s.extraMonths;
+      const months = s.monthsOverride ?? totalMonths(intervals);
       const ends = intervals.filter((i) => i !== null).map((i) => i.end);
       const current = linked.some((k) => profile.positions.find((p) => p.key === k)?.end === "present");
       const lastUsed = current ? "present" : ends.length ? formatMonth(Math.max(...ends) - 1) : null;

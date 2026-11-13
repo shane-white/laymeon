@@ -71,7 +71,7 @@ export const SECTION_FIELDS = {
     name: requiredText(100),
     category: skillCategorySchema,
     positionKeys: z.array(z.string().max(300)).max(100),
-    extraMonths: z.number().int().min(0).max(600),
+    monthsOverride: z.number().int().min(0).max(720).nullable(),
   }),
   accomplishment: z.strictObject({
     text: requiredText(1000),
@@ -200,7 +200,7 @@ function newItem(section: ListSection, key: string, fields: Record<string, unkno
       months: null,
       lastUsed: null,
       positionKeys: [],
-      extraMonths: 0,
+      monthsOverride: null,
     },
     accomplishment: { text: "", metric: null, positionKey: null },
     education: { school: "", degree: null, field: null, start: null, end: null },

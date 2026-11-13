@@ -144,10 +144,8 @@ function SkillDetails({ skill, profile }: { skill: Skill; profile: Profile }) {
           ))}
         </ul>
       )}
-      {skill.extraMonths > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Includes {formatDuration(skill.extraMonths)} outside these jobs
-        </p>
+      {skill.monthsOverride !== null && (
+        <p className="text-xs text-muted-foreground">You set the years for this skill.</p>
       )}
       {used.length === 0 && !duration && (
         <p className="text-xs text-muted-foreground">

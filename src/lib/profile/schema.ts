@@ -278,8 +278,11 @@ export const careerProfileSchema = z.object({
       /** "YYYY-MM", "present", or null. */
       lastUsed: z.string().nullable(),
       positionKeys: z.array(z.string()),
-      /** Months the user added for experience outside their listed jobs. */
-      extraMonths: z.number().default(0),
+      /**
+       * Months of experience the user set themselves, e.g. when they only used
+       * the skill in part of a long job. Replaces the months counted from jobs.
+       */
+      monthsOverride: z.number().nullable().default(null),
       evidence: z.array(evidenceSchema),
     }),
   ),

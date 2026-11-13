@@ -190,16 +190,30 @@ describe("edits", () => {
     expect(profile.skills.find((s) => s.key === "python")?.months).toBe(62);
   });
 
-  it("links a skill to more jobs and adds experience outside them", () => {
+  it("links a skill to more jobs", () => {
     const python = base.skills.find((s) => s.key === "python")!;
     const { profile } = applyUserChanges(base, [
-      edit(base, "skill", "python", { positionKeys: [...python.positionKeys, NORTHWIND], extraMonths: 24 }),
+      edit(base, "skill", "python", { positionKeys: [...python.positionKeys, NORTHWIND] }),
     ]);
     const updated = profile.skills.find((s) => s.key === "python")!;
     expect(updated.lastUsed).toBe("present");
-    // Mid-2018 – Nov 2026 (101 months) from the jobs, plus 2 years.
-    expect(updated.months).toBe(101 + 24);
+    // Mid-2018 – Nov 2026.
+    expect(updated.months).toBe(101);
     expect(positionOf(profile, NORTHWIND)?.skillKeys).toContain("python");
+  });
+
+  it("uses the years the user set instead of the job's, and keeps when it was last used", () => {
+    // Snowflake is only on the Northwind job, but the user only used it for its last 2 years.
+    const { profile } = applyUserChanges(base, [edit(base, "skill", "snowflake", { monthsOverride: 24 })]);
+    const snowflake = profile.skills.find((s) => s.key === "snowflake")!;
+    expect(snowflake.months).toBe(24);
+    expect(snowflake.lastUsed).toBe("present");
+    expect(base.skills.find((s) => s.key === "snowflake")!.months).toBe(69);
+  });
+
+  it("goes back to counting from jobs when the user's years are cleared", () => {
+    const { profile } = applyUserChanges(base, [edit(base, "skill", "snowflake", { monthsOverride: null })]);
+    expect(profile.skills.find((s) => s.key === "snowflake")!.months).toBe(69);
   });
 
   it("edits the headline", () => {

@@ -80,14 +80,14 @@ const FORMS: Record<ProfileSection, { noun: string; fields: FieldConfig[] }> = {
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "category", label: "Kind", type: "category" },
-      { name: "positionKeys", label: "Jobs where you used it", type: "positions", hint: "Its years come from these jobs' dates." },
       {
-        name: "extraMonths",
-        label: "Experience outside these jobs (years)",
+        name: "monthsOverride",
+        label: "Years of experience",
         type: "years",
-        placeholder: "0",
-        hint: "e.g. 2 for side projects or school",
+        placeholder: "Counted from your jobs",
+        hint: "Leave blank to count it from the jobs below. Set it when you only used it for part of a job, or also outside your jobs.",
       },
+      { name: "positionKeys", label: "Jobs where you used it", type: "positions" },
     ],
   },
   accomplishment: {
@@ -155,7 +155,7 @@ function toFormValues(section: ProfileSection, item: Item | undefined): FormValu
         values[`${f.name}:current`] = v === "present";
         break;
       case "years":
-        values[f.name] = typeof v === "number" && v > 0 ? String(Math.round((v / 12) * 10) / 10) : "";
+        values[f.name] = typeof v === "number" ? String(Math.round((v / 12) * 10) / 10) : "";
         break;
       case "positions":
         values[f.name] = (v as string[]) ?? [];
@@ -183,8 +183,10 @@ function fromFormValues(section: ProfileSection, values: FormValues): Record<str
         fields[f.name] = values[`${f.name}:current`] ? "present" : String(v).trim() || null;
         break;
       case "years": {
-        const years = Number(String(v).trim() || 0);
-        fields[f.name] = Number.isFinite(years) && years > 0 ? Math.round(years * 12) : 0;
+        // Blank means "count it from my jobs".
+        const text = String(v).trim();
+        const years = Number(text);
+        fields[f.name] = text && Number.isFinite(years) && years >= 0 ? Math.round(years * 12) : null;
         break;
       }
       case "positions":
@@ -700,7 +702,7 @@ const FIELD_LABELS: Record<string, string> = {
   name: "Name",
   category: "Kind",
   positionKeys: "Jobs where you used it",
-  extraMonths: "Experience outside your jobs",
+  monthsOverride: "Years of experience",
   text: "Text",
   positionKey: "Where it happened",
   school: "School",
@@ -715,6 +717,9 @@ const FIELD_LABELS: Record<string, string> = {
 
 /** How a field's value reads, e.g. for "Your documents say: …". */
 function describeValue(profile: CareerProfile, field: string, value: unknown): string {
+  if (field === "monthsOverride") {
+    return typeof value === "number" ? `${Math.round((value / 12) * 10) / 10} years` : "counted from your jobs";
+  }
   if (value === null || value === undefined || value === "") return "nothing";
   if (field === "positionKeys" && Array.isArray(value)) {
     const titles = value.map((k) => profile.positions.find((p) => p.key === k)?.title).filter(Boolean);
@@ -724,7 +729,6 @@ function describeValue(profile: CareerProfile, field: string, value: unknown): s
     const p = profile.positions.find((x) => x.key === value);
     return p ? `${p.title} at ${p.employer}` : "a job";
   }
-  if (field === "extraMonths" && typeof value === "number") return value ? `${Math.round((value / 12) * 10) / 10} years` : "nothing";
   if (field === "category") return CATEGORY_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
   if (field === "level") return LEVEL_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
   if (["start", "end", "issued", "expires"].includes(field)) return formatProfileDate(String(value)) ?? String(value);
