@@ -16,6 +16,20 @@ export const requirementCategorySchema = z.enum([
 export const searchWordStatusSchema = z.enum(["found", "similar", "not_found"]);
 export const similaritySchema = z.enum(["same_meaning", "related"]);
 
+const careerStoryIds = z
+  .array(z.string())
+  .describe(
+    "Only when the resume doesn't clearly show this: the IDs of Career Story items (like \"S3\" or \"R1\") that clearly show the candidate has it. Empty when the resume shows it, when no Career Story item does, or when there's no Career Story.",
+  );
+
+/** A Career Story item that shows a requirement the resume doesn't. See formatCareerStoryForPrompt. */
+export const careerStoryRefSchema = z.object({
+  section: z.string(),
+  key: z.string(),
+  label: z.string(),
+  byUser: z.boolean(),
+});
+
 /**
  * What the model returns through the `submit_match_report` tool.
  * The overall label and search word statuses are computed in code, not by the model.
@@ -42,6 +56,7 @@ export const modelReportSchema = z.object({
           .string()
           .nullable()
           .describe("A short verbatim quote from the resume that shows it, or null."),
+        careerStoryIds: careerStoryIds,
       }),
     )
     .describe("Only hard requirements the posting actually states. Empty if none."),
@@ -66,6 +81,7 @@ export const modelReportSchema = z.object({
           .string()
           .nullable()
           .describe("For partial or missing: one line on what to do, phrased 'If true, add…'. Null for strong."),
+        careerStoryIds: careerStoryIds,
       }),
     )
     .describe("One entry per requirement in the posting."),
@@ -122,6 +138,8 @@ export const matchReportSchema = z.object({
       item: z.string(),
       shown: z.boolean(),
       evidence: z.string().nullable(),
+      /** Career Story items that show it when the resume doesn't. */
+      careerStory: z.array(careerStoryRefSchema).default([]),
     }),
   ),
   requirements: z.array(
@@ -132,6 +150,8 @@ export const matchReportSchema = z.object({
       match: requirementMatchSchema,
       evidence: z.string().nullable(),
       action: z.string().nullable(),
+      /** Career Story items that show it when the resume doesn't. */
+      careerStory: z.array(careerStoryRefSchema).default([]),
     }),
   ),
   searchWords: z.array(
@@ -152,3 +172,4 @@ export type MatchReport = z.infer<typeof matchReportSchema>;
 export type OverallLabel = z.infer<typeof overallLabelSchema>;
 export type Requirement = MatchReport["requirements"][number];
 export type SearchWord = MatchReport["searchWords"][number];
+export type CareerStoryRef = z.infer<typeof careerStoryRefSchema>;

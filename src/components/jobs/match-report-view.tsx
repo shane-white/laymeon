@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle, ArrowRight, Check, Info, X } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowRight, BookUser, Check, Info, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { MatchReport, Requirement, SearchWord } from "@/lib/match-report/schema";
+import type { CareerStoryRef, MatchReport, Requirement, SearchWord } from "@/lib/match-report/schema";
 
 const OVERALL = {
   strong: { label: "Strong match", className: "bg-green-500/15 text-green-700 dark:text-green-400" },
@@ -89,6 +90,59 @@ function YourMatch({ overall }: { overall: MatchReport["overall"] }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** "In your Career Story: SQL · 4.5 yrs, …" under a requirement or screener the resume doesn't show. */
+function InCareerStory({ refs }: { refs: CareerStoryRef[] | undefined }) {
+  // Reports saved before the Career Story existed don't have refs.
+  if (!refs?.length) return null;
+  return (
+    <p className="flex items-start gap-1 text-xs text-muted-foreground">
+      <BookUser className="mt-px h-3 w-3 shrink-0" aria-hidden />
+      <span>
+        <span className="font-medium text-foreground">In your Career Story:</span>{" "}
+        {refs.map((r) => r.label).join("; ")}
+      </span>
+    </p>
+  );
+}
+
+/** Requirements this resume doesn't show, but the user's Career Story does. */
+function CareerStoryGaps({ report }: { report: MatchReport }) {
+  const gaps = [
+    // Reports saved before the Career Story existed don't have refs.
+    ...report.screeners.filter((s) => s.careerStory?.length).map((s) => ({ text: s.item, refs: s.careerStory })),
+    ...report.requirements
+      .filter((r) => r.careerStory?.length)
+      .map((r) => ({ text: r.text, refs: r.careerStory })),
+  ];
+  if (gaps.length === 0) return null;
+
+  return (
+    <Section
+      title="In your Career Story, not on this resume"
+      why="You've shown these in your other documents or your Career Story, but recruiters only see this resume. If they're true, add them."
+    >
+      <ul className="divide-y rounded-lg border">
+        {gaps.map((g, i) => (
+          <li key={i} className="flex flex-col gap-1 p-3">
+            <span className="text-sm font-medium">{g.text}</span>
+            <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+              {g.refs.map((r) => (
+                <li key={`${r.section}:${r.key}`}>
+                  {r.label}
+                  {r.byUser && " (added by you)"}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+      <Link href="/profile" className="w-fit text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+        Open your Career Story
+      </Link>
+    </Section>
   );
 }
 
@@ -177,6 +231,7 @@ function RequirementsChecklist({ requirements }: { requirements: Requirement[] }
             ) : (
               <p className="text-xs text-muted-foreground">Not on your resume</p>
             )}
+            {r.match !== "strong" && <InCareerStory refs={r.careerStory} />}
             {r.action && r.match !== "strong" && (
               <p className="flex items-start gap-1 text-xs">
                 <ArrowRight className="mt-px h-3 w-3 shrink-0" />
@@ -235,6 +290,8 @@ export function MatchReportView({ report }: { report: MatchReport }) {
       <ScreenOutWarning screeners={report.screeners} />
 
       <RequirementsChecklist requirements={report.requirements} />
+
+      <CareerStoryGaps report={report} />
 
       <SearchWords words={report.searchWords} />
 

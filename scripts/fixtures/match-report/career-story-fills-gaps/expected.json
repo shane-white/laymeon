@@ -1,0 +1,10 @@
+{
+  "label": "partial",
+  "careerStory": {
+    "documents": [
+      { "file": "career-story/project-payouts.md", "type": "project", "asOf": "2026-10-01T00:00:00Z" },
+      { "file": "career-story/cover-letter.md", "type": "cover_letter", "asOf": "2026-10-02T00:00:00Z" }
+    ],
+    "covers": ["payments", "PCI", "fintech"]
+  }
+}

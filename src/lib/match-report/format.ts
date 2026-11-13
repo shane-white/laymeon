@@ -22,7 +22,11 @@ export function formatMatchReportForPrompt(report: MatchReport): string {
     lines.push(
       "",
       "**Could screen you out:**",
-      ...report.screeners.map((s) => `- ${s.item}: ${s.shown ? "Shown" : "Not shown"}`),
+      ...report.screeners.map(
+        (s) =>
+          `- ${s.item}: ${s.shown ? "Shown" : "Not shown"}` +
+          (s.careerStory?.length ? ` — in their Career Story: ${s.careerStory.map((r) => r.label).join("; ")}` : ""),
+      ),
     );
   }
 
@@ -33,6 +37,7 @@ export function formatMatchReportForPrompt(report: MatchReport): string {
       (r) =>
         `- ${r.text} (${LABELS.importance[r.importance]}): ${LABELS.match[r.match]}` +
         (r.evidence ? ` — "${r.evidence}"` : "") +
+        (r.careerStory?.length ? ` — in their Career Story: ${r.careerStory.map((c) => c.label).join("; ")}` : "") +
         (r.action ? ` — ${r.action}` : ""),
     ),
     "",
