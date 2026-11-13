@@ -11,7 +11,7 @@ import {
   type Extraction,
 } from "./schema";
 
-// Résumés are extracted in parallel, a few at a time.
+// Documents are extracted in parallel, a few at a time.
 const EXTRACTION_CONCURRENCY = 4;
 
 interface DocumentRow {
@@ -60,8 +60,9 @@ export interface RebuildResult {
 }
 
 /**
- * Rebuilds the user's Career Story from their résumés and saves it. Only
- * résumés that changed since the last rebuild are sent to the model.
+ * Rebuilds the user's Career Story from their résumés, cover letters and
+ * projects, and saves it. Only documents that changed since the last rebuild
+ * are sent to the model.
  *
  * Until user changes are applied (LAY-55), `data` is the same as `base`.
  */
@@ -73,8 +74,9 @@ export async function rebuildProfile(
     .from("documents")
     .select("id, display_name, document_type, target_role, parsed_markdown, created_at")
     .eq("user_id", userId)
-    .eq("document_type", "resume")
-    .eq("source", "uploaded")
+    .in("document_type", ["resume", "cover_letter", "project"])
+    // Generated documents aren't the user's own account of their experience.
+    .in("source", ["uploaded", "written"])
     .is("deleted_at", null);
   if (docError) throw new Error(`Failed to load documents: ${docError.message}`);
 
@@ -94,7 +96,13 @@ export async function rebuildProfile(
     documents,
     EXTRACTION_CONCURRENCY,
     async (doc): Promise<ExtractedDocument> => {
-      const markdown = doc.parsed_markdown!;
+      // A project's title is stored apart from its description.
+      const markdown =
+        doc.document_type === "project"
+          ? `# ${doc.display_name}
+
+${doc.parsed_markdown!}`
+          : doc.parsed_markdown!;
       const hash = contentHash(markdown, doc.created_at);
       const source: ProfileSourceDocument = {
         id: doc.id,
@@ -114,7 +122,12 @@ export async function rebuildProfile(
         }
       }
 
-      const extraction: Extraction = await extractDocument(markdown, doc.display_name, doc.created_at);
+      const extraction: Extraction = await extractDocument(
+        markdown,
+        doc.display_name,
+        doc.document_type,
+        doc.created_at,
+      );
       extracted++;
       const { error } = await supabase.from("career_profile_extractions").upsert(
         {

@@ -2,8 +2,12 @@
  * Merges the extractions of a user's documents into one base profile. Pure:
  * the same documents always produce the same profile, with the same keys.
  *
- * - When documents disagree, the most recent document wins.
- * - The same job on two documents becomes one position.
+ * - Résumés are the backbone. When résumés disagree, the most recent wins,
+ *   and the disagreement is recorded as a conflict for the user to review.
+ * - Cover letters and projects only add to the profile: their jobs attach to
+ *   a résumé's job at the same employer (so their skills count toward its
+ *   years), and they never change a résumé's dates or titles.
+ * - The same job on two résumés becomes one position.
  * - Durations are computed here from position dates, never by the model.
  * - Evidence quotes are checked against the document they came from.
  */
@@ -13,6 +17,7 @@ import {
   formatMonth,
   isPresent,
   monthOfIsoDate,
+  parseProfileDate,
   overlapMonths,
   rangeToInterval,
   totalMonths,
@@ -28,6 +33,7 @@ import {
   positionKey,
   roleKey,
   skillKey,
+  skillMatchKey,
   slugify,
 } from "./keys";
 import {
@@ -38,6 +44,7 @@ import {
   type Evidence,
   type Extraction,
 } from "./schema";
+import { sameAccomplishment, sameEmployer, similarTitle } from "./similar";
 
 export interface ProfileSourceDocument {
   id: string;
@@ -73,9 +80,15 @@ interface WorkingPosition {
   peopleManaged: number | null;
   interval: MonthInterval | null;
   documentIds: Set<string>;
+  documentId: string;
+  fromResume: boolean;
+  /** The end came from "present" on a document older than the newest résumé. */
+  endFromPresent: boolean;
+  conflicts: CareerProfile["conflicts"][number][];
   employerKey: string;
   familyKey: string;
   titleKey: string;
+  /** Skill match keys (see skillMatchKey). */
   skillKeys: Set<string>;
   evidence: Evidence[];
   achievements: { text: string; metric: string | null; evidence: Evidence[] }[];
@@ -97,18 +110,70 @@ function clean(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-function samePosition(a: WorkingPosition, b: WorkingPosition): boolean {
-  if (a.employerKey !== b.employerKey) return false;
-  if (a.familyKey !== b.familyKey && a.titleKey !== b.titleKey) return false;
-  if (a.interval && b.interval) {
-    const shorter = Math.min(a.interval.end - a.interval.start, b.interval.end - b.interval.start);
-    return overlapMonths(a.interval, b.interval) >= shorter * SAME_POSITION_OVERLAP;
-  }
-  // Without dates on both sides, only the exact same title is safe to merge.
-  return a.titleKey === b.titleKey;
+/**
+ * True when two résumé entries list the same accomplishments: at least two in
+ * common, or every one when either lists only one.
+ */
+function shareAchievements(a: WorkingPosition, b: WorkingPosition): boolean {
+  const smaller = Math.min(a.achievements.length, b.achievements.length);
+  if (smaller === 0) return false;
+  const shared = a.achievements.filter((x) => b.achievements.some((y) => sameAccomplishment(x.text, y.text))).length;
+  return shared >= Math.min(2, smaller);
 }
 
+/**
+ * Whether two résumé entries are the same job: the same employer, plus the
+ * same role (same title family, or titles that mostly match) or the same
+ * accomplishments. When both have dates they must also overlap, so a
+ * promotion at the same employer stays a separate job.
+ */
+function samePosition(a: WorkingPosition, b: WorkingPosition): boolean {
+  if (!sameEmployer(a.employerKey, b.employerKey)) return false;
+  const sameRole =
+    a.familyKey === b.familyKey || a.titleKey === b.titleKey || similarTitle(a.title, b.title);
+  if (a.interval && b.interval) {
+    const shorter = Math.min(a.interval.end - a.interval.start, b.interval.end - b.interval.start);
+    if (overlapMonths(a.interval, b.interval) < shorter * SAME_POSITION_OVERLAP) return false;
+    return sameRole || shareAchievements(a, b);
+  }
+  // Without dates on both sides, the family alone isn't enough: two jobs at
+  // one employer often share it. The title or accomplishments must match.
+  return a.titleKey === b.titleKey || similarTitle(a.title, b.title) || shareAchievements(a, b);
+}
+
+/** True when two dates can't both be right: different years, or different months when both give one. */
+function datesDisagree(a: string | null, b: string | null): boolean {
+  const da = parseProfileDate(a);
+  const db = parseProfileDate(b);
+  if (!da || !db) return false;
+  if (da.year !== db.year) return true;
+  return da.month !== null && db.month !== null && da.month !== db.month;
+}
+
+function recordDateConflicts(winner: WorkingPosition, other: WorkingPosition): void {
+  const fields: ("start" | "end")[] = ["start"];
+  // "present" only means the job hadn't ended when the document was written.
+  const eitherOpen =
+    winner.endFromPresent || other.endFromPresent || winner.end === "present" || other.end === "present";
+  if (!eitherOpen) fields.push("end");
+  for (const field of fields) {
+    if (datesDisagree(winner[field], other[field])) {
+      winner.conflicts.push({
+        section: "position",
+        key: "",
+        field,
+        chosen: { documentId: winner.documentId, value: winner[field] },
+        other: { documentId: other.documentId, value: other[field] },
+      });
+    }
+  }
+}
+
+/** Folds `other` into `winner`. The winner's values stay; `other` only fills gaps. */
 function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
+  if (winner.fromResume && other.fromResume && winner.interval && other.interval) {
+    recordDateConflicts(winner, other);
+  }
   winner.location ??= other.location;
   winner.employmentType ??= other.employmentType;
   winner.peopleManaged ??= other.peopleManaged;
@@ -116,13 +181,13 @@ function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
     winner.start = other.start;
     winner.end = other.end;
     winner.interval = other.interval;
+    winner.endFromPresent = other.endFromPresent;
   }
   other.documentIds.forEach((id) => winner.documentIds.add(id));
   other.skillKeys.forEach((key) => winner.skillKeys.add(key));
   addEvidence(winner.evidence, other.evidence);
   for (const achievement of other.achievements) {
-    const text = normalizeText(achievement.text);
-    const existing = winner.achievements.find((a) => normalizeText(a.text) === text);
+    const existing = winner.achievements.find((a) => sameAccomplishment(a.text, achievement.text));
     if (existing) {
       existing.metric ??= achievement.metric;
       addEvidence(existing.evidence, achievement.evidence);
@@ -130,6 +195,35 @@ function mergePosition(winner: WorkingPosition, other: WorkingPosition): void {
       winner.achievements.push(achievement);
     }
   }
+}
+
+/**
+ * The job a cover letter or project refers to: the one at the same employer
+ * whose dates overlap most, else the most recent in the same role, else the
+ * only job at that employer. Undefined if it can't tell which job it is.
+ */
+function findReferencedPosition(
+  working: WorkingPosition[],
+  reference: WorkingPosition,
+): WorkingPosition | undefined {
+  const atEmployer = working.filter((w) => sameEmployer(w.employerKey, reference.employerKey));
+  if (atEmployer.length === 0) return undefined;
+
+  const referenceInterval = reference.interval;
+  if (referenceInterval) {
+    const overlapping = atEmployer
+      .map((w) => ({ w, overlap: w.interval ? overlapMonths(w.interval, referenceInterval) : 0 }))
+      .filter((o) => o.overlap > 0)
+      .sort((a, b) => b.overlap - a.overlap || a.w.order - b.w.order);
+    if (overlapping.length) return overlapping[0].w;
+  }
+
+  const sameRole = atEmployer
+    .filter((w) => w.familyKey === reference.familyKey || w.titleKey === reference.titleKey)
+    .sort(comparePositions);
+  if (sameRole.length) return sameRole[0];
+
+  return atEmployer.length === 1 ? atEmployer[0] : undefined;
 }
 
 function comparePositions(a: WorkingPosition, b: WorkingPosition): number {
@@ -141,17 +235,24 @@ function comparePositions(a: WorkingPosition, b: WorkingPosition): number {
   return a.order - b.order;
 }
 
-/** Most recent first; ties broken by ID so the order is always the same. */
-function byRecency(docs: ExtractedDocument[]): ExtractedDocument[] {
+/**
+ * Résumés first, then cover letters and projects, each most recent first.
+ * Ties are broken by ID so the order is always the same.
+ */
+function bySourceOrder(docs: ExtractedDocument[]): ExtractedDocument[] {
+  const rank = (d: ExtractedDocument) => (d.document.type === "resume" ? 0 : 1);
   return [...docs].sort(
     (a, b) =>
-      b.document.asOf.localeCompare(a.document.asOf) || a.document.id.localeCompare(b.document.id),
+      rank(a) - rank(b) ||
+      b.document.asOf.localeCompare(a.document.asOf) ||
+      a.document.id.localeCompare(b.document.id),
   );
 }
 
 export function buildProfile(docs: ExtractedDocument[], builtAt: string): CareerProfile {
-  const ordered = byRecency(docs);
-  const newestId = ordered[0]?.document.id;
+  const ordered = bySourceOrder(docs);
+  const resumes = ordered.filter(({ document }) => document.type === "resume");
+  const newestResumeAsOf = resumes[0]?.document.asOf;
 
   const verified = (doc: ProfileSourceDocument, quote: string | null | undefined): Evidence[] => {
     const trimmed = clean(quote);
@@ -160,31 +261,30 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       : [];
   };
 
-  // Positions
+  // Positions. Achievements from cover-letter or project jobs that can't be
+  // tied to a job are kept as accomplishments of their own.
   const working: WorkingPosition[] = [];
+  const unattached: WorkingPosition["achievements"] = [];
   let order = 0;
   for (const { document, extraction } of ordered) {
+    const fromResume = document.type === "resume";
     const asOf = monthOfIsoDate(document.asOf);
     for (const p of extraction.positions) {
       const employer = clean(p.employer);
       const title = clean(p.title);
-      if (!employer || !title) continue;
       const titleFamily = clean(p.titleFamily) ?? title;
       const start = cleanProfileDate(p.start);
       const present = isPresent(p.end);
       const interval = rangeToInterval(start, present ? "present" : p.end, asOf);
-      // "present" on an older document only means "still there when it was
-      // written", so it ends at that document's date.
-      const end = present
-        ? document.id === newestId
-          ? "present"
-          : formatMonth(asOf)
-        : cleanProfileDate(p.end);
+      // "present" on a document older than the newest résumé only means
+      // "still there when it was written", so it ends at that document's date.
+      const stillCurrent = !newestResumeAsOf || document.asOf >= newestResumeAsOf;
+      const end = present ? (stillCurrent ? "present" : formatMonth(asOf)) : cleanProfileDate(p.end);
 
       const candidate: WorkingPosition = {
-        employer,
-        title,
-        titleFamily,
+        employer: employer ?? "",
+        title: title ?? "",
+        titleFamily: titleFamily ?? "",
         location: clean(p.location),
         employmentType: knownOrNull(p.employmentType),
         start,
@@ -192,10 +292,14 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
         peopleManaged: p.peopleManaged > 0 ? Math.round(p.peopleManaged) : null,
         interval,
         documentIds: new Set([document.id]),
-        employerKey: normalizeEmployer(employer),
-        familyKey: roleKey(titleFamily),
-        titleKey: slugify(title),
-        skillKeys: new Set(p.skills.map((s) => clean(s)).filter((s) => s !== null).map(skillKey)),
+        documentId: document.id,
+        fromResume,
+        endFromPresent: present && !stillCurrent,
+        conflicts: [],
+        employerKey: employer ? normalizeEmployer(employer) : "",
+        familyKey: titleFamily ? roleKey(titleFamily) : "",
+        titleKey: title ? slugify(title) : "",
+        skillKeys: new Set(p.skills.map((s) => clean(s)).filter((s) => s !== null).map(skillMatchKey)),
         evidence: verified(document, p.evidence),
         achievements: p.achievements
           .filter((a) => clean(a.text))
@@ -207,9 +311,26 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
         order: order++,
       };
 
-      const match = working.find((w) => !w.documentIds.has(document.id) && samePosition(w, candidate));
-      if (match) mergePosition(match, candidate);
-      else working.push(candidate);
+      if (fromResume) {
+        if (!employer || !title) continue;
+        const match = working.find((w) => !w.documentIds.has(document.id) && samePosition(w, candidate));
+        if (match) mergePosition(match, candidate);
+        else working.push(candidate);
+        continue;
+      }
+
+      // A cover letter's or project's job needs a real quote naming it.
+      const named = employer !== null && candidate.evidence.length > 0;
+      const referenced = named ? findReferencedPosition(working, candidate) : undefined;
+      const employerKnown = working.some((w) => sameEmployer(w.employerKey, candidate.employerKey));
+      if (referenced) {
+        mergePosition(referenced, candidate);
+      } else if (named && title && !employerKnown) {
+        // A job no résumé lists.
+        working.push(candidate);
+      } else {
+        unattached.push(...candidate.achievements);
+      }
     }
   }
   working.sort(comparePositions);
@@ -218,7 +339,8 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     working.map((w) => ({ key: positionKey(w.employer, w.titleFamily, w.start), w })),
   );
 
-  // Skills
+  // Skills, matched across documents by a loose key ("React.js" = "React").
+  // The first name seen (from the most recent résumé) sets the skill's key.
   const skillMap = new Map<
     string,
     { name: string; aliases: Set<string>; category: CareerProfile["skills"][number]["category"]; evidence: Evidence[] }
@@ -227,11 +349,11 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     for (const s of extraction.skills) {
       const name = clean(s.canonicalName) ?? clean(s.name);
       if (!name) continue;
-      const key = skillKey(name);
-      let skill = skillMap.get(key);
+      const matchKey = skillMatchKey(name);
+      let skill = skillMap.get(matchKey);
       if (!skill) {
         skill = { name, aliases: new Set(), category: s.category, evidence: [] };
-        skillMap.set(key, skill);
+        skillMap.set(matchKey, skill);
       }
       for (const alias of [s.name, s.canonicalName]) {
         const a = clean(alias);
@@ -241,9 +363,10 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     }
   }
   // A skill needs at least one quote that's really in a document.
-  for (const [key, skill] of skillMap) {
-    if (skill.evidence.length === 0) skillMap.delete(key);
+  for (const [matchKey, skill] of skillMap) {
+    if (skill.evidence.length === 0) skillMap.delete(matchKey);
   }
+  const finalSkillKey = (matchKey: string) => skillKey(skillMap.get(matchKey)!.name);
 
   const positions = keyedPositions.map(({ key, w }) => ({
     key,
@@ -257,14 +380,15 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     isCurrent: w.end === "present",
     months: w.interval ? w.interval.end - w.interval.start : null,
     peopleManaged: w.peopleManaged,
-    skillKeys: [...w.skillKeys].filter((k) => skillMap.has(k)).sort(),
+    skillKeys: [...new Set([...w.skillKeys].filter((k) => skillMap.has(k)).map(finalSkillKey))].sort(),
     evidence: w.evidence,
   }));
 
   const intervalOf = new Map(keyedPositions.map(({ key, w }) => [key, w.interval]));
 
-  const skills = [...skillMap.entries()]
-    .map(([key, skill]) => {
+  const skills = [...skillMap.values()]
+    .map((skill) => {
+      const key = skillKey(skill.name);
       const linked = positions.filter((p) => p.skillKeys.includes(key));
       const intervals = linked.map((p) => intervalOf.get(p.key) ?? null);
       const ends = intervals.filter((i) => i !== null).map((i) => i.end);
@@ -377,22 +501,37 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
   }
 
   // Accomplishments come from positions' achievements and need a verified quote.
-  const accomplishmentMap = new Map<string, CareerProfile["accomplishments"][number]>();
-  for (const { key: posKey, w } of keyedPositions) {
-    for (const a of w.achievements) {
-      if (a.evidence.length === 0) continue;
-      const key = accomplishmentKey(posKey, a.text);
-      if (!accomplishmentMap.has(key)) {
-        accomplishmentMap.set(key, {
-          key,
-          text: a.text,
-          metric: a.metric,
-          positionKey: posKey,
-          evidence: a.evidence,
-        });
-      }
+  // The same accomplishment reworded on another document is merged into the
+  // first one (from the most recent résumé), keeping both quotes. One that
+  // isn't tied to a job is dropped if it repeats one that is.
+  const accomplishments: CareerProfile["accomplishments"] = [];
+  function addAccomplishment(
+    positionKey: string | null,
+    a: WorkingPosition["achievements"][number],
+  ): void {
+    if (a.evidence.length === 0) return;
+    const existing = accomplishments.find(
+      (b) => (positionKey === null || b.positionKey === positionKey) && sameAccomplishment(b.text, a.text),
+    );
+    if (existing) {
+      existing.metric ??= a.metric;
+      addEvidence(existing.evidence, a.evidence);
+      return;
     }
+    accomplishments.push({
+      key: accomplishmentKey(positionKey, a.text),
+      text: a.text,
+      metric: a.metric,
+      positionKey,
+      evidence: [...a.evidence],
+    });
   }
+  for (const { key: posKey, w } of keyedPositions) {
+    for (const a of w.achievements) addAccomplishment(posKey, a);
+  }
+  for (const a of unattached) addAccomplishment(null, a);
+
+  const conflicts = keyedPositions.flatMap(({ key, w }) => w.conflicts.map((c) => ({ ...c, key })));
 
   const workIntervals = keyedPositions
     .filter(({ w }) => w.employmentType !== "volunteer")
@@ -414,8 +553,8 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
       asOf: document.asOf,
     })),
     summary: {
-      headline: ordered.map(({ extraction }) => clean(extraction.headline)).find(Boolean) ?? null,
-      seniority: ordered.map(({ extraction }) => knownOrNull(extraction.seniority)).find(Boolean) ?? null,
+      headline: resumes.map(({ extraction }) => clean(extraction.headline)).find(Boolean) ?? null,
+      seniority: resumes.map(({ extraction }) => knownOrNull(extraction.seniority)).find(Boolean) ?? null,
       currentTitle: positions.find((p) => p.isCurrent)?.title ?? null,
       targetRoles,
       totalMonths: totalMonths(workIntervals),
@@ -426,6 +565,7 @@ export function buildProfile(docs: ExtractedDocument[], builtAt: string): Career
     education: [...educationMap.values()].sort((a, b) => (b.end ?? "").localeCompare(a.end ?? "")),
     certifications: [...certificationMap.values()],
     languages: [...languageMap.values()],
-    accomplishments: [...accomplishmentMap.values()],
+    accomplishments: dedupeKeys(accomplishments),
+    conflicts,
   });
 }

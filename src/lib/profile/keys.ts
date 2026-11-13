@@ -58,6 +58,16 @@ export function skillKey(canonicalName: string): string {
   return slugify(canonicalName);
 }
 
+/**
+ * A looser form of a skill's name for matching it across documents, so
+ * "React.js", "ReactJS", "React JS" and "React" are the same skill. Ignores
+ * separators and a trailing "js".
+ */
+export function skillMatchKey(name: string): string {
+  const compact = skillKey(name).replace(/-/g, "");
+  return compact.length > 4 && compact.endsWith("js") ? compact.slice(0, -2) : compact;
+}
+
 export function roleKey(titleFamily: string): string {
   return slugify(titleFamily);
 }

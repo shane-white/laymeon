@@ -259,5 +259,350 @@ describe("buildProfile", () => {
     const empty = buildProfile([], BUILT_AT);
     expect(empty.positions).toEqual([]);
     expect(empty.summary.totalMonths).toBeNull();
+    expect(empty.conflicts).toEqual([]);
+  });
+
+  it("records no conflicts when résumés only differ in precision", () => {
+    expect(profile.conflicts).toEqual([]);
+  });
+});
+
+function typed(
+  type: "cover_letter" | "project",
+  id: string,
+  markdown: string,
+  asOf: string,
+  extraction: Partial<Extraction>,
+): ExtractedDocument {
+  const d = doc(id, markdown, asOf, extraction);
+  return { ...d, document: { ...d.document, type } };
+}
+
+describe("buildProfile with cover letters and projects", () => {
+  const PROJECT = `# Finance reporting in dbt
+
+At Northwind Logistics I rebuilt our finance reporting in dbt and React.js, so month-end close took 2 days instead of 5.`;
+
+  const project = typed("project", "project", PROJECT, "2026-11-10T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Northwind Logistics",
+        title: "",
+        titleFamily: "",
+        // A project's dates aren't the job's dates and must not change them.
+        start: "2024-01",
+        end: "2024-06",
+        skills: ["dbt", "React"],
+        evidence: "At Northwind Logistics",
+        achievements: [
+          {
+            text: "Rebuilt finance reporting in dbt so month-end close took 2 days instead of 5",
+            metric: "month-end close 2 days instead of 5",
+            evidence: "so month-end close took 2 days instead of 5",
+          },
+        ],
+      }),
+    ],
+    skills: [
+      { name: "dbt", canonicalName: "dbt", category: "tool", evidence: "rebuilt our finance reporting in dbt" },
+      { name: "React.js", canonicalName: "React.js", category: "tool", evidence: "React.js" },
+    ],
+  });
+
+  const LETTER = `Dear hiring team,
+
+At Globex I led a support team of six. I also once cleaned up a messy data warehouse.
+
+I'd love to bring this to your Staff Engineer role at Initech.`;
+
+  const letter = typed("cover_letter", "letter", LETTER, "2026-11-11T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Globex",
+        title: "Support Lead",
+        titleFamily: "Support Lead",
+        peopleManaged: 6,
+        evidence: "At Globex I led a support team of six",
+        skills: ["Team Leadership"],
+      }),
+      position({
+        employer: "",
+        title: "",
+        titleFamily: "",
+        achievements: [
+          {
+            text: "Cleaned up a messy data warehouse",
+            metric: "",
+            evidence: "I also once cleaned up a messy data warehouse",
+          },
+        ],
+      }),
+      // Named, but its quote isn't in the letter: ignored.
+      position({ employer: "Initech", title: "Staff Engineer", titleFamily: "Engineer", evidence: "I worked at Initech" }),
+    ],
+    skills: [
+      { name: "team leadership", canonicalName: "Team Leadership", category: "soft_skill", evidence: "led a support team of six" },
+    ],
+  });
+
+  const resumeWithReact = doc(
+    "react-resume",
+    `${NEW_RESUME}\n\nAlso: React`,
+    "2026-11-01T00:00:00Z",
+    {
+      ...newDoc.extraction,
+      skills: [
+        ...newDoc.extraction.skills,
+        { name: "React", canonicalName: "React", category: "tool", evidence: "Also: React" },
+      ],
+    },
+  );
+
+  const profile = buildProfile([oldDoc, resumeWithReact, project, letter], BUILT_AT);
+  const northwind = profile.positions.find((p) => p.employer === "Northwind Logistics")!;
+
+  it("attaches a project to the résumé job at the same employer without changing its dates", () => {
+    expect(profile.positions.filter((p) => p.employer === "Northwind Logistics")).toHaveLength(1);
+    expect(northwind.start).toBe("2021-03");
+    expect(northwind.end).toBe("present");
+    expect(northwind.skillKeys).toContain("dbt");
+    expect(profile.conflicts).toEqual([]);
+  });
+
+  it("counts a project's skills toward the job's years", () => {
+    expect(profile.skills.find((s) => s.key === "dbt")?.months).toBe(69);
+  });
+
+  it("keeps the project's accomplishment on that job", () => {
+    const accomplishment = profile.accomplishments.find((a) => a.text.includes("month-end close"));
+    expect(accomplishment?.positionKey).toBe(northwind.key);
+    expect(accomplishment?.evidence[0].documentId).toBe("project");
+  });
+
+  it("matches skill spellings across documents, keeping the résumé's name", () => {
+    const react = profile.skills.filter((s) => s.key === "react");
+    expect(react).toHaveLength(1);
+    expect(react[0].name).toBe("React");
+    expect(react[0].aliases).toEqual(["React.js"]);
+    expect(react[0].evidence.map((e) => e.documentId).sort()).toEqual(["project", "react-resume"]);
+  });
+
+  it("adds a job only a cover letter mentions, without dates", () => {
+    const globex = profile.positions.find((p) => p.employer === "Globex")!;
+    expect(globex.months).toBeNull();
+    expect(globex.peopleManaged).toBe(6);
+    expect(globex.skillKeys).toEqual(["team-leadership"]);
+    expect(profile.skills.find((s) => s.key === "team-leadership")?.months).toBeNull();
+  });
+
+  it("ignores the job applied for and jobs without a real quote", () => {
+    expect(profile.positions.some((p) => p.employer === "Initech")).toBe(false);
+  });
+
+  it("keeps accomplishments that aren't tied to a job", () => {
+    const warehouse = profile.accomplishments.find((a) => a.text.includes("data warehouse"));
+    expect(warehouse?.positionKey).toBeNull();
+  });
+
+  it("takes the headline and level only from résumés", () => {
+    expect(profile.summary.seniority).toBe("senior");
+  });
+
+  it("is the same whatever order the documents come in", () => {
+    expect(buildProfile([letter, project, resumeWithReact, oldDoc], BUILT_AT)).toEqual(profile);
+  });
+
+  it("doesn't guess which job a document means when the employer has several", () => {
+    const ambiguous = typed("project", "ambiguous", "At Brightside Health I ran claims analysis.", "2026-11-12T00:00:00Z", {
+      positions: [
+        position({
+          employer: "Brightside Health",
+          title: "Analyst",
+          titleFamily: "Analyst",
+          evidence: "At Brightside Health",
+          achievements: [{ text: "Ran claims analysis", metric: "", evidence: "I ran claims analysis" }],
+        }),
+      ],
+    });
+    const result = buildProfile([oldDoc, newDoc, ambiguous], BUILT_AT);
+    expect(result.positions.filter((p) => p.employer.startsWith("Brightside"))).toHaveLength(2);
+    expect(result.accomplishments.find((a) => a.text === "Ran claims analysis")?.positionKey).toBeNull();
+  });
+});
+
+describe("conflicts between résumés", () => {
+  it("records different dates for the same job and keeps the newest résumé's", () => {
+    const a = doc("a", "**Engineer** — Acme (2019-02 – 2022-06)", "2025-01-01T00:00:00Z", {
+      positions: [
+        position({ employer: "Acme", title: "Engineer", titleFamily: "Engineer", start: "2019-02", end: "2022-06" }),
+      ],
+    });
+    const b = doc("b", "**Engineer** — Acme (2019-05 – 2022-06)", "2023-01-01T00:00:00Z", {
+      positions: [
+        position({ employer: "Acme", title: "Engineer", titleFamily: "Engineer", start: "2019-05", end: "2022-06" }),
+      ],
+    });
+    const result = buildProfile([a, b], BUILT_AT);
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions[0].start).toBe("2019-02");
+    expect(result.conflicts).toEqual([
+      {
+        section: "position",
+        key: result.positions[0].key,
+        field: "start",
+        chosen: { documentId: "a", value: "2019-02" },
+        other: { documentId: "b", value: "2019-05" },
+      },
+    ]);
+  });
+});
+
+describe("repeated accomplishments", () => {
+  const NEWER = `**Senior Data Engineer** — Northwind Logistics (2021-03 – present)
+
+- Cut warehouse costs 30% by partitioning and clustering large Snowflake tables
+- Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake`;
+
+  const OLDER = `**Senior Data Engineer**, Northwind (March 2021 – present)
+
+- Reduced Snowflake warehouse costs by 30% through partitioning and clustering
+- Built Airflow DAGs loading 2 TB/day from Kafka into Snowflake
+- Designed dbt models for finance reporting`;
+
+  const achievement = (text: string) => ({ text, metric: "", evidence: text });
+
+  const newer = doc("newer", NEWER, "2026-10-01T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Northwind Logistics",
+        title: "Senior Data Engineer",
+        titleFamily: "Data Engineer",
+        start: "2021-03",
+        end: "present",
+        evidence: "Senior Data Engineer** — Northwind Logistics",
+        achievements: [
+          { ...achievement("Cut warehouse costs 30% by partitioning and clustering large Snowflake tables"), metric: "30% lower warehouse costs" },
+          achievement("Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake"),
+        ],
+      }),
+    ],
+  });
+
+  const older = doc("older", OLDER, "2025-01-01T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Northwind",
+        title: "Senior Data Engineer",
+        titleFamily: "Data Engineer",
+        start: "2021-03",
+        end: "present",
+        evidence: "Senior Data Engineer**, Northwind",
+        achievements: [
+          achievement("Reduced Snowflake warehouse costs by 30% through partitioning and clustering"),
+          achievement("Built Airflow DAGs loading 2 TB/day from Kafka into Snowflake"),
+          achievement("Designed dbt models for finance reporting"),
+        ],
+      }),
+    ],
+  });
+
+  const profile = buildProfile([older, newer], BUILT_AT);
+
+  it("merges a job whose employer is shortened on one résumé", () => {
+    expect(profile.positions).toHaveLength(1);
+    expect(profile.positions[0].employer).toBe("Northwind Logistics");
+  });
+
+  it("lists each accomplishment once, in the newest résumé's words, with both quotes", () => {
+    expect(profile.accomplishments.map((a) => a.text)).toEqual([
+      "Cut warehouse costs 30% by partitioning and clustering large Snowflake tables",
+      "Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake",
+      "Designed dbt models for finance reporting",
+    ]);
+    expect(profile.accomplishments[0].evidence.map((e) => e.documentId)).toEqual(["newer", "older"]);
+  });
+
+  it("drops an unattached accomplishment that repeats one on a job", () => {
+    const letter = typed("cover_letter", "letter", "I cut warehouse costs by 30% by clustering and partitioning Snowflake tables.", "2026-10-05T00:00:00Z", {
+      positions: [
+        position({
+          achievements: [achievement("I cut warehouse costs by 30% by clustering and partitioning Snowflake tables")],
+        }),
+      ],
+    });
+    const result = buildProfile([older, newer, letter], BUILT_AT);
+    expect(result.accomplishments).toHaveLength(3);
+    expect(result.accomplishments[0].evidence.map((e) => e.documentId)).toContain("letter");
+  });
+});
+
+describe("the same job with different titles on two résumés", () => {
+  const BULLETS = [
+    "Architected end-to-end AI-powered workflow connecting LLM agents (Anthropic Claude), PostgreSQL database, and custom React UI to automate job search analysis",
+    "Designed context engineering system with carefully structured prompts to generate consistent, actionable output across multiple analysis types",
+    "Implemented agentic workflow with multiple specialized AI functions for resume analysis, job matching, and conversational exploration",
+  ];
+  const resume = (id: string, title: string, asOf: string, dates: { start: string; end: string }, bullets: string[]) =>
+    doc(id, `**${title}** — LayMeOn.com\n\n${bullets.map((b) => `- ${b}`).join("\n")}`, asOf, {
+      positions: [
+        position({
+          employer: "LayMeOn.com",
+          title,
+          titleFamily: title,
+          ...dates,
+          evidence: `${title}** — LayMeOn.com`,
+          achievements: bullets.map((text) => ({ text, metric: "", evidence: text })),
+        }),
+      ],
+    });
+
+  it("merges them when the titles mostly match", () => {
+    const result = buildProfile(
+      [
+        resume("a", "SelfAI Systems Developer & Architect", "2026-11-01T00:00:00Z", { start: "2026-09", end: "present" }, BULLETS),
+        resume("b", "AI Systems Developer & Architect", "2026-10-01T00:00:00Z", { start: "2026-09", end: "present" }, [
+          "Shipped functional prototype in less than a week demonstrating rapid iteration and systems-first thinking",
+          ...BULLETS,
+        ]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(1);
+    expect(result.accomplishments).toHaveLength(4);
+  });
+
+  it("merges them without dates when they list the same accomplishments", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Founder", "2026-11-01T00:00:00Z", { start: "", end: "" }, BULLETS),
+        resume("b", "AI Systems Developer & Architect", "2026-10-01T00:00:00Z", { start: "", end: "" }, BULLETS),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions[0].title).toBe("Founder");
+    expect(result.accomplishments).toHaveLength(3);
+  });
+
+  it("keeps different jobs at one employer apart", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Product Manager", "2026-11-01T00:00:00Z", { start: "", end: "" }, [BULLETS[0]]),
+        resume("b", "Project Manager", "2026-10-01T00:00:00Z", { start: "", end: "" }, [BULLETS[1]]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(2);
+  });
+
+  it("keeps a promotion apart even when the titles are similar", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Senior Data Engineer", "2026-11-01T00:00:00Z", { start: "2023-01", end: "present" }, [BULLETS[0]]),
+        resume("b", "Data Engineer", "2026-10-01T00:00:00Z", { start: "2019-01", end: "2022-12" }, [BULLETS[1]]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(2);
   });
 });
