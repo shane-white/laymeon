@@ -535,3 +535,74 @@ describe("repeated accomplishments", () => {
     expect(result.accomplishments[0].evidence.map((e) => e.documentId)).toContain("letter");
   });
 });
+
+describe("the same job with different titles on two résumés", () => {
+  const BULLETS = [
+    "Architected end-to-end AI-powered workflow connecting LLM agents (Anthropic Claude), PostgreSQL database, and custom React UI to automate job search analysis",
+    "Designed context engineering system with carefully structured prompts to generate consistent, actionable output across multiple analysis types",
+    "Implemented agentic workflow with multiple specialized AI functions for resume analysis, job matching, and conversational exploration",
+  ];
+  const resume = (id: string, title: string, asOf: string, dates: { start: string; end: string }, bullets: string[]) =>
+    doc(id, `**${title}** — LayMeOn.com\n\n${bullets.map((b) => `- ${b}`).join("\n")}`, asOf, {
+      positions: [
+        position({
+          employer: "LayMeOn.com",
+          title,
+          titleFamily: title,
+          ...dates,
+          evidence: `${title}** — LayMeOn.com`,
+          achievements: bullets.map((text) => ({ text, metric: "", evidence: text })),
+        }),
+      ],
+    });
+
+  it("merges them when the titles mostly match", () => {
+    const result = buildProfile(
+      [
+        resume("a", "SelfAI Systems Developer & Architect", "2026-11-01T00:00:00Z", { start: "2026-09", end: "present" }, BULLETS),
+        resume("b", "AI Systems Developer & Architect", "2026-10-01T00:00:00Z", { start: "2026-09", end: "present" }, [
+          "Shipped functional prototype in less than a week demonstrating rapid iteration and systems-first thinking",
+          ...BULLETS,
+        ]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(1);
+    expect(result.accomplishments).toHaveLength(4);
+  });
+
+  it("merges them without dates when they list the same accomplishments", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Founder", "2026-11-01T00:00:00Z", { start: "", end: "" }, BULLETS),
+        resume("b", "AI Systems Developer & Architect", "2026-10-01T00:00:00Z", { start: "", end: "" }, BULLETS),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions[0].title).toBe("Founder");
+    expect(result.accomplishments).toHaveLength(3);
+  });
+
+  it("keeps different jobs at one employer apart", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Product Manager", "2026-11-01T00:00:00Z", { start: "", end: "" }, [BULLETS[0]]),
+        resume("b", "Project Manager", "2026-10-01T00:00:00Z", { start: "", end: "" }, [BULLETS[1]]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(2);
+  });
+
+  it("keeps a promotion apart even when the titles are similar", () => {
+    const result = buildProfile(
+      [
+        resume("a", "Senior Data Engineer", "2026-11-01T00:00:00Z", { start: "2023-01", end: "present" }, [BULLETS[0]]),
+        resume("b", "Data Engineer", "2026-10-01T00:00:00Z", { start: "2019-01", end: "2022-12" }, [BULLETS[1]]),
+      ],
+      BUILT_AT,
+    );
+    expect(result.positions).toHaveLength(2);
+  });
+});
