@@ -11,6 +11,7 @@ import { useDocuments } from "@/hooks/use-documents";
 import { useProfile, useRebuildProfile } from "@/hooks/use-profile";
 import { formatDuration, isProfileStale, SENIORITY_LABELS, topSkills } from "@/lib/profile/format";
 import type { CareerProfile } from "@/lib/profile/schema";
+import { ChangeMarkers, ItemActions, ProfileEditor, ReviewBanner, useEditor } from "./editor";
 import {
   Accomplishments,
   Education,
@@ -79,6 +80,32 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** The headline, editable. Offers to add one when the documents have none. */
+function Headline({ headline }: { headline: string | null }) {
+  const editor = useEditor();
+  const item = { key: "summary", headline };
+  if (!headline) {
+    return (
+      <button
+        type="button"
+        className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        onClick={() => editor.edit("summary", item)}
+      >
+        Add a headline that sums up what you do
+      </button>
+    );
+  }
+  return (
+    <div className="group flex flex-col gap-1">
+      <div className="flex items-start gap-2">
+        <p className="text-base">{headline}</p>
+        <ItemActions section="summary" item={item} />
+      </div>
+      <ChangeMarkers section="summary" itemKey="summary" />
+    </div>
+  );
+}
+
 function Header({
   profile,
   rebuild,
@@ -116,7 +143,9 @@ function Header({
         </Alert>
       )}
 
-      {summary.headline && <p className="text-base">{summary.headline}</p>}
+      <ReviewBanner />
+
+      <Headline headline={summary.headline} />
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {total && <Stat label="Experience" value={total} />}
@@ -140,8 +169,8 @@ function Header({
 
       <p className="text-xs text-muted-foreground">
         Built from {documents} {documents === 1 ? "document" : "documents"} ·{" "}
-        updated {formatDistanceToNow(new Date(profile.builtAt), { addSuffix: true })}. Hover over or
-        tap anything to see where it came from.
+        updated {formatDistanceToNow(new Date(profile.builtAt), { addSuffix: true })}. Select anything
+        to see where it came from or to change it. Your changes are kept when it&apos;s rebuilt.
       </p>
     </header>
   );
@@ -249,15 +278,17 @@ export function CareerStory() {
   const stale = documentsQuery.isSuccess && isProfileStale(profile, sourceDocuments);
 
   return (
-    <Page>
-      <Header profile={profile} rebuild={rebuild} stale={stale} />
-      <WorkHistory profile={profile} />
-      <TimeInRoles profile={profile} />
-      <Strengths profile={profile} />
-      <Tools profile={profile} />
-      <Accomplishments profile={profile} />
-      <Education profile={profile} />
-      <Languages profile={profile} />
-    </Page>
+    <ProfileEditor profile={profile}>
+      <Page>
+        <Header profile={profile} rebuild={rebuild} stale={stale} />
+        <WorkHistory profile={profile} />
+        <TimeInRoles profile={profile} />
+        <Strengths profile={profile} />
+        <Tools profile={profile} />
+        <Accomplishments profile={profile} />
+        <Education profile={profile} />
+        <Languages profile={profile} />
+      </Page>
+    </ProfileEditor>
   );
 }
