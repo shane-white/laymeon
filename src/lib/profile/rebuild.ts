@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildProfile, type ExtractedDocument, type ProfileSourceDocument } from "./build";
 import { extractDocument } from "./extract";
+import { saveUserView } from "./user-changes";
 import {
   careerProfileSchema,
   EXTRACTION_VERSION,
@@ -64,7 +65,8 @@ export interface RebuildResult {
  * projects, and saves it. Only documents that changed since the last rebuild
  * are sent to the model.
  *
- * Until user changes are applied (LAY-55), `data` is the same as `base`.
+ * `base` is the profile built from the documents; `data` is `base` with the
+ * user's changes applied, which is what they see.
  */
 export async function rebuildProfile(
   supabase: SupabaseClient,
@@ -157,14 +159,15 @@ ${doc.parsed_markdown!}`
   }
 
   const now = new Date().toISOString();
-  const profile = buildProfile(inputs, now);
+  const base = buildProfile(inputs, now);
 
   const { error: saveError } = await supabase.from("career_profiles").upsert(
     {
       user_id: userId,
       version: PROFILE_VERSION,
-      base: profile,
-      data: profile,
+      base,
+      // Replaced below with the user's changes applied.
+      data: base,
       built_at: now,
       updated_at: now,
     },
@@ -172,6 +175,8 @@ ${doc.parsed_markdown!}`
   );
   if (saveError) throw new Error(`Failed to save profile: ${saveError.message}`);
 
+  // Put the user's changes back on top of the rebuilt profile.
+  const profile = await saveUserView(supabase, userId, base);
   return { profile, extracted, reused };
 }
 

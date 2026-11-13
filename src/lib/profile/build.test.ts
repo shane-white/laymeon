@@ -606,3 +606,16 @@ describe("the same job with different titles on two résumés", () => {
     expect(result.positions).toHaveLength(2);
   });
 });
+
+describe("recomputing derived values", () => {
+  it("agrees with buildProfile", async () => {
+    const { recomputeDerived } = await import("./derive");
+    const profiles = [
+      buildProfile([oldDoc, newDoc], BUILT_AT),
+      buildProfile([oldDoc, newDoc, doc("older", "**Analyst** — Contoso (2019-01 – present)", "2020-06-15T00:00:00Z", {
+        positions: [position({ employer: "Contoso", title: "Analyst", titleFamily: "Analyst", start: "2019-01", end: "present" })],
+      })], BUILT_AT),
+    ];
+    for (const profile of profiles) expect(recomputeDerived(profile)).toEqual(profile);
+  });
+});

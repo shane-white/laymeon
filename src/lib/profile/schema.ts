@@ -178,6 +178,55 @@ const evidenceSchema = z.object({
 
 export type Evidence = z.infer<typeof evidenceSchema>;
 
+/** The parts of the profile a user can change. Matches `career_profile_changes.section`. */
+export const profileSectionSchema = z.enum([
+  "summary",
+  "position",
+  "skill",
+  "accomplishment",
+  "education",
+  "certification",
+  "language",
+]);
+export type ProfileSection = z.infer<typeof profileSectionSchema>;
+
+const userChangesSummarySchema = z.object({
+  /** Items the user edited, with what the documents say for each edited field. */
+  edits: z.array(
+    z.object({
+      changeId: z.string(),
+      section: profileSectionSchema,
+      key: z.string(),
+      fields: z.record(z.string(), z.object({ documents: z.unknown() })),
+    }),
+  ),
+  /** Items the user added. `key` may be a document's item when one now says the same thing. */
+  added: z.array(z.object({ changeId: z.string(), section: profileSectionSchema, key: z.string() })),
+  /** Items the user removed, so they can be restored. */
+  removed: z.array(
+    z.object({ changeId: z.string(), section: profileSectionSchema, key: z.string(), label: z.string() }),
+  ),
+  /** Skills the user merged into another. */
+  merges: z.array(z.object({ changeId: z.string(), key: z.string(), mergedNames: z.array(z.string()) })),
+  /** Changes the user should look at again after a rebuild. */
+  reviews: z.array(
+    z.object({
+      changeId: z.string(),
+      section: profileSectionSchema,
+      key: z.string(),
+      label: z.string(),
+      /**
+       * documents_changed: the documents now say something different for a field the user edited.
+       * not_in_documents: an item the user edited is no longer in any document.
+       */
+      kind: z.enum(["documents_changed", "not_in_documents"]),
+      field: z.string().nullable(),
+      yours: z.unknown(),
+      documents: z.unknown(),
+    }),
+  ),
+});
+
 /** The stored profile (`career_profiles.base` and `.data`), shared with the UI. */
 export const careerProfileSchema = z.object({
   version: z.literal(PROFILE_VERSION),
@@ -229,6 +278,8 @@ export const careerProfileSchema = z.object({
       /** "YYYY-MM", "present", or null. */
       lastUsed: z.string().nullable(),
       positionKeys: z.array(z.string()),
+      /** Months the user added for experience outside their listed jobs. */
+      extraMonths: z.number().default(0),
       evidence: z.array(evidenceSchema),
     }),
   ),
@@ -294,9 +345,13 @@ export const careerProfileSchema = z.object({
     )
     // Profiles built before conflicts were recorded have none.
     .default([]),
+  /** What the user changed, for the UI. Empty in `base`; filled in `data` by applyUserChanges. */
+  user: userChangesSummarySchema.default({ edits: [], added: [], removed: [], merges: [], reviews: [] }),
 });
 
 export type CareerProfile = z.infer<typeof careerProfileSchema>;
+export type UserChangesSummary = z.infer<typeof userChangesSummarySchema>;
+export type ProfileReview = UserChangesSummary["reviews"][number];
 export type ProfilePosition = CareerProfile["positions"][number];
 export type ProfileSkill = CareerProfile["skills"][number];
 export type SeniorityLevel = z.infer<typeof seniorityLevelSchema>;
