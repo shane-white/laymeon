@@ -456,3 +456,82 @@ describe("conflicts between résumés", () => {
     ]);
   });
 });
+
+describe("repeated accomplishments", () => {
+  const NEWER = `**Senior Data Engineer** — Northwind Logistics (2021-03 – present)
+
+- Cut warehouse costs 30% by partitioning and clustering large Snowflake tables
+- Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake`;
+
+  const OLDER = `**Senior Data Engineer**, Northwind (March 2021 – present)
+
+- Reduced Snowflake warehouse costs by 30% through partitioning and clustering
+- Built Airflow DAGs loading 2 TB/day from Kafka into Snowflake
+- Designed dbt models for finance reporting`;
+
+  const achievement = (text: string) => ({ text, metric: "", evidence: text });
+
+  const newer = doc("newer", NEWER, "2026-10-01T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Northwind Logistics",
+        title: "Senior Data Engineer",
+        titleFamily: "Data Engineer",
+        start: "2021-03",
+        end: "present",
+        evidence: "Senior Data Engineer** — Northwind Logistics",
+        achievements: [
+          { ...achievement("Cut warehouse costs 30% by partitioning and clustering large Snowflake tables"), metric: "30% lower warehouse costs" },
+          achievement("Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake"),
+        ],
+      }),
+    ],
+  });
+
+  const older = doc("older", OLDER, "2025-01-01T00:00:00Z", {
+    positions: [
+      position({
+        employer: "Northwind",
+        title: "Senior Data Engineer",
+        titleFamily: "Data Engineer",
+        start: "2021-03",
+        end: "present",
+        evidence: "Senior Data Engineer**, Northwind",
+        achievements: [
+          achievement("Reduced Snowflake warehouse costs by 30% through partitioning and clustering"),
+          achievement("Built Airflow DAGs loading 2 TB/day from Kafka into Snowflake"),
+          achievement("Designed dbt models for finance reporting"),
+        ],
+      }),
+    ],
+  });
+
+  const profile = buildProfile([older, newer], BUILT_AT);
+
+  it("merges a job whose employer is shortened on one résumé", () => {
+    expect(profile.positions).toHaveLength(1);
+    expect(profile.positions[0].employer).toBe("Northwind Logistics");
+  });
+
+  it("lists each accomplishment once, in the newest résumé's words, with both quotes", () => {
+    expect(profile.accomplishments.map((a) => a.text)).toEqual([
+      "Cut warehouse costs 30% by partitioning and clustering large Snowflake tables",
+      "Built Airflow DAGs that load 2 TB/day from Kafka into Snowflake",
+      "Designed dbt models for finance reporting",
+    ]);
+    expect(profile.accomplishments[0].evidence.map((e) => e.documentId)).toEqual(["newer", "older"]);
+  });
+
+  it("drops an unattached accomplishment that repeats one on a job", () => {
+    const letter = typed("cover_letter", "letter", "I cut warehouse costs by 30% by clustering and partitioning Snowflake tables.", "2026-10-05T00:00:00Z", {
+      positions: [
+        position({
+          achievements: [achievement("I cut warehouse costs by 30% by clustering and partitioning Snowflake tables")],
+        }),
+      ],
+    });
+    const result = buildProfile([older, newer, letter], BUILT_AT);
+    expect(result.accomplishments).toHaveLength(3);
+    expect(result.accomplishments[0].evidence.map((e) => e.documentId)).toContain("letter");
+  });
+});
