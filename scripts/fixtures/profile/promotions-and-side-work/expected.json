@@ -1,0 +1,17 @@
+{
+  "documents": [{ "file": "resume.md", "asOf": "2026-11-01T00:00:00Z" }],
+  "positions": 5,
+  "totalMonths": [102, 102],
+  "roles": {
+    "software-engineer": [102, 102]
+  },
+  "skills": {
+    "go": [47, 47],
+    "kafka": [34, 34],
+    "python": [21, 21]
+  },
+  "requiredSkills": ["go", "python", "django", "kafka", "kubernetes", "postgresql", "react", "typescript"],
+  "certifications": 0,
+  "languages": 0,
+  "forbidden": []
+}

@@ -1,0 +1,19 @@
+{
+  "documents": [
+    { "file": "resume-2026.md", "asOf": "2026-10-01T00:00:00Z" },
+    { "file": "resume-2021.md", "asOf": "2021-06-15T00:00:00Z" }
+  ],
+  "positions": 3,
+  "totalMonths": [105, 116],
+  "roles": {
+    "product-manager": [78, 92],
+    "ux-researcher": [20, 28]
+  },
+  "skills": {
+    "sql": [30, 92]
+  },
+  "requiredSkills": ["sql", "amplitude", "jira", "figma", "dovetail"],
+  "certifications": 1,
+  "languages": 2,
+  "forbidden": ["1994", "Canadian", "Married", "marcus.bell@example.com"]
+}
