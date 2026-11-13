@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { MAX_PROJECT_DESCRIPTION_LENGTH } from "@/lib/projects";
 import { NextResponse, type NextRequest } from "next/server";
 
 const MAX_LABEL_LENGTH = 200;
@@ -23,9 +24,14 @@ export async function PATCH(
     display_name?: unknown;
     target_role?: unknown;
     is_default?: unknown;
+    parsed_markdown?: unknown;
   };
 
-  const updates: { display_name?: string; target_role?: string | null } = {};
+  const updates: {
+    display_name?: string;
+    target_role?: string | null;
+    parsed_markdown?: string;
+  } = {};
 
   if (body.display_name !== undefined) {
     if (typeof body.display_name !== "string" || !body.display_name.trim()) {
@@ -46,6 +52,41 @@ export async function PATCH(
     }
     const role = body.target_role?.trim().slice(0, MAX_LABEL_LENGTH);
     updates.target_role = role || null;
+  }
+
+  // Only a project's content can be edited; resumes and cover letters keep
+  // the content parsed from their file.
+  if (body.parsed_markdown !== undefined) {
+    if (typeof body.parsed_markdown !== "string" || !body.parsed_markdown.trim()) {
+      return NextResponse.json(
+        { error: "Description can't be empty" },
+        { status: 400 },
+      );
+    }
+    const content = body.parsed_markdown.trim();
+    if (content.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
+      return NextResponse.json(
+        { error: `Descriptions can be up to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString()} characters` },
+        { status: 400 },
+      );
+    }
+    const { data: existing } = await supabase
+      .from("documents")
+      .select("document_type")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+    if (existing.document_type !== "project") {
+      return NextResponse.json(
+        { error: "Only a project's description can be edited" },
+        { status: 400 },
+      );
+    }
+    updates.parsed_markdown = content;
   }
 
   if (body.is_default !== undefined && body.is_default !== true) {
