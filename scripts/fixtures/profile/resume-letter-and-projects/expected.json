@@ -1,25 +1,69 @@
 {
   "documents": [
-    { "file": "resume.md", "asOf": "2026-10-01T00:00:00Z" },
-    { "file": "cover-letter.md", "asOf": "2026-10-15T00:00:00Z", "type": "cover_letter" },
-    { "file": "project-pricing.md", "asOf": "2026-10-20T00:00:00Z", "type": "project" },
-    { "file": "project-side.md", "asOf": "2026-10-21T00:00:00Z", "type": "project" }
+    {
+      "file": "resume.md",
+      "asOf": "2026-10-01T00:00:00Z"
+    },
+    {
+      "file": "cover-letter.md",
+      "asOf": "2026-10-15T00:00:00Z",
+      "type": "cover_letter"
+    },
+    {
+      "file": "project-pricing.md",
+      "asOf": "2026-10-20T00:00:00Z",
+      "type": "project"
+    },
+    {
+      "file": "project-side.md",
+      "asOf": "2026-10-21T00:00:00Z",
+      "type": "project"
+    }
   ],
   "positions": 3,
-  "totalMonths": [105, 116],
+  "totalMonths": [
+    105,
+    116
+  ],
   "roles": {
-    "product-manager": [78, 92]
+    "product-manager": [
+      78,
+      92
+    ]
   },
   "skills": {
-    "looker": [55, 55],
-    "bigquery": [55, 55]
+    "swift": [
+      5,
+      7
+    ],
+    "swiftui": [
+      5,
+      7
+    ]
   },
-  "requiredSkills": ["looker", "bigquery", "swift", "swiftui", "sql"],
-  "absentSkills": ["kubernetes"],
-  "absentEmployers": ["Initech"],
+  "requiredSkills": [
+    "looker",
+    "bigquery",
+    "swift",
+    "swiftui",
+    "sql"
+  ],
+  "absentSkills": [
+    "kubernetes"
+  ],
+  "absentEmployers": [
+    "Initech"
+  ],
   "certifications": 1,
   "languages": 0,
   "conflicts": 0,
-  "accomplishments": ["18%", "barcode", "2,000 monthly users"],
-  "forbidden": ["marcus.bell@example.com"]
+  "accomplishments": [
+    "18%",
+    "barcode",
+    "2,000 monthly users"
+  ],
+  "forbidden": [
+    "marcus.bell@example.com"
+  ],
+  "_comment": "Looker and BigQuery only come from an undated project, so they get no years from the Lumen job. Swift comes from a project dated Mar\u2013Aug 2024, so it gets about 6 months (LAY-60)."
 }

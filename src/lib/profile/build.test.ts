@@ -369,8 +369,27 @@ I'd love to bring this to your Staff Engineer role at Initech.`;
     expect(profile.conflicts).toEqual([]);
   });
 
-  it("counts a project's skills toward the job's years", () => {
-    expect(profile.skills.find((s) => s.key === "dbt")?.months).toBe(69);
+  it("gives a project's skills the project's length, not the job's", () => {
+    const dbt = profile.skills.find((s) => s.key === "dbt")!;
+    // Jan – Jun 2024, not the job's 69 months.
+    expect(dbt.months).toBe(6);
+    expect(dbt.positionKeys).toEqual([northwind.key]);
+    // Last used still comes from the job.
+    expect(dbt.lastUsed).toBe("present");
+  });
+
+  it("gives a project's skills no years when the project has no dates", () => {
+    const undated = typed("project", "undated", PROJECT, "2026-11-10T00:00:00Z", {
+      ...project.extraction,
+      positions: project.extraction.positions.map((p) => ({ ...p, start: "", end: "" })),
+    });
+    const result = buildProfile([oldDoc, resumeWithReact, undated], BUILT_AT);
+    const dbt = result.skills.find((s) => s.key === "dbt")!;
+    expect(dbt.months).toBeNull();
+    expect(dbt.lastUsed).toBe("present");
+    // A skill the résumé also ties to the job still counts the job's dates.
+    expect(result.skills.find((s) => s.key === "react")?.months).toBeNull();
+    expect(result.skills.find((s) => s.key === "airflow")?.months).toBe(69);
   });
 
   it("keeps the project's accomplishment on that job", () => {
