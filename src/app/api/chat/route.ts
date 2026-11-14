@@ -173,7 +173,7 @@ ${listing.description || "No description available."}`;
 
     update_analysis: tool({
       description:
-        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify resume suggestions, cover letter suggestions, or interview suggestions. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Job Match tab.",
+        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify resume suggestions, cover letter suggestions, or interview suggestions. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Resume Match Analysis tab.",
       inputSchema: z.object({
         type: z
           .enum([

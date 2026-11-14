@@ -15,7 +15,7 @@ Laymeon is a job tracking and document management application that helps job see
 ### Job Detail Tabs
 
 - **Description** — Full job posting text
-- **Job Match Analysis** — AI-evaluated resume-to-job fit with skill gaps and match percentage
+- **Resume Match Analysis** — AI-evaluated resume-to-job fit with skill gaps and match percentage
 - **Resume Suggestions** — Actionable improvements tailored to the specific role
 - **Cover Letter Suggestions** — Key talking points and framing strategies
 - **Interview Suggestions** — Likely questions, topics to review, questions to ask
