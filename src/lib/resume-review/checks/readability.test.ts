@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeDocx, makePdf, para, table, textBox } from "../__fixtures__/files";
 import { context, DOCX, editResume, PDF, result } from "../__fixtures__/helpers";
-import { GOOD_RESUME, GOOD_RESUME_LINES } from "../__fixtures__/resumes";
+import { extraction, GOOD_RESUME, GOOD_RESUME_LINES, position } from "../__fixtures__/resumes";
 import { readAsSoftware } from "../software-view";
 import type { CodeCheckInput } from "../types";
 import { longestIncreasing, readabilityChecks } from "./readability";
@@ -176,6 +176,22 @@ describe("dates", () => {
   it("suggests months when there are only years", () => {
     const markdown = editResume(["Jan 2021 – Present", "2021 – Present"], ["Jun 2017 – Dec 2020", "2017 – 2020"]);
     expect(result(readabilityChecks(context({ markdown })), "readability.dates").label).toBe("could_improve");
+  });
+
+  it("flags dates written as seasons", () => {
+    const markdown = editResume(["Jan 2021 – Present", "Fall 2021 – Present"], ["Jun 2017 – Dec 2020", "Summer 2017 – Fall 2020"]);
+    const check = result(readabilityChecks(context({ markdown })), "readability.dates");
+    expect(check.label).toBe("could_improve");
+    expect(check.summary).toMatch(/seasons/);
+  });
+
+  it("flags a job the Career Story found with no dates", () => {
+    const e = extraction({
+      positions: [position({ employer: "Self", title: "Developer", start: "", end: "" }), position({ start: "2020-01" })],
+    });
+    const check = result(readabilityChecks(context({ extraction: e })), "readability.dates");
+    expect(check.label).toBe("could_improve");
+    expect(check.evidence).toEqual(["Self (Developer)"]);
   });
 
   it("marks a resume with no job dates as Fix this", () => {

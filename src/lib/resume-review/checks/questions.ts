@@ -4,7 +4,7 @@
  * ready to explain them.
  */
 import { formatMonth, unionIntervals } from "@/lib/profile/dates";
-import { check, plural, type CheckContext, type Position } from "../context";
+import { check, describePosition, plural, type CheckContext, type Position } from "../context";
 import type { CheckResult } from "../types";
 
 const MIN_GAP_MONTHS = 6;
@@ -72,7 +72,7 @@ function shortJobs(ctx: CheckContext): CheckResult {
     "questions.short_jobs",
     "info",
     `${plural(short.length, "job")} in the last ${SHORT_JOBS_WINDOW_YEARS} years lasted under a year. A recruiter may ask why. If some were contracts or the company closed, say so next to the job.`,
-    short.map((p) => `${[p.title, p.employer].filter(Boolean).join(", ")} (${p.start} – ${p.end})`),
+    short.map((p) => `${describePosition(p)}: ${p.start} – ${p.end}`),
     { shortJobs: short.length },
   );
 }

@@ -50,6 +50,7 @@ describe("classifyHeading", () => {
     ["Career Objective", "objective"],
     ["Licenses and Certifications", "certifications"],
     ["Volunteer Experience", "other_standard"],
+    ["Work Samples", "other_standard"],
     ["My Journey", "unknown"],
     ["Where I've Made an Impact", "unknown"],
   ])("%s → %s", (heading, kind) => {

@@ -4,7 +4,7 @@
  * parsers rely on: headings, dates, file type.
  */
 import { normalizeText } from "@/lib/match-report/evidence";
-import { check, plural, percent, share, type CheckContext } from "../context";
+import { check, describePosition, plural, percent, share, type CheckContext } from "../context";
 import {
   dateStyle,
   findDateRanges,
@@ -424,23 +424,42 @@ function dates(ctx: CheckContext): CheckResult {
     }
   }
   const styles = [...byStyle.keys()];
-  const data = { ranges: ranges.length, styles: styles.join(",") };
+  // Jobs the Career Story found with no start date.
+  const undated = ctx.positions.filter((p) => !p.start.trim());
+  const data = { ranges: ranges.length, styles: styles.join(","), undatedJobs: undated.length };
 
-  if (styles.length > 1) {
-    return check(
-      "readability.dates",
-      "could_improve",
-      `Your dates are written ${styles.length} different ways (${styles.map((s) => STYLE_EXAMPLES[s]).join(", ")}). Pick one, like "Jan 2022 – Mar 2024".`,
-      [...byStyle.values()],
-      data,
-    );
+  // A resume can have more than one of these, so all of them are reported.
+  const problems: { summary: string; evidence: string[] }[] = [];
+  if (undated.length) {
+    problems.push({
+      summary: `${plural(undated.length, "job has", "jobs have")} no dates. Software works out your years of experience from the dates, so give every job a start and end.`,
+      evidence: undated.map(describePosition),
+    });
   }
-  if (styles.length === 1 && styles[0] === "year") {
+  if (styles.length > 1) {
+    problems.push({
+      summary: `Your dates are written ${styles.length} different ways (${styles.map((s) => STYLE_EXAMPLES[s]).join(", ")}). Pick one.`,
+      evidence: [...byStyle.values()],
+    });
+  }
+  if (styles.includes("season")) {
+    problems.push({
+      summary: 'Some dates use seasons ("Fall 2018"). Many systems can\'t turn a season into a date, so they can\'t count your years of experience. Use months.',
+      evidence: [byStyle.get("season")!],
+    });
+  } else if (styles.length === 1 && styles[0] === "year") {
+    problems.push({
+      summary: "Your dates only give the year. Software and recruiters work out how long you held each job from the dates, so add the month.",
+      evidence: ranges.slice(0, 2).map((r) => r.text),
+    });
+  }
+
+  if (problems.length) {
     return check(
       "readability.dates",
       "could_improve",
-      'Your dates only give the year. Software and recruiters work out how long you held each job from the dates, so add the month: "Jan 2022 – Mar 2024".',
-      ranges.slice(0, 2).map((r) => r.text),
+      `${problems.map((p) => p.summary).join(" ")} Write every job's dates the same way, like "Jan 2022 – Mar 2024".`,
+      problems.flatMap((p) => p.evidence),
       data,
     );
   }

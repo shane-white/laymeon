@@ -63,7 +63,13 @@ export function buildContext(input: CodeCheckInput): CheckContext {
       start: p.start,
       end: p.end,
     }))
-    .sort((a, b) => (b.interval?.start ?? -Infinity) - (a.interval?.start ?? -Infinity));
+    // Most recent first: by when the job ended (current jobs first), then when it started.
+    // Jobs without dates go last.
+    .sort(
+      (a, b) =>
+        (b.interval?.end ?? -Infinity) - (a.interval?.end ?? -Infinity) ||
+        (b.interval?.start ?? -Infinity) - (a.interval?.start ?? -Infinity),
+    );
 
   const jobMonths = totalMonths(
     positions.filter((p) => !NOT_A_JOB.has(p.employmentType ?? "")).map((p) => p.interval),
@@ -81,6 +87,12 @@ export function buildContext(input: CodeCheckInput): CheckContext {
     positions,
     yearsOfExperience: jobMonths === null ? null : jobMonths / 12,
   };
+}
+
+/** "Pathstream (Data Specialist)", for evidence. Titles can contain commas, so the employer goes first. */
+export function describePosition(p: { title: string; employer: string }): string {
+  if (p.employer && p.title) return `${p.employer} (${p.title})`;
+  return p.employer || p.title || "A job";
 }
 
 export function check(

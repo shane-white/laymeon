@@ -1,5 +1,5 @@
 /** Experience bullets: how they start, numbers, length, and how detail is spread across jobs. */
-import { check, percent, plural, share, type CheckContext } from "../context";
+import { check, describePosition as describe, percent, plural, share, type CheckContext } from "../context";
 import { escapeRegExp, paragraphsIn, sectionsOfKind, truncate, wordCount } from "../text";
 import type { CheckResult } from "../types";
 import { WEAK_OPENERS } from "../word-lists";
@@ -91,10 +91,6 @@ function length(ctx: CheckContext): CheckResult {
     );
   }
   return check("bullets.length", "good", "Your bullets are a good length.", [], data);
-}
-
-function describe(p: { title: string; employer: string }): string {
-  return [p.title, p.employer].filter(Boolean).join(", ");
 }
 
 function perRole(ctx: CheckContext): CheckResult {

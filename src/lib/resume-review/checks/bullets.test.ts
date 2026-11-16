@@ -71,7 +71,7 @@ describe("bullets per job (from the Career Story)", () => {
     const e = extraction({ positions: [position({ title: "Analyst", employer: "Acme", achievements: achievements(11) })] });
     const check = result(checks({ extraction: e }), "bullets.per_role");
     expect(check.label).toBe("could_improve");
-    expect(check.evidence).toEqual(["Analyst, Acme: 11 bullets"]);
+    expect(check.evidence).toEqual(["Acme (Analyst): 11 bullets"]);
   });
 
   it("flags a most recent job with no bullets", () => {
@@ -101,7 +101,18 @@ describe("detail by recency", () => {
     });
     const check = result(checks({ extraction: e }), "bullets.detail_by_recency");
     expect(check.label).toBe("could_improve");
-    expect(check.evidence).toEqual(["Analyst, Acme: 6 bullets"]);
+    expect(check.evidence).toEqual(["Acme (Analyst): 6 bullets"]);
+  });
+
+  it("treats the job that ended last as the most recent, not the one that started last", () => {
+    // A long job that ran until recently, and a short side job that started later and ended earlier.
+    const e = extraction({
+      positions: [
+        position({ title: "Side project", start: "2023-09", end: "2024-09", achievements: achievements(3) }),
+        position({ title: "Designer", start: "2018-09", end: "2026-01", achievements: achievements(10) }),
+      ],
+    });
+    expect(result(checks({ extraction: e }), "bullets.detail_by_recency").label).toBe("good");
   });
 
   it("flags a recent job with much less detail than an earlier one", () => {

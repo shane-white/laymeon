@@ -35,7 +35,7 @@ const HEADING_PATTERNS: [SectionKind, RegExp][] = [
   ["references", /^references$/],
   [
     "other_standard",
-    /^(awards?|honou?rs|honou?rs (and|&) awards|awards (and|&) honou?rs|achievements|key achievements|publications|volunteer(ing| experience| work)?|languages|interests|hobbies|leadership( experience)?|activities|training|courses|professional development|affiliations|memberships|professional affiliations|patents|presentations|research( experience)?|teaching( experience)?|additional information)$/,
+    /^(portfolio|work samples|samples of work|awards?|honou?rs|honou?rs (and|&) awards|awards (and|&) honou?rs|achievements|key achievements|publications|volunteer(ing| experience| work)?|languages|interests|hobbies|leadership( experience)?|activities|training|courses|professional development|affiliations|memberships|professional affiliations|patents|presentations|research( experience)?|teaching( experience)?|additional information)$/,
   ],
 ];
 

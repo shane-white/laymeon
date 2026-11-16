@@ -63,7 +63,7 @@ describe("short jobs", () => {
   it("lists a pattern of jobs under a year as information", () => {
     const check = result(checks(shortJobs("full_time")), "questions.short_jobs");
     expect(check.label).toBe("info");
-    expect(check.evidence).toEqual(["A, Acme (2023-01 – 2023-08)", "B, Acme (2022-01 – 2022-09)", "C, Acme (2021-01 – 2021-06)"]);
+    expect(check.evidence).toEqual(["Acme (A): 2023-01 – 2023-08", "Acme (B): 2022-01 – 2022-09", "Acme (C): 2021-01 – 2021-06"]);
   });
 
   it("doesn't count contracts and internships", () => {
