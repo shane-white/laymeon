@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { GUIDE_PATH } from "@/lib/resume-review/guide";
 import type { Rewrite } from "@/lib/resume-review/report-schema";
 import { splitPlaceholders, type Slide } from "@/lib/resume-review/slides";
-import { CheckCard, EvidenceList, ReadFurtherLink } from "./check-card";
+import { CheckCard, EvidenceList, SlideSources } from "./check-card";
 import { CHECK_LABELS, LabelBadge, OVERALL_LABELS, OverallBadge } from "./labels";
 
 type SlideOf<K extends Slide["kind"]> = Extract<Slide, { kind: K }>;
@@ -73,6 +73,8 @@ export function OverviewSlide({ slide }: { slide: SlideOf<"overview"> }) {
 }
 
 export function SectionSlide({ slide }: { slide: SlideOf<"section"> }) {
+  const findings = [...slide.problems, ...slide.info];
+  const sourceChecks = (findings.length ? findings : slide.good).map((c) => c.id);
   return (
     <SlideFrame title={slide.title} label={<LabelBadge label={slide.label} />} why={slide.why}>
       {slide.problems.length > 0 && (
@@ -102,6 +104,7 @@ export function SectionSlide({ slide }: { slide: SlideOf<"section"> }) {
           </ul>
         </div>
       )}
+      <SlideSources checkIds={sourceChecks} />
     </SlideFrame>
   );
 }
@@ -132,12 +135,12 @@ export function SoftwareSlide({ slide, resumeText }: { slide: SlideOf<"software"
                   <p className="text-xs">{c.summary}</p>
                 </div>
                 <EvidenceList evidence={c.evidence} />
-                <ReadFurtherLink checkId={c.id} />
               </div>
             ))}
           </div>
         </div>
       </div>
+      <SlideSources checkIds={slide.checks.map((c) => c.id)} />
     </SlideFrame>
   );
 }
@@ -192,7 +195,6 @@ function RewriteCard({ rewrite }: { rewrite: Rewrite }) {
         <p className="text-sm text-muted-foreground">{rewrite.current}</p>
       )}
       <p className="text-xs text-muted-foreground">{rewrite.why}</p>
-      <ReadFurtherLink checkId={rewrite.checkId} />
     </div>
   );
 }
@@ -208,6 +210,7 @@ export function RewritesSlide({ slide }: { slide: SlideOf<"rewrites"> }) {
           <RewriteCard key={r.current} rewrite={r} />
         ))}
       </div>
+      <SlideSources checkIds={slide.rewrites.map((r) => r.checkId)} />
     </SlideFrame>
   );
 }

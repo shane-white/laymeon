@@ -172,9 +172,28 @@ export function tokens(text: string): string[] {
     .filter((t) => t.length >= 3 && !/^\d+$/.test(t));
 }
 
+/**
+ * Shortens long text by cutting out the middle ("Built a pipeline … in 15
+ * minutes."), so both the start and the end stay visible. Some checks are
+ * about how a line ends, like whether it ends with a period. Cuts fall
+ * between words where possible.
+ */
 export function truncate(text: string, max = 160): string {
   const clean = text.replace(/\s+/g, " ").trim();
-  return clean.length <= max ? clean : `${clean.slice(0, max - 1).trimEnd()}…`;
+  if (clean.length <= max) return clean;
+  const room = max - 3; // " … "
+  const headLength = Math.ceil(room * 0.6);
+  const tailLength = room - headLength;
+
+  let head = clean.slice(0, headLength);
+  const lastSpace = head.lastIndexOf(" ");
+  if (lastSpace > headLength * 0.6) head = head.slice(0, lastSpace);
+
+  let tail = clean.slice(clean.length - tailLength);
+  const firstSpace = tail.indexOf(" ");
+  if (firstSpace !== -1 && firstSpace < tailLength * 0.4) tail = tail.slice(firstSpace + 1);
+
+  return `${head.trimEnd()} … ${tail.trimStart()}`;
 }
 
 /** Escapes text for use inside a RegExp. */

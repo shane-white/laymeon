@@ -5,13 +5,12 @@ import Link from "next/link";
 import { BookOpen, ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReviewCheck } from "@/lib/resume-review/report-schema";
-import { readFurther } from "@/lib/resume-review/sources";
+import { readFurtherFor, type ReadFurther } from "@/lib/resume-review/sources";
 import type { CheckId } from "@/lib/resume-review/types";
 import { LabelBadge } from "./labels";
 
-/** The "Read further" link for a check: its best source, or its section of How we review resumes. */
-export function ReadFurtherLink({ checkId, className }: { checkId: CheckId; className?: string }) {
-  const target = readFurther(checkId);
+/** A "Read further" link: a source, or a section of How we review resumes. */
+export function ReadFurtherLink({ target, className }: { target: ReadFurther; className?: string }) {
   const linkClass = cn(
     "inline-flex w-fit items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline",
     className,
@@ -20,17 +19,38 @@ export function ReadFurtherLink({ checkId, className }: { checkId: CheckId; clas
     return (
       <Link href={target.href} className={linkClass} title={target.title}>
         <BookOpen className="h-3 w-3" aria-hidden />
-        Read further: {target.title}
+        {target.title}
       </Link>
     );
   }
   return (
     <a href={target.source.url} target="_blank" rel="noopener noreferrer" className={linkClass} title={target.source.shows}>
       <BookOpen className="h-3 w-3" aria-hidden />
-      Read further: {target.source.publisher}
+      {target.source.publisher}
       <ExternalLink className="h-3 w-3" aria-hidden />
       <span className="sr-only">(opens in a new tab)</span>
     </a>
+  );
+}
+
+/**
+ * One "Read further" list for a slide: each source once, however many of the
+ * slide's findings it supports.
+ */
+export function SlideSources({ checkIds }: { checkIds: CheckId[] }) {
+  const links = readFurtherFor(checkIds);
+  if (links.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5 border-t pt-3">
+      <h3 className="text-xs font-medium text-muted-foreground">Read further</h3>
+      <ul className="flex flex-col gap-1">
+        {links.map((link) => (
+          <li key={link.kind === "source" ? link.source.url : link.href}>
+            <ReadFurtherLink target={link} />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -47,7 +67,7 @@ export function EvidenceList({ evidence }: { evidence: string[] }) {
   );
 }
 
-/** One finding: its label, what to do, the evidence (shown on request) and a Read further link. */
+/** One finding: its label, what to do, and the evidence (shown on request). The slide lists its sources once, below. */
 export function CheckCard({ check }: { check: ReviewCheck }) {
   const [open, setOpen] = useState(false);
   const evidenceId = useId();
@@ -74,7 +94,7 @@ export function CheckCard({ check }: { check: ReviewCheck }) {
           </div>
         </div>
       )}
-      <ReadFurtherLink checkId={check.id} />
     </div>
   );
 }
+
