@@ -93,6 +93,31 @@ export function useAddProjects() {
   });
 }
 
+/** Replaces an uploaded resume's or cover letter's file, keeping its name, target role, default and jobs. */
+export function useReplaceDocumentFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/documents/${id}/file`, { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to replace the file");
+      }
+      return res.json() as Promise<Document>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The server rebuilds the Career Story after document changes.
+      void invalidateProfile(queryClient);
+      // The document's reviews were made from the old file.
+      void invalidateResumeReviews(queryClient);
+    },
+  });
+}
+
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
 

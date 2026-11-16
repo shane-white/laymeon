@@ -24,13 +24,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EditDocumentDialog } from "@/components/documents/edit-document-dialog";
+import { ReplaceFileDialog } from "@/components/documents/replace-file-dialog";
 import {
   useDeleteDocument,
   useSetDefaultDocument,
   type Document,
 } from "@/hooks/use-documents";
 import { cn } from "@/lib/utils";
-import { FileText, Loader2, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
+import { FileText, FileUp, Loader2, MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface DocumentListItemProps {
@@ -52,11 +53,14 @@ export function DocumentListItem({
 }: DocumentListItemProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
   const setDefault = useSetDefaultDocument();
   const deleteDocument = useDeleteDocument();
   const typeLabel = typeLabels[document.document_type];
   // Projects have no default.
   const canBeDefault = document.document_type !== "project";
+  // Only uploaded resumes and cover letters have a file to replace.
+  const canReplaceFile = canBeDefault && document.source === "uploaded";
 
   function handleSetDefault() {
     setDefault.mutate(document.id, {
@@ -129,6 +133,12 @@ export function DocumentListItem({
               <Pencil className="h-4 w-4" />
               {canBeDefault ? "Edit details" : "Edit project"}
             </DropdownMenuItem>
+            {canReplaceFile && (
+              <DropdownMenuItem onSelect={() => setReplaceOpen(true)}>
+                <FileUp className="h-4 w-4" />
+                Replace file
+              </DropdownMenuItem>
+            )}
             {canBeDefault && !document.is_default && (
               <DropdownMenuItem onSelect={handleSetDefault}>
                 <Star className="h-4 w-4" />
@@ -152,6 +162,10 @@ export function DocumentListItem({
         open={editOpen}
         onOpenChange={setEditOpen}
       />
+
+      {canReplaceFile && (
+        <ReplaceFileDialog document={document} open={replaceOpen} onOpenChange={setReplaceOpen} />
+      )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">

@@ -164,15 +164,22 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
             </AlertDescription>
           </Alert>
         ) : stored.outOfDate ? (
+          // A resume's text only changes when its file is replaced, so out of date means an earlier version.
           <Alert>
             <AlertTriangle />
-            <AlertTitle>This report is out of date</AlertTitle>
+            <AlertTitle>This report is for an earlier version of {stored.resumeName}</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-2">
-              <span>{stored.resumeName} has changed since it was reviewed.</span>
-              <Button variant="outline" size="sm" onClick={rerun} disabled={run.isPending}>
-                {run.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                Run the review again
-              </Button>
+              <span>The file was replaced after this review. Run it again to review the new version.</span>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={rerun} disabled={run.isPending}>
+                  {run.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                  Re-run
+                </Button>
+                <Button variant="outline" size="sm" onClick={deleteReport} disabled={remove.isPending}>
+                  {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                  Delete report
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         ) : null}

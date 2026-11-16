@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseDocument } from "@/lib/ai/parse-document";
 import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
+import { ALLOWED_UPLOAD_TYPES, storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Changing a document rebuilds the Career Story in the background, after the
@@ -16,13 +17,6 @@ function cleanLabel(value: FormDataEntryValue | null): string | null {
   return trimmed || null;
 }
 
-const ALLOWED_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/rtf",
-  "application/vnd.oasis.opendocument.text",
-];
 
 export async function GET() {
   const supabase = await createClient();
@@ -73,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
     return NextResponse.json(
       {
         error: "Unsupported file type. Please upload a PDF, DOCX, or DOC file.",
@@ -109,12 +103,11 @@ export async function POST(request: NextRequest) {
 
   try {
     // Upload to Supabase Storage
-    const folder = documentType === "resume" ? "resumes" : "cover-letters";
-    const storagePath = `${folder}/${user.id}/${Date.now()}-${file.name}`;
+    const storagePath = storagePathFor(documentType as "resume" | "cover_letter", user.id, file.name);
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await supabase.storage
-      .from("imported-documents")
+      .from(UPLOAD_BUCKET)
       .upload(storagePath, buffer, { contentType: file.type });
 
     if (uploadError) {
@@ -133,7 +126,7 @@ export async function POST(request: NextRequest) {
       target_role: targetRole,
       mime_type: file.type,
       file_size_bytes: file.size,
-      storage_bucket: "imported-documents",
+      storage_bucket: UPLOAD_BUCKET,
       storage_path: storagePath,
       parsed_markdown: markdown,
       // The first document of a type becomes the default.

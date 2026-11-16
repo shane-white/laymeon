@@ -176,7 +176,7 @@ export function DocumentSidebar({
                   const status = review.resumeDeleted
                     ? "The resume was deleted"
                     : review.outOfDate
-                      ? "Out of date: the resume changed"
+                      ? "Made from an earlier version of the resume"
                       : review.overallLabel
                         ? OVERALL_LABELS[review.overallLabel].label
                         : undefined;
