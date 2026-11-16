@@ -1,4 +1,5 @@
 import mammoth from "mammoth";
+import { extractWordText } from "./word-xml";
 
 export async function extractTextFromFile(
   buffer: Buffer,
@@ -18,7 +19,18 @@ export async function extractTextFromFile(
   }
 }
 
+/**
+ * Reads the XML directly, keeping line breaks, tabs, headers and footers that
+ * mammoth's raw text drops. Falls back to mammoth if that fails (for example
+ * an old .doc file that isn't really a .docx).
+ */
 async function extractDocxText(buffer: Buffer): Promise<string> {
+  try {
+    const text = await extractWordText(buffer);
+    if (text.trim()) return text;
+  } catch {
+    // Not a .docx zip; let mammoth try.
+  }
   const result = await mammoth.extractRawText({ buffer });
   return result.value;
 }
