@@ -58,6 +58,24 @@ export const CODE_CHECKS = {
 
 export type CodeCheckId = keyof typeof CODE_CHECKS;
 
+/** Checks that need judgment, run by Claude (LAY-68). */
+export const MODEL_CHECKS = {
+  "first_impression.headline": "first_impression",
+  "first_impression.summary": "first_impression",
+  "first_impression.top_third": "first_impression",
+  "bullets.achievements": "bullets",
+  "bullets.tense": "bullets",
+  "skills.acronyms": "skills",
+  "skills.list_quality": "skills",
+  "writing.typos": "writing",
+} as const satisfies Record<string, SectionId>;
+
+export type ModelCheckId = keyof typeof MODEL_CHECKS;
+
+export const ALL_CHECKS = { ...CODE_CHECKS, ...MODEL_CHECKS };
+export type CheckId = CodeCheckId | ModelCheckId;
+export const CHECK_IDS = Object.keys(ALL_CHECKS) as [CheckId, ...CheckId[]];
+
 /**
  * good / could_improve / fix are the labels users see. info is for
  * "Questions a recruiter may ask" and never counts as a problem.
