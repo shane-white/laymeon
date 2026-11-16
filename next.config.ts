@@ -16,6 +16,10 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   turbopack: {},
 
+  // pdf.js (used by pdf-parse for the resume review) loads its worker from
+  // its own files, so it has to run from node_modules rather than the bundle.
+  serverExternalPackages: ["pdf-parse"],
+
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

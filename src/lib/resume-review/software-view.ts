@@ -23,7 +23,9 @@ export async function readAsSoftware(buffer: Buffer, mimeType: string): Promise<
 }
 
 async function readPdf(buffer: Buffer): Promise<SoftwareView> {
-  // Loaded on demand: pdf.js is large, and only this path needs it.
+  // Loaded on demand: pdf.js is large, and only this path needs it. The
+  // worker import sets up pdf.js for Node and serverless (pdf-parse's docs).
+  await import("pdf-parse/worker");
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
