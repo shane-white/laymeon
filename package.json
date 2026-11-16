@@ -10,7 +10,8 @@
     "test": "vitest run",
     "eval:match-report": "tsx --env-file=.env.local scripts/match-report-eval.ts",
     "eval:profile": "tsx --env-file=.env.local scripts/profile-eval.ts",
-    "eval:resume-review": "tsx --env-file=.env.local scripts/resume-review-eval.ts"
+    "eval:resume-review": "tsx --env-file=.env.local scripts/resume-review-eval.ts",
+    "check:sources": "tsx scripts/check-source-links.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",

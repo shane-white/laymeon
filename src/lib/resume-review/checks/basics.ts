@@ -46,7 +46,7 @@ function contact(ctx: CheckContext): CheckResult {
     return check(
       "basics.contact",
       "could_improve",
-      `Add ${missingNice.join(" and ")} next to your contact details. Recruiters filter by location, and most check LinkedIn.`,
+      `Add ${missingNice.join(" and ")} next to your contact details. Recruiters often filter by location, and many check LinkedIn.`,
       [],
       present,
     );
