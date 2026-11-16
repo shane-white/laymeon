@@ -35,7 +35,7 @@ const HEADING_PATTERNS: [SectionKind, RegExp][] = [
   ["references", /^references$/],
   [
     "other_standard",
-    /^(portfolio|work samples|samples of work|awards?|honou?rs|honou?rs (and|&) awards|awards (and|&) honou?rs|achievements|key achievements|publications|volunteer(ing| experience| work)?|languages|interests|hobbies|leadership( experience)?|activities|training|courses|professional development|affiliations|memberships|professional affiliations|patents|presentations|research( experience)?|teaching( experience)?|additional information)$/,
+    /^(contact( information| info| details)?|portfolio|work samples|samples of work|awards?|honou?rs|honou?rs (and|&) awards|awards (and|&) honou?rs|achievements|key achievements|publications|volunteer(ing| experience| work)?|languages|interests|hobbies|leadership( experience)?|activities|training|courses|professional development|affiliations|memberships|professional affiliations|patents|presentations|research( experience)?|teaching( experience)?|additional information)$/,
   ],
 ];
 
@@ -95,10 +95,16 @@ export function parseResume(markdown: string): ParsedResume {
     .map((line, index) => ({ index, match: HEADING_LINE.exec(line) }))
     .filter((h): h is { index: number; match: RegExpExecArray } => h.match !== null);
 
-  // A first `#` heading that isn't a section is the person's name.
+  // A first heading that isn't a section is the person's name: a `#` heading,
+  // or any heading on the first line ("## Jane Doe").
   let candidates = headings;
   const first = headings[0];
-  if (first && first.match[1].length === 1 && classifyHeading(first.match[2]) === "unknown") {
+  const firstLine = lines.findIndex((l) => l.trim());
+  if (
+    first &&
+    (first.match[1].length === 1 || first.index === firstLine) &&
+    classifyHeading(first.match[2]) === "unknown"
+  ) {
     candidates = headings.slice(1);
   }
   const sectionLevel = candidates.length ? Math.min(...candidates.map((h) => h.match[1].length)) : null;

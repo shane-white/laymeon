@@ -57,6 +57,12 @@ it("returns null for file types it can't read", async () => {
   expect(await readAsSoftware(Buffer.from("x"), "application/msword")).toBeNull();
 });
 
+it("textOfWordXml keeps line breaks and tabs, which mammoth's raw text drops", () => {
+  const xml =
+    '<w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="9000"/></w:tabs></w:pPr><w:r><w:t>4 Newton St</w:t><w:br/><w:t>Portland, ME</w:t><w:tab/><w:t>2020</w:t></w:r></w:p>';
+  expect(textOfWordXml(xml)).toBe("4 Newton St\nPortland, ME\t2020");
+});
+
 it("textOfWordXml joins runs and decodes entities", () => {
   expect(textOfWordXml('<w:p><w:r><w:t>R&amp;D</w:t></w:r><w:r><w:t xml:space="preserve"> lead</w:t></w:r></w:p><w:p></w:p>')).toBe(
     "R&D lead",

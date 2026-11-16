@@ -95,9 +95,12 @@ function aiWords(prose: string[]): CheckResult {
 }
 
 function emDashes(ctx: CheckContext): CheckResult {
-  const count = ctx.body.match(/—/g)?.length ?? 0;
+  // Count in the file's own text when there is one: Claude adds dashes of its
+  // own when it lays out a .docx as markdown ("Oak | Portland — Technical Lead").
+  const text = ctx.input.software?.text ?? ctx.body;
+  const count = text.match(/—/g)?.length ?? 0;
   if (count <= MAX_EM_DASHES) return check("writing.em_dashes", "good", "Dashes are used sparingly.", [], { count });
-  const lines = ctx.body.split("\n").filter((l) => l.includes("—"));
+  const lines = text.split("\n").filter((l) => l.includes("—"));
   return check(
     "writing.em_dashes",
     "could_improve",

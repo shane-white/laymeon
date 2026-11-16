@@ -29,6 +29,12 @@ describe("parseResume", () => {
     expect(experience.lines).toContain("### Senior Data Engineer, Lumen Analytics");
   });
 
+  it("treats a ## heading on the first line as the name", () => {
+    const resume = parseResume("## Jane Doe\n\nAustin, TX\n\n## Experience\n- Did things");
+    expect(resume.header).toEqual(["## Jane Doe", "Austin, TX"]);
+    expect(resume.sections.map((s) => s.kind)).toEqual(["experience"]);
+  });
+
   it("uses ### as sections when there are no ## headings", () => {
     const resume = parseResume("Jane Doe\n\n### WORK HISTORY\n- Did things\n\n### Education\nB.A.");
     expect(resume.header).toEqual(["Jane Doe"]);

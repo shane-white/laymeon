@@ -7,7 +7,6 @@
  * ATS runs into. Comparing the two shows them.
  */
 import JSZip from "jszip";
-import mammoth from "mammoth";
 import type { SoftwareView } from "./types";
 
 const PDF = "application/pdf";
@@ -47,13 +46,17 @@ async function readPdf(buffer: Buffer): Promise<SoftwareView> {
   }
 }
 
-/** The text in a piece of WordprocessingML, one line per paragraph. */
+// Text, line breaks (Shift+Enter, which mammoth's raw text drops) and tabs, in document order.
+// A bare <w:tab/> is a tab in the text; <w:tab w:pos=…/> inside <w:tabs> is a tab stop setting.
+const WORD_TEXT = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:br|cr)\b[^>]*\/>|<w:tab\/>/g;
+
+/** The text in a piece of WordprocessingML, one line per paragraph or line break. */
 export function textOfWordXml(xml: string): string {
   return xml
     .split(/<\/w:p>/)
     .map((para) =>
-      [...para.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)]
-        .map((m) => decodeXml(m[1]))
+      [...para.matchAll(WORD_TEXT)]
+        .map((m) => (m[1] !== undefined ? decodeXml(m[1]) : m[0].startsWith("<w:tab") ? "\t" : "\n"))
         .join(""),
     )
     .filter((line) => line.trim())
@@ -109,11 +112,9 @@ async function readDocx(buffer: Buffer): Promise<SoftwareView> {
   const pagesMatch = /<Pages>(\d+)<\/Pages>/.exec(appXml);
   const pageCount = pagesMatch ? Number(pagesMatch[1]) : null;
 
-  const { value: text } = await mammoth.extractRawText({ buffer });
-
   return {
     format: "docx",
-    text,
+    text: textOfWordXml(documentXml),
     pages: null,
     pageCount: pageCount && pageCount > 0 ? pageCount : null,
     images,
