@@ -6,9 +6,12 @@ import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Document } from "@/hooks/use-documents";
+import { ReviewResumeButton } from "@/components/resume-review/review-button";
 
 interface DocumentViewerProps {
   document: Document | null;
+  /** Opens a resume's review report. */
+  onOpenReport: (resumeDocumentId: string) => void;
 }
 
 const typeLabels: Record<string, string> = {
@@ -17,7 +20,7 @@ const typeLabels: Record<string, string> = {
   project: "Example Work",
 };
 
-export function DocumentViewer({ document }: DocumentViewerProps) {
+export function DocumentViewer({ document, onOpenReport }: DocumentViewerProps) {
   if (!document) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -42,9 +45,12 @@ export function DocumentViewer({ document }: DocumentViewerProps) {
                 </p>
               )}
           </div>
-          <Badge variant="outline" className="shrink-0">
-            {typeLabels[document.document_type]}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            {document.document_type === "resume" && document.parsed_markdown && (
+              <ReviewResumeButton resumeDocumentId={document.id} onOpenReport={onOpenReport} />
+            )}
+            <Badge variant="outline">{typeLabels[document.document_type]}</Badge>
+          </div>
         </div>
       </div>
       <ScrollArea className="h-0 flex-1">

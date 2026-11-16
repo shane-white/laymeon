@@ -9,6 +9,7 @@ import {
   findPhones,
   hasLocation,
   parseResume,
+  truncate,
 } from "./text";
 import { GOOD_RESUME } from "./__fixtures__/resumes";
 
@@ -121,6 +122,24 @@ describe("contact details", () => {
     expect(hasLocation("Leeds, United Kingdom")).toBe(true);
     expect(hasLocation("Remote")).toBe(true);
     expect(hasLocation("jane@example.com")).toBe(false);
+  });
+});
+
+describe("truncate", () => {
+  it("leaves short text alone", () => {
+    expect(truncate("Built a tool.", 40)).toBe("Built a tool.");
+  });
+
+  it("cuts out the middle, between words, so the ending stays visible", () => {
+    const line =
+      "Designed and led college-level Python programming and data analytics courses, developing hands-on coding labs and scaffolded problem sets.";
+    const short = truncate(line, 80);
+    expect(short.length).toBeLessThanOrEqual(80);
+    expect(short).toMatch(/^Designed and led college-level Python.* … .*problem sets\.$/);
+    // Whole words on both sides of the cut.
+    const [head, tail] = short.split(" … ");
+    expect(line.startsWith(head)).toBe(true);
+    expect(line.endsWith(tail)).toBe(true);
   });
 });
 

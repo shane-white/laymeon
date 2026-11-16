@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GUIDE_PATH, GUIDE_SECTIONS } from "./guide";
-import { CHECK_SOURCES, readFurther, SOURCES } from "./sources";
+import { CHECK_SOURCES, readFurther, readFurtherFor, SOURCES } from "./sources";
 import { ALL_CHECKS, CHECK_IDS, SECTIONS } from "./types";
 
 describe("Read further links", () => {
@@ -31,6 +31,15 @@ describe("Read further links", () => {
       href: `${GUIDE_PATH}#bullets`,
       title: "How we review resumes: Experience bullets",
     });
+  });
+
+  it("lists each link once for a slide whose findings share a source", () => {
+    const links = readFurtherFor(["first_impression.headline", "first_impression.summary", "length.pages", "bullets.tense"]);
+    expect(links).toEqual([
+      { kind: "source", source: SOURCES.ladders2018 },
+      { kind: "source", source: SOURCES.resumego2018 },
+      { kind: "guide", href: `${GUIDE_PATH}#bullets`, title: "How we review resumes: Experience bullets" },
+    ]);
   });
 
   it("only lists sources that exist, and every source is used", () => {

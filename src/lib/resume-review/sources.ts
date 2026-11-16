@@ -135,6 +135,20 @@ export type ReadFurther =
   | { kind: "source"; source: Source }
   | { kind: "guide"; href: string; title: string };
 
+/** The Read further links for several checks, each link once, in the order the checks come. */
+export function readFurtherFor(checkIds: CheckId[]): ReadFurther[] {
+  const seen = new Set<string>();
+  const links: ReadFurther[] = [];
+  for (const id of checkIds) {
+    const link = readFurther(id);
+    const key = link.kind === "source" ? link.source.url : link.href;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    links.push(link);
+  }
+  return links;
+}
+
 export function readFurther(checkId: CheckId): ReadFurther {
   const first = CHECK_SOURCES[checkId]?.[0];
   if (first) return { kind: "source", source: SOURCES[first] };
