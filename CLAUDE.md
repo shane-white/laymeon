@@ -18,6 +18,7 @@ Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use
 - Use sub-issues when one task breaks into several steps.
 - Before creating an issue, search for an existing one to avoid duplicates.
 - When starting non-trivial work, make sure an issue exists and move it to **In Progress**.
+- When starting on several issues in one session (such as the sub-issues of a parent), first move them all to **Todo** so progress is easy to follow, then move each one forward as you work on it. Leave issues that are already In Progress or further along as they are.
 - Name branches with the issue ID, e.g. `lay-12-fix-sidebar-scroll`.
 - Reference the issue ID in commit messages (e.g. `LAY-12: fix sidebar scroll`).
 - When a PR is opened, move the issue to **In Review**. When it merges, move it to **Done**.
