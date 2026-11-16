@@ -1,0 +1,116 @@
+/**
+ * Word lists for the writing checks. Keep entries lowercase. Phrases are
+ * matched as whole words, so "leverage" also needs "leveraged" listed.
+ */
+
+/** Bullet openings that describe a duty instead of what the person did. */
+export const WEAK_OPENERS = [
+  "responsible for",
+  "was responsible for",
+  "duties included",
+  "duties include",
+  "tasked with",
+  "in charge of",
+  "worked on",
+  "helped",
+  "helped to",
+  "assisted",
+  "assisted with",
+  "assisted in",
+  "involved in",
+  "participated in",
+  "handled",
+  "my role",
+  "my responsibilities",
+  "role included",
+];
+
+/** Phrases recruiters read past, because anyone can claim them. */
+export const CLICHES = [
+  "results-driven",
+  "results driven",
+  "results-oriented",
+  "detail-oriented",
+  "detail oriented",
+  "team player",
+  "hard-working",
+  "hardworking",
+  "self-starter",
+  "self starter",
+  "go-getter",
+  "think outside the box",
+  "outside-the-box",
+  "out-of-the-box thinker",
+  "proven track record",
+  "track record of success",
+  "excellent communication skills",
+  "strong communication skills",
+  "works well under pressure",
+  "fast learner",
+  "quick learner",
+  "highly motivated",
+  "self-motivated",
+  "dynamic professional",
+  "passionate about",
+  "go-to person",
+  "strategic thinker",
+  "value-add",
+  "synergy",
+  "best-in-class",
+];
+
+/** Words that show up far more often in AI-written text than in resumes people write. */
+export const AI_WORDS = [
+  "leverage",
+  "leveraged",
+  "leveraging",
+  "spearhead",
+  "spearheaded",
+  "spearheading",
+  "utilize",
+  "utilized",
+  "utilizing",
+  "seamless",
+  "seamlessly",
+  "robust",
+  "delve",
+  "delved",
+  "tapestry",
+  "cutting-edge",
+  "pivotal",
+  "foster",
+  "fostered",
+  "fostering",
+  "orchestrated",
+  "orchestrating",
+  "transformative",
+  "holistic",
+  "meticulous",
+  "meticulously",
+  "ever-evolving",
+  "fast-paced",
+  "landscape",
+  "paradigm",
+  "empowered",
+  "empowering",
+  "elevated",
+  "elevating",
+  "unparalleled",
+  "testament",
+  "realm",
+  "harnessed",
+  "harnessing",
+  "bolstered",
+  "showcased",
+  "showcasing",
+  "synergies",
+  "navigated complex",
+  "drove impactful",
+  "impactful",
+];
+
+/** "-ing" words that are fine at the end of a bullet. */
+export const ING_EXCEPTIONS = new Set(["including", "during", "following", "according", "regarding", "pending", "concerning"]);
+
+/** Phrases that tack on a vague result: "…, resulting in improved efficiency". */
+export const TACKED_ON_RESULTS = ["resulting in", "which resulted in", "leading to", "contributing to", "ensuring"];
