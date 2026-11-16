@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# real resumes for npm run eval:resume-review (personal data, never commit)
+/scripts/resumes/
