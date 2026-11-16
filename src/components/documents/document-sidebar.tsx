@@ -9,11 +9,49 @@ import { DocumentListItem } from "@/components/documents/document-list-item";
 import { UploadDocumentDialog } from "@/components/documents/upload-document-dialog";
 import { AddProjectDialog } from "@/components/documents/add-project-dialog";
 import { useDocuments, type Document } from "@/hooks/use-documents";
-import { FileText, Lightbulb, Plus, Upload } from "lucide-react";
+import { useResumeReviews } from "@/hooks/use-resume-reviews";
+import { OVERALL_LABELS } from "@/components/resume-review/labels";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, ClipboardCheck, FileText, Lightbulb, Plus, Upload } from "lucide-react";
 
 interface DocumentSidebarProps {
   selectedDocId: string | null;
   onSelectDoc: (id: string) => void;
+  /** The resume whose review report is open. */
+  selectedReportId: string | null;
+  onSelectReport: (resumeDocumentId: string) => void;
+}
+
+/** Keyboard-and-mouse row for the Generated Documents list. */
+function GeneratedRow({
+  selected,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-current={selected || undefined}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+        selected ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground",
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 const SECTIONS = [
@@ -45,8 +83,11 @@ function sortDocuments(docs: Document[]): Document[] {
 export function DocumentSidebar({
   selectedDocId,
   onSelectDoc,
+  selectedReportId,
+  onSelectReport,
 }: DocumentSidebarProps) {
   const { data: documents, isLoading } = useDocuments();
+  const { data: reviews } = useResumeReviews();
 
   // Projects can be written in the app as well as uploaded.
   const uploaded = documents?.filter((d) => d.source !== "generated") ?? [];
@@ -124,35 +165,51 @@ export function DocumentSidebar({
             <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">
               Generated Documents
             </p>
-            {generated.length === 0 ? (
+            {generated.length === 0 && !reviews?.length ? (
               <p className="px-1 text-xs text-muted-foreground">
                 No generated documents yet
               </p>
             ) : (
               <div className="space-y-1">
+                {reviews?.map((review) => {
+                  const stale = review.resumeDeleted || review.outOfDate;
+                  const status = review.resumeDeleted
+                    ? "The resume was deleted"
+                    : review.outOfDate
+                      ? "Out of date: the resume changed"
+                      : review.overallLabel
+                        ? OVERALL_LABELS[review.overallLabel].label
+                        : undefined;
+                  return (
+                    <GeneratedRow
+                      key={review.id}
+                      selected={review.resumeDocumentId === selectedReportId}
+                      onSelect={() => onSelectReport(review.resumeDocumentId)}
+                    >
+                      <ClipboardCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate" title={status}>
+                        Report: {review.resumeName}
+                      </span>
+                      {stale && (
+                        <AlertTriangle
+                          className="h-3.5 w-3.5 shrink-0 text-yellow-600"
+                          aria-label={status}
+                        />
+                      )}
+                    </GeneratedRow>
+                  );
+                })}
                 {generated.map((doc) => (
-                  <div
+                  <GeneratedRow
                     key={doc.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSelectDoc(doc.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSelectDoc(doc.id);
-                      }
-                    }}
-                    className={`flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                      doc.id === selectedDocId
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent hover:text-accent-foreground"
-                    }`}
+                    selected={doc.id === selectedDocId}
+                    onSelect={() => onSelectDoc(doc.id)}
                   >
                     <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">
                       {doc.display_name}
                     </span>
-                  </div>
+                  </GeneratedRow>
                 ))}
               </div>
             )}

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateProfile } from "@/hooks/use-profile";
+import { invalidateResumeReviews } from "@/hooks/use-resume-reviews";
 
 export interface Document {
   id: string;
@@ -52,6 +53,8 @@ export function useUploadDocument() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       // The server rebuilds the Career Story after document changes.
       void invalidateProfile(queryClient);
+      // A changed or deleted resume makes its review out of date.
+      void invalidateResumeReviews(queryClient);
     },
   });
 }
@@ -84,6 +87,8 @@ export function useAddProjects() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       // The server rebuilds the Career Story after document changes.
       void invalidateProfile(queryClient);
+      // A changed or deleted resume makes its review out of date.
+      void invalidateResumeReviews(queryClient);
     },
   });
 }
@@ -101,6 +106,8 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       // The server rebuilds the Career Story after document changes.
       void invalidateProfile(queryClient);
+      // A changed or deleted resume makes its review out of date.
+      void invalidateResumeReviews(queryClient);
     },
   });
 }
@@ -133,6 +140,8 @@ export function useUpdateDocument() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       // The server rebuilds the Career Story after document changes.
       void invalidateProfile(queryClient);
+      // A changed or deleted resume makes its review out of date.
+      void invalidateResumeReviews(queryClient);
     },
   });
 }
@@ -157,6 +166,8 @@ export function useSetDefaultDocument() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       // The server rebuilds the Career Story after document changes.
       void invalidateProfile(queryClient);
+      // A changed or deleted resume makes its review out of date.
+      void invalidateResumeReviews(queryClient);
     },
   });
 }
