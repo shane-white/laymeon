@@ -6,7 +6,7 @@
  * copes with columns and text in images. So it hides exactly the problems an
  * ATS runs into. Comparing the two shows them.
  */
-import JSZip from "jszip";
+import { readWordParts, textOfWordXml } from "@/lib/parsers/word-xml";
 import type { SoftwareView } from "./types";
 
 const PDF = "application/pdf";
@@ -48,47 +48,9 @@ async function readPdf(buffer: Buffer): Promise<SoftwareView> {
   }
 }
 
-// Text, line breaks (Shift+Enter, which mammoth's raw text drops) and tabs, in document order.
-// A bare <w:tab/> is a tab in the text; <w:tab w:pos=…/> inside <w:tabs> is a tab stop setting.
-const WORD_TEXT = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:br|cr)\b[^>]*\/>|<w:tab\/>/g;
-
-/** The text in a piece of WordprocessingML, one line per paragraph or line break. */
-export function textOfWordXml(xml: string): string {
-  return xml
-    .split(/<\/w:p>/)
-    .map((para) =>
-      [...para.matchAll(WORD_TEXT)]
-        .map((m) => (m[1] !== undefined ? decodeXml(m[1]) : m[0].startsWith("<w:tab") ? "\t" : "\n"))
-        .join(""),
-    )
-    .filter((line) => line.trim())
-    .join("\n");
-}
-
-function decodeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/g, "&");
-}
-
 async function readDocx(buffer: Buffer): Promise<SoftwareView> {
-  const zip = await JSZip.loadAsync(buffer);
-  // Word saves text boxes and drawings twice: the modern version, and a
-  // fallback copy for old readers. Count each once.
-  const documentXml = ((await zip.file("word/document.xml")?.async("string")) ?? "").replace(
-    /<mc:Fallback\b[\s\S]*?<\/mc:Fallback>/g,
-    "",
-  );
-
-  const headerFooterFiles = zip.file(/^word\/(header|footer)\d*\.xml$/);
-  const headerFooterText = (await Promise.all(headerFooterFiles.map((f) => f.async("string"))))
-    .map(textOfWordXml)
-    .filter(Boolean)
-    .join("\n");
+  const { documentXml, headers, footers, appXml } = await readWordParts(buffer);
+  const headerFooterText = [...headers, ...footers].map(textOfWordXml).filter(Boolean).join("\n");
 
   const columns = Math.max(
     1,
@@ -96,10 +58,9 @@ async function readDocx(buffer: Buffer): Promise<SoftwareView> {
   );
 
   // Drawings with a picture in them. Text boxes and shapes are drawings too, without one.
-  const pictures = [...documentXml.matchAll(/<w:drawing>([\s\S]*?)<\/w:drawing>/g)]
+  const images = [...documentXml.matchAll(/<w:drawing>([\s\S]*?)<\/w:drawing>/g)]
     .map((m) => m[1])
-    .filter((drawing) => /<pic:pic\b|<a:blip\b/.test(drawing));
-  const images = pictures
+    .filter((drawing) => /<pic:pic\b|<a:blip\b/.test(drawing))
     .map((drawing) => /<wp:extent\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(drawing))
     .filter((m): m is RegExpExecArray => m !== null)
     .map((m) => ({
@@ -110,12 +71,12 @@ async function readDocx(buffer: Buffer): Promise<SoftwareView> {
     .filter((img) => img.width > 60 && img.height > 60);
 
   // Word records the page count when it saves; other editors may not.
-  const appXml = (await zip.file("docProps/app.xml")?.async("string")) ?? "";
   const pagesMatch = /<Pages>(\d+)<\/Pages>/.exec(appXml);
   const pageCount = pagesMatch ? Number(pagesMatch[1]) : null;
 
   return {
     format: "docx",
+    // The body only: software that skips headers and footers reads just this.
     text: textOfWordXml(documentXml),
     pages: null,
     pageCount: pageCount && pageCount > 0 ? pageCount : null,
