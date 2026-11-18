@@ -32,10 +32,20 @@ export function ReplaceFileDialog({
   document,
   open,
   onOpenChange,
+  title = "Replace file",
+  description,
+  submitLabel = "Replace file",
+  onReplaced,
 }: {
   document: Document;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  title?: string;
+  /** Replaces the default explanation under the title. */
+  description?: string;
+  submitLabel?: string;
+  /** Called after the new file is uploaded and parsed. */
+  onReplaced?: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const replace = useReplaceDocumentFile();
@@ -69,6 +79,7 @@ export function ReplaceFileDialog({
           toast.success(`"${document.display_name}" now uses ${file.name}.`);
           setFile(null);
           onOpenChange(false);
+          onReplaced?.();
         },
         onError: (err) => toast.error(err.message),
       },
@@ -79,11 +90,15 @@ export function ReplaceFileDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Replace file</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Upload a new version of &ldquo;{document.display_name}&rdquo;. Its name, target role
-            {document.is_default ? ", default setting" : ""} and the jobs that use it stay the same.
-            {document.document_type === "resume" && " Reviews of the old version will be marked out of date."}
+            {description ?? (
+              <>
+                Upload a new version of &ldquo;{document.display_name}&rdquo;. Its name, target role
+                {document.is_default ? ", default setting" : ""} and the jobs that use it stay the same.
+                {document.document_type === "resume" && " Reviews of the old version will be marked out of date."}
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         {!file ? (
@@ -123,7 +138,7 @@ export function ReplaceFileDialog({
           </Button>
           <Button onClick={handleReplace} disabled={!file || replace.isPending}>
             {replace.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {replace.isPending ? "Uploading & parsing..." : "Replace file"}
+            {replace.isPending ? "Uploading & parsing..." : submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

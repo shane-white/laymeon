@@ -2,8 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, Loader2, RefreshCw } from "lucide-react";
+import { Check, Copy, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { GUIDE_PATH } from "@/lib/resume-review/guide";
 import type { Rewrite } from "@/lib/resume-review/report-schema";
@@ -217,19 +218,22 @@ export function RewritesSlide({ slide }: { slide: SlideOf<"rewrites"> }) {
 
 export function NextStepsSlide({
   slide,
-  onRerun,
-  rerunning,
-  canRerun,
+  onCopyPrompt,
+  onUploadRevision,
+  canUploadRevision,
+  reviewing,
 }: {
   slide: SlideOf<"next">;
-  onRerun: () => void;
-  rerunning: boolean;
-  canRerun: boolean;
+  onCopyPrompt: () => void;
+  onUploadRevision: () => void;
+  /** Only uploaded resumes have a file to replace. */
+  canUploadRevision: boolean;
+  reviewing: boolean;
 }) {
   return (
     <SlideFrame
       title={slide.title}
-      why="Everything worth changing, most important first. Edit your resume, upload the new version, and run the review again to see your progress."
+      why="Everything worth changing, most important first. Edit your resume, then upload the revision and we'll review it again so you can see your progress."
     >
       {slide.fixes.length > 0 ? (
         <ol className="flex flex-col gap-2">
@@ -247,10 +251,24 @@ export function NextStepsSlide({
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        {canRerun && (
-          <Button onClick={onRerun} disabled={rerunning}>
-            {rerunning ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-            {rerunning ? "Reviewing… about a minute" : "Run the review again"}
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" onClick={onCopyPrompt}>
+                <Copy />
+                Copy as prompt
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              Copies this report as a prompt for an AI assistant that can see your resume, such as Gemini in Google
+              Docs or Copilot in Word. Paste it there and it will help you make the changes.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {canUploadRevision && (
+          <Button onClick={onUploadRevision} disabled={reviewing}>
+            {reviewing ? <Loader2 className="animate-spin" /> : <Upload />}
+            {reviewing ? "Reviewing… about a minute" : "Upload a revision"}
           </Button>
         )}
         <Link href={GUIDE_PATH} className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
