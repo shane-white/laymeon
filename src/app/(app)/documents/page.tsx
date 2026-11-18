@@ -49,7 +49,7 @@ export default function DocumentsPage() {
           <ResumeReviewDeck
             key={selectedReportId}
             resumeDocumentId={selectedReportId}
-            resumeText={reportResume?.parsed_markdown ?? null}
+            resume={reportResume}
             onDeleted={() => navigate("report", null)}
           />
         ) : (

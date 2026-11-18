@@ -8,15 +8,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ReplaceFileDialog } from "@/components/documents/replace-file-dialog";
+import type { Document } from "@/hooks/use-documents";
 import { useDeleteResumeReview, useResumeReview, useRunResumeReview } from "@/hooks/use-resume-reviews";
+import { buildReviewPrompt } from "@/lib/resume-review/prompt";
 import { buildSlides, slideGroups, type Slide } from "@/lib/resume-review/slides";
 import { OverallBadge } from "./labels";
 import { NextStepsSlide, OverviewSlide, RewritesSlide, SectionSlide, SoftwareSlide } from "./slides";
 
 interface ResumeReviewDeckProps {
   resumeDocumentId: string;
-  /** The resume's parsed text, for the "What software reads" slide. Null if it was deleted. */
-  resumeText: string | null;
+  /** The reviewed resume, for its text and for uploading a revision. Null if it was deleted. */
+  resume: Document | null;
   /** Called after the review is deleted. */
   onDeleted?: () => void;
 }
@@ -65,12 +68,14 @@ function ReviewProgress({
   );
 }
 
-export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: ResumeReviewDeckProps) {
+export function ResumeReviewDeck({ resumeDocumentId, resume, onDeleted }: ResumeReviewDeckProps) {
   const { data: stored, isLoading, error } = useResumeReview(resumeDocumentId);
   const run = useRunResumeReview();
   const remove = useDeleteResumeReview();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const resumeText = resume?.parsed_markdown ?? null;
 
   const review = stored?.review ?? null;
   const slides = useMemo(() => (review ? buildSlides(review) : []), [review]);
@@ -93,6 +98,16 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
       },
       onError: (err) => toast.error(err.message),
     });
+  }
+
+  async function copyPrompt() {
+    if (!stored?.review) return;
+    try {
+      await navigator.clipboard.writeText(buildReviewPrompt(stored.review, stored.resumeName));
+      toast.success("Prompt copied. Paste it into an AI assistant that can see your resume.");
+    } catch {
+      toast.error("Couldn't copy to the clipboard.");
+    }
   }
 
   function deleteReport() {
@@ -131,6 +146,10 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
   }
 
   const canRerun = !stored.resumeDeleted;
+  const canUploadRevision = canRerun && resume?.source === "uploaded";
+  // Running again only gives a different result after the file is replaced (or when the report's
+  // format is too old to show), so otherwise people upload a revision from the last slide.
+  const showRerun = canRerun && (stored.outOfDate || slides.length === 0);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -143,7 +162,7 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
               <span>Reviewed {format(new Date(stored.updatedAt), "MMM d, yyyy")}</span>
             </div>
           </div>
-          {canRerun && (
+          {showRerun && (
             <Button variant="outline" size="sm" onClick={rerun} disabled={run.isPending} className="shrink-0">
               {run.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {run.isPending ? "Reviewing…" : "Re-run"}
@@ -169,17 +188,11 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
             <AlertTriangle />
             <AlertTitle>This report is for an earlier version of {stored.resumeName}</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-2">
-              <span>The file was replaced after this review. Run it again to review the new version.</span>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={rerun} disabled={run.isPending}>
-                  {run.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                  Re-run
-                </Button>
-                <Button variant="outline" size="sm" onClick={deleteReport} disabled={remove.isPending}>
-                  {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                  Delete report
-                </Button>
-              </div>
+              <span>The file was replaced after this review. Re-run it to review the new version.</span>
+              <Button variant="outline" size="sm" onClick={deleteReport} disabled={remove.isPending}>
+                {remove.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                Delete report
+              </Button>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -217,7 +230,13 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
                     {slide.kind === "software" && <SoftwareSlide slide={slide} resumeText={resumeText} />}
                     {slide.kind === "rewrites" && <RewritesSlide slide={slide} />}
                     {slide.kind === "next" && (
-                      <NextStepsSlide slide={slide} onRerun={rerun} rerunning={run.isPending} canRerun={canRerun} />
+                      <NextStepsSlide
+                        slide={slide}
+                        onCopyPrompt={copyPrompt}
+                        onUploadRevision={() => setRevisionOpen(true)}
+                        canUploadRevision={canUploadRevision}
+                        reviewing={run.isPending}
+                      />
                     )}
                   </div>
                 </CarouselItem>
@@ -241,6 +260,18 @@ export function ResumeReviewDeck({ resumeDocumentId, resumeText, onDeleted }: Re
             {`Slide ${current + 1} of ${slides.length}: ${slides[current]?.title ?? ""}`}
           </p>
         </>
+      )}
+
+      {canUploadRevision && resume && (
+        <ReplaceFileDialog
+          document={resume}
+          open={revisionOpen}
+          onOpenChange={setRevisionOpen}
+          title="Upload a revision"
+          description={`Upload the edited version of "${resume.display_name}". It replaces the current file, and we'll review it again. This takes about a minute.`}
+          submitLabel="Upload and review"
+          onReplaced={rerun}
+        />
       )}
     </div>
   );

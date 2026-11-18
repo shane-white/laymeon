@@ -8,14 +8,14 @@ const labels = (...list: CheckLabel[]) => list.map((label, i) => ({ label, id: C
 const repeat = (label: CheckLabel, n: number) => Array<CheckLabel>(n).fill(label);
 
 describe("computeOverallLabel", () => {
-  it("is Ready to send with no Fix this and up to 3 Could improve", () => {
+  it("is Ready to send with no Fix this and up to 5 Could improve", () => {
     expect(computeOverallLabel(labels("good", "good"))).toBe("ready");
-    expect(computeOverallLabel(labels(...repeat("could_improve", 3), "good"))).toBe("ready");
+    expect(computeOverallLabel(labels(...repeat("could_improve", 5), "good"))).toBe("ready");
   });
 
-  it("is A few fixes with one Fix this, or more than 3 Could improve", () => {
+  it("is A few fixes with one Fix this, or more than 5 Could improve", () => {
     expect(computeOverallLabel(labels("fix", "good"))).toBe("few_fixes");
-    expect(computeOverallLabel(labels(...repeat("could_improve", 4)))).toBe("few_fixes");
+    expect(computeOverallLabel(labels(...repeat("could_improve", 6)))).toBe("few_fixes");
     expect(computeOverallLabel(labels("fix", "fix", ...repeat("could_improve", 9)))).toBe("few_fixes");
   });
 
