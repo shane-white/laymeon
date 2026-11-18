@@ -12,7 +12,7 @@ import type { CheckId } from "./types";
  * - A few fixes: everything in between.
  */
 export const LABEL_THRESHOLDS = {
-  READY_MAX_IMPROVE: 3,
+  READY_MAX_IMPROVE: 5,
   NEEDS_WORK_MIN_FIX: 3,
   NEEDS_WORK_MIN_PROBLEMS: 12,
 };
