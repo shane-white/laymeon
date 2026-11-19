@@ -83,12 +83,12 @@ describe("verifyEvidence", () => {
     expect(requirements[0]).toMatchObject({ match: "strong", evidence: "Built CI/CD pipelines" });
   });
 
-  it("drops unverified evidence and downgrades strong to partial", () => {
+  it("drops unverified evidence on strong without changing the match", () => {
     const { requirements } = verifyEvidence(
       { ...base, requirements: [req("strong", "10 years of Kubernetes")] },
       RESUME,
     );
-    expect(requirements[0]).toMatchObject({ match: "partial", evidence: null });
+    expect(requirements[0]).toMatchObject({ match: "strong", evidence: null });
   });
 
   it("drops unverified evidence on partial without changing the match", () => {
