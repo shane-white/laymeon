@@ -1,1 +1,11 @@
-{ "label": "weak" }
+{
+  "label": "weak",
+  "ratings": {
+    "kubernetes": "missing",
+    "linux": "missing",
+    "terraform": "missing",
+    "prometheus": "missing",
+    "on-call": "missing",
+    "service mesh": "missing"
+  }
+}
