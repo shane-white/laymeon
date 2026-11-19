@@ -20,8 +20,9 @@ Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use
 - When starting non-trivial work, make sure an issue exists and move it to **In Progress**.
 - When starting on several issues in one session (such as the sub-issues of a parent), first move them all to **Todo** so progress is easy to follow, then move each one forward as you work on it. Leave issues that are already In Progress or further along as they are.
 - Name branches with the issue ID, e.g. `lay-12-fix-sidebar-scroll`.
+- Sub-issues of one parent share the parent's branch and PR (e.g. `lay-81-document-lifecycle`). Work them in order on that branch, commit each with its own sub-issue ID, and open the PR once every sub-issue is committed.
 - Reference the issue ID in commit messages (e.g. `LAY-12: fix sidebar scroll`).
-- When a PR is opened, move the issue to **In Review**. When it merges, move it to **Done**.
+- When a PR is opened, move every issue it covers to **In Review**. When it merges, move them to **Done**.
 - If work surfaces a follow-up or bug you aren't fixing now, file it as a new issue in **Backlog** instead of leaving a TODO in the code.
 - Team statuses: Backlog, Todo, In Progress, In Review, Done, Canceled, Duplicate.
 
