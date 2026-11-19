@@ -2,7 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
-import { extractTextFromFile } from "@/lib/parsers/extract-text";
+import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
+import { readWordText } from "@/lib/documents/word-text";
 import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
 const splitProjectsSchema = z.object({
@@ -38,21 +39,26 @@ export async function splitProjects(
   mimeType: string,
   filename: string,
 ): Promise<SplitProject[]> {
+  const kind = kindOf(mimeType);
+  if (kind === "unsupported") {
+    throw new Error(UNSUPPORTED_FILE_MESSAGE);
+  }
+
   let content: Anthropic.ContentBlockParam[];
-  if (mimeType === "application/pdf") {
+  if (kind === "pdf") {
     content = [
       {
         type: "document",
         source: {
           type: "base64",
-          media_type: "application/pdf",
+          media_type: PDF_MIME,
           data: buffer.toString("base64"),
         },
       },
       { type: "text", text: `Filename: ${filename}` },
     ];
   } else {
-    const text = await extractTextFromFile(buffer, mimeType);
+    const text = await readWordText(buffer);
     if (!text.trim()) {
       throw new Error("Could not extract any text from the document");
     }

@@ -3,6 +3,7 @@
  * with what plain text extraction gets from the file, and checks the things
  * parsers rely on: headings, dates, file type.
  */
+import { DOC_MIME, DOCX_MIME, kindOf } from "@/lib/documents/file-format";
 import { normalizeText } from "@/lib/match-report/evidence";
 import { check, describePosition, plural, percent, share, type CheckContext } from "../context";
 import {
@@ -17,10 +18,6 @@ import {
   type DateStyle,
 } from "../text";
 import type { CheckResult, SoftwareView } from "../types";
-
-const PDF = "application/pdf";
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const DOC = "application/msword";
 
 // Below this share of the resume's words, the file is mostly an image.
 const TEXT_LAYER_MIN_COVERAGE = 0.3;
@@ -68,10 +65,11 @@ export function readabilityChecks(ctx: CheckContext): CheckResult[] {
 
 function fileType(ctx: CheckContext): CheckResult {
   const { mimeType } = ctx.input;
-  if (mimeType === PDF || mimeType === DOCX) {
-    return check("readability.file_type", "good", `${mimeType === PDF ? "PDF" : "Word (.docx)"} files work with resume-reading software.`);
+  const kind = kindOf(mimeType);
+  if (kind === "pdf" || mimeType === DOCX_MIME) {
+    return check("readability.file_type", "good", `${kind === "pdf" ? "PDF" : "Word (.docx)"} files work with resume-reading software.`);
   }
-  if (mimeType === DOC) {
+  if (mimeType === DOC_MIME) {
     return check(
       "readability.file_type",
       "could_improve",

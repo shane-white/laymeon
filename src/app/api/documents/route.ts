@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseDocument } from "@/lib/ai/parse-document";
 import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
-import { ALLOWED_UPLOAD_TYPES, storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
+import { uploadProblem } from "@/lib/documents/file-format";
+import { storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Changing a document rebuilds the Career Story in the background, after the
@@ -67,13 +68,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
-    return NextResponse.json(
-      {
-        error: "Unsupported file type. Please upload a PDF, DOCX, or DOC file.",
-      },
-      { status: 400 },
-    );
+  const problem = uploadProblem(file);
+  if (problem) {
+    return NextResponse.json({ error: problem }, { status: 400 });
   }
 
   const { count, error: countError } = await supabase

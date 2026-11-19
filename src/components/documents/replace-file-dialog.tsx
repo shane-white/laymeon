@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { ACCEPTED_FILES_HINT, DROPZONE_ACCEPT, FILE_TOO_LARGE_MESSAGE, MAX_UPLOAD_BYTES, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import { File as FileIcon, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useReplaceDocumentFile, type Document } from "@/hooks/use-documents";
-
-const ACCEPT = {
-  "application/pdf": [".pdf"],
-  "application/msword": [".doc"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-};
 
 const typeLabels: Record<Document["document_type"], string> = {
   resume: "resume",
@@ -53,14 +48,14 @@ export function ReplaceFileDialog({
 
   const onDrop = useCallback((accepted: File[]) => setFile(accepted[0] ?? null), []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: ACCEPT,
+    accept: DROPZONE_ACCEPT,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_UPLOAD_BYTES,
     onDrop,
     onDropRejected: (rejections) => {
       const error = rejections[0]?.errors[0];
-      if (error?.code === "file-too-large") toast.error("File is too large. Maximum size is 10 MB.");
-      else if (error?.code === "file-invalid-type") toast.error("Unsupported format. Please upload a PDF or DOCX file.");
+      if (error?.code === "file-too-large") toast.error(FILE_TOO_LARGE_MESSAGE);
+      else if (error?.code === "file-invalid-type") toast.error(UNSUPPORTED_FILE_MESSAGE);
     },
   });
 
@@ -113,7 +108,7 @@ export function ReplaceFileDialog({
             <p className="text-sm text-muted-foreground">
               {isDragActive ? "Drop your file here..." : "Drag & drop a file here, or click to browse"}
             </p>
-            <p className="text-xs text-muted-foreground">PDF, DOCX or DOC, up to 10 MB.</p>
+            <p className="text-xs text-muted-foreground">{ACCEPTED_FILES_HINT}</p>
           </div>
         ) : (
           <div className="flex items-center gap-3 rounded-lg border p-3">

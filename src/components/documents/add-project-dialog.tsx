@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { ACCEPTED_FILES_HINT, DROPZONE_ACCEPT, FILE_TOO_LARGE_MESSAGE, MAX_UPLOAD_BYTES, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +22,6 @@ import { toast } from "sonner";
 interface AddProjectDialogProps {
   children: React.ReactNode;
 }
-
-const ACCEPT = {
-  "application/pdf": [".pdf"],
-  "application/msword": [".doc"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
-    ".docx",
-  ],
-};
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -53,17 +46,17 @@ export function AddProjectDialog({ children }: AddProjectDialogProps) {
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: ACCEPT,
+    accept: DROPZONE_ACCEPT,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_UPLOAD_BYTES,
     onDrop,
     disabled: busy,
     onDropRejected: (rejections) => {
       const error = rejections[0]?.errors[0];
       if (error?.code === "file-too-large") {
-        toast.error("File is too large. Maximum size is 10 MB.");
+        toast.error(FILE_TOO_LARGE_MESSAGE);
       } else if (error?.code === "file-invalid-type") {
-        toast.error("Unsupported format. Please upload a PDF or DOCX file.");
+        toast.error(UNSUPPORTED_FILE_MESSAGE);
       }
     },
   });
@@ -184,9 +177,9 @@ export function AddProjectDialog({ children }: AddProjectDialogProps) {
           <TabsContent value="upload">
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground">
-                Upload a portfolio, case studies or a list of projects as a
-                PDF or DOCX (up to 10 MB). We&rsquo;ll split it into separate
-                projects.
+                Upload a portfolio, case studies or a list of projects.
+                We&rsquo;ll split it into separate projects.{" "}
+                {ACCEPTED_FILES_HINT}
               </p>
               {!file ? (
                 <div

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { splitProjects } from "@/lib/ai/split-projects";
+import { uploadProblem } from "@/lib/documents/file-format";
 import {
   MAX_PROJECTS,
   MAX_PROJECT_DESCRIPTION_LENGTH,
@@ -12,12 +13,6 @@ import { NextResponse, type NextRequest } from "next/server";
 // Changing a document rebuilds the Career Story in the background, after the
 // response is sent; that work counts toward this limit.
 export const maxDuration = 300;
-
-const ALLOWED_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
 
 const LIMIT_MESSAGE = `You can keep up to ${MAX_PROJECTS} projects. Delete one to add another.`;
 
@@ -126,11 +121,9 @@ async function importProjects(
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return NextResponse.json(
-      { error: "Unsupported file type. Please upload a PDF or DOCX file." },
-      { status: 400 },
-    );
+  const problem = uploadProblem(file);
+  if (problem) {
+    return NextResponse.json({ error: problem }, { status: 400 });
   }
 
   try {

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseDocument } from "@/lib/ai/parse-document";
-import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES, storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
+import { uploadProblem } from "@/lib/documents/file-format";
+import { storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
 import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -49,12 +50,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
-    return NextResponse.json({ error: "Unsupported file type. Please upload a PDF, DOCX, or DOC file." }, { status: 400 });
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: "File is too large. Maximum size is 10 MB." }, { status: 400 });
-  }
+  const problem = uploadProblem(file);
+  if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let markdown: string;

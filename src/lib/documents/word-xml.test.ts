@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import mammoth from "mammoth";
 import { makeDocx, para } from "@/lib/resume-review/__fixtures__/files";
-import { extractTextFromFile } from "./extract-text";
-import { extractWordText, textOfWordXml } from "./word-xml";
-
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+import { readWordText } from "./word-text";
+import { readWordXmlText, textOfWordXml } from "./word-xml";
 
 /** A paragraph with a soft line break (Shift+Enter) and a tab inside it. */
 const SOFT_BREAKS =
@@ -27,15 +25,15 @@ describe("extracting text from an uploaded .docx", () => {
     const file = await makeDocx({ body: SOFT_BREAKS });
     // The bug (LAY-73): mammoth runs the two lines together.
     expect((await mammoth.extractRawText({ buffer: file })).value).toContain("StPortland");
-    expect(await extractTextFromFile(file, DOCX)).toBe("4 Newton St\nPortland, ME\t2020");
+    expect(await readWordText(file)).toBe("4 Newton St\nPortland, ME\t2020");
   });
 
   it("includes the header, where contact details often are", async () => {
     const file = await makeDocx({ body: para("Experience"), header: ["jane@example.com · (512) 555-0147"] });
-    expect(await extractWordText(file)).toBe("jane@example.com · (512) 555-0147\n\nExperience");
+    expect(await readWordXmlText(file)).toBe("jane@example.com · (512) 555-0147\n\nExperience");
   });
 
   it("falls back to mammoth for a file that isn't a .docx zip", async () => {
-    await expect(extractTextFromFile(Buffer.from("not a zip"), DOCX)).rejects.toThrow();
+    await expect(readWordText(Buffer.from("not a zip"))).rejects.toThrow();
   });
 });

@@ -114,4 +114,13 @@ describe("POST /api/documents/[id]/file", () => {
     expect((await POST(request(null), params)).status).toBe(400);
     expect(parseDocument).not.toHaveBeenCalled();
   });
+
+  it("turns away an RTF file before anything is stored", async () => {
+    const log = fake();
+    const res = await POST(request(new File(["{\\rtf1}"], "resume.rtf", { type: "application/rtf" })), params);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Please upload a PDF or Word file");
+    expect(log).toEqual(["load"]);
+    expect(parseDocument).not.toHaveBeenCalled();
+  });
 });

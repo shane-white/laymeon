@@ -1,15 +1,4 @@
-/** Rules shared by uploading a document and replacing its file. */
-
-export const ALLOWED_UPLOAD_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/rtf",
-  "application/vnd.oasis.opendocument.text",
-];
-
-/** The same limit the upload dialog enforces. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** Where uploaded files are stored. Which files are accepted is in `file-format.ts`. */
 
 export const UPLOAD_BUCKET = "imported-documents";
 
