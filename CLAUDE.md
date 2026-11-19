@@ -8,13 +8,13 @@ There's no local or branch database yet, so `--remote` is required: Supabase CLI
 
 ## Task tracking (Linear)
 
-Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use the `linear` MCP server. The team's "Product Description" document describes the app's purpose, features and stack.
+Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use the `linear` MCP server; skills that create or read issues follow `docs/agents/issue-tracker.md`. The team's "Product Description" document describes the app's purpose, features and stack.
 
 - Each feature set is a project in the `LAY` team. Put new issues in the project they belong to; if none fits, leave the project empty rather than creating one without asking. Current projects:
   - **UI Improvements**: polish and bug fixes in existing screens.
   - **MMP Features**: new or changed functionality needed for a minimum marketable product.
   - **Launch**: work outside the app needed to launch, such as the landing site and purchases.
-  - **Optimizations**: post-launch improvements users don't see directly, such as lower AI token cost, faster responses and better performance.
+  - **Optimizations**: improvements users don't see directly, before or after launch, such as lower AI token cost, faster responses, better performance and restructuring code to make it easier to test and change.
 - Use sub-issues when one task breaks into several steps.
 - Before creating an issue, search for an existing one to avoid duplicates.
 - When starting non-trivial work, make sure an issue exists and move it to **In Progress**.
@@ -24,3 +24,9 @@ Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use
 - When a PR is opened, move the issue to **In Review**. When it merges, move it to **Done**.
 - If work surfaces a follow-up or bug you aren't fixing now, file it as a new issue in **Backlog** instead of leaving a TODO in the code.
 - Team statuses: Backlog, Todo, In Progress, In Review, Done, Canceled, Duplicate.
+
+## Agent skills
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
