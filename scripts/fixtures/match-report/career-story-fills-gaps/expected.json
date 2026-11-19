@@ -1,5 +1,10 @@
 {
   "label": "partial",
+  "ratings": {
+    "b2b saas": "strong",
+    "payments": "partial",
+    "pci": "missing"
+  },
   "careerStory": {
     "documents": [
       { "file": "career-story/project-payouts.md", "type": "project", "asOf": "2026-10-01T00:00:00Z" },

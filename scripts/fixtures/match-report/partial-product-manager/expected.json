@@ -1,1 +1,8 @@
-{ "label": "partial" }
+{
+  "label": "partial",
+  "ratings": {
+    "b2b saas": "strong",
+    "payments": "partial",
+    "pci": "missing"
+  }
+}

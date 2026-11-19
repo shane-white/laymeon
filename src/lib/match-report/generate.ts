@@ -40,10 +40,23 @@ ${jobDescription}
 ${careerStory?.text || "No Career Story."}`;
 }
 
+/** One model call made while generating a Match Report, reported for evals and logs. */
+export interface MatchReportStep {
+  step: "report";
+  model: string;
+  usage: Anthropic.Usage;
+}
+
+export interface GenerateOptions {
+  /** Called after each model call. */
+  onStep?: (step: MatchReportStep) => void;
+}
+
 type ParsedReport = ReturnType<typeof modelReportSchema.safeParse>;
 
 async function requestModelReport(
   messages: Anthropic.MessageParam[],
+  options: GenerateOptions,
 ): Promise<{ response: Anthropic.Message; parsed: ParsedReport }> {
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
@@ -56,6 +69,7 @@ async function requestModelReport(
     },
     messages,
   });
+  options.onStep?.({ step: "report", model: response.model, usage: response.usage });
 
   if (response.stop_reason === "max_tokens") {
     throw new Error("The match report was too long to generate");
@@ -76,12 +90,13 @@ export async function generateModelReport(
   resume: string,
   jobDescription: string,
   careerStory?: CareerStoryContext,
+  options: GenerateOptions = {},
 ): Promise<ModelReport> {
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: buildUserMessage(resume, jobDescription, careerStory) },
   ];
 
-  const first = await requestModelReport(messages);
+  const first = await requestModelReport(messages, options);
   if (first.parsed.success) return first.parsed.data;
 
   // Send the whole first answer back unchanged (thinking blocks included), then the errors.
@@ -92,7 +107,7 @@ export async function generateModelReport(
       role: "user",
       content: `The report didn't match the schema. Fix these problems and return the full report again:\n${z.prettifyError(first.parsed.error)}`,
     },
-  ]);
+  ], options);
   if (retry.parsed.success) return retry.parsed.data;
 
   throw new Error("Claude returned a match report that didn't match the expected format");
@@ -107,8 +122,9 @@ export async function generateMatchReport(
   resume: string,
   jobDescription: string,
   profile?: CareerProfile | null,
+  options: GenerateOptions = {},
 ): Promise<MatchReport> {
   const careerStory = profile ? formatCareerStoryForPrompt(profile) : undefined;
-  const model = await generateModelReport(resume, jobDescription, careerStory);
+  const model = await generateModelReport(resume, jobDescription, careerStory, options);
   return buildMatchReport(model, resume, careerStory);
 }

@@ -1,0 +1,12 @@
+{
+  "label": "strong",
+  "ratings": {
+    "python": "strong",
+    "postgresql": "strong",
+    "cloud platform": "strong",
+    "kubernetes": "strong",
+    "ci/cd": "strong",
+    "mentor": "partial",
+    "rust": "missing"
+  }
+}

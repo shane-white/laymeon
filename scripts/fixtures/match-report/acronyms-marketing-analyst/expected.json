@@ -1,0 +1,12 @@
+{
+  "label": "partial",
+  "ratings": {
+    "google analytics": "strong",
+    "search engine optimization": "strong",
+    "a/b test": "strong",
+    "customer relationship management": "strong",
+    "tableau": "partial",
+    "python": "missing",
+    "paid social": "partial"
+  }
+}
