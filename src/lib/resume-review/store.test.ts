@@ -56,17 +56,22 @@ function fakeSupabase(rows: { documents: unknown; extraction: unknown }) {
 }
 
 describe("resumeContentHash", () => {
-  it("is sha256 of the storage path, a newline and the text, like the database function", () => {
-    const expected = createHash("sha256").update("a/b.pdf\nHello — résumé", "utf8").digest("hex");
-    expect(resumeContentHash("a/b.pdf", "Hello — résumé")).toBe(expected);
+  it("is sha256 of the storage path, the Target role and the text, one per line, like the database function", () => {
+    const expected = createHash("sha256").update("a/b.pdf\nProduct Designer\nHello — résumé", "utf8").digest("hex");
+    expect(resumeContentHash("a/b.pdf", "Product Designer", "Hello — résumé")).toBe(expected);
   });
 
   it("changes when the file is replaced, even with the same text", () => {
-    expect(resumeContentHash("a/1.pdf", "x")).not.toBe(resumeContentHash("a/2.pdf", "x"));
+    expect(resumeContentHash("a/1.pdf", null, "x")).not.toBe(resumeContentHash("a/2.pdf", null, "x"));
+  });
+
+  it("changes when the Target role changes", () => {
+    expect(resumeContentHash("a/1.pdf", "Designer", "x")).not.toBe(resumeContentHash("a/1.pdf", "Researcher", "x"));
+    expect(resumeContentHash("a/1.pdf", "Designer", "x")).not.toBe(resumeContentHash("a/1.pdf", null, "x"));
   });
 
   it("treats missing values as empty", () => {
-    expect(resumeContentHash(null, null)).toBe(createHash("sha256").update("\n").digest("hex"));
+    expect(resumeContentHash(null, null, null)).toBe(createHash("sha256").update("\n\n").digest("hex"));
   });
 });
 
@@ -127,7 +132,7 @@ describe("runReview", () => {
         resume_document_id: "doc-1",
         report_version: RESUME_REVIEW_VERSION,
         report: REPORT,
-        resume_content_hash: resumeContentHash(RESUME.storage_path, GOOD_RESUME),
+        resume_content_hash: resumeContentHash(RESUME.storage_path, "Data Engineer", GOOD_RESUME),
         updated_at: expect.any(String),
       },
     ]);
