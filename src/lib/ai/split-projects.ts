@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
+import { UnreadableFileError } from "@/lib/documents/document";
 import { readWordText } from "@/lib/documents/word-text";
 import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
@@ -60,7 +61,7 @@ export async function splitProjects(
   } else {
     const text = await readWordText(buffer);
     if (!text.trim()) {
-      throw new Error("Could not extract any text from the document");
+      throw new UnreadableFileError("Could not extract any text from the document");
     }
     content = [{ type: "text", text: `Filename: ${filename}\n\n${text}` }];
   }
@@ -82,7 +83,7 @@ export async function splitProjects(
     .finalMessage();
 
   if (response.stop_reason === "max_tokens") {
-    throw new Error("The document was too long to process");
+    throw new UnreadableFileError("The document was too long to process");
   }
 
   let output: unknown;
@@ -90,14 +91,14 @@ export async function splitProjects(
     output = JSON.parse(getResponseText(response));
   } catch (err) {
     if (err instanceof SyntaxError) {
-      throw new Error("Could not read the projects in the document");
+      throw new UnreadableFileError("Could not read the projects in the document");
     }
     throw err;
   }
 
   const parsed = splitProjectsSchema.safeParse(output);
   if (!parsed.success) {
-    throw new Error("Could not read the projects in the document");
+    throw new UnreadableFileError("Could not read the projects in the document");
   }
 
   return parsed.data.projects

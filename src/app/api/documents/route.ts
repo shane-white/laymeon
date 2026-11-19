@@ -1,23 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import { parseDocument } from "@/lib/ai/parse-document";
-import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
-import { uploadProblem } from "@/lib/documents/file-format";
-import { storagePathFor, UPLOAD_BUCKET } from "@/lib/documents/files";
+import { documentDeps } from "@/lib/documents/deps";
+import { failure } from "@/lib/documents/document";
+import { documentResponse } from "@/lib/documents/http";
+import { addUploadedDocument } from "@/lib/documents/lifecycle";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Changing a document rebuilds the Career Story in the background, after the
 // response is sent; that work counts toward this limit.
 export const maxDuration = 300;
-
-const MAX_DOCUMENTS_PER_TYPE = 20;
-const MAX_LABEL_LENGTH = 200;
-
-function cleanLabel(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim().slice(0, MAX_LABEL_LENGTH);
-  return trimmed || null;
-}
-
 
 export async function GET() {
   const supabase = await createClient();
@@ -43,6 +33,7 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
+/** Adds an uploaded Resume or Cover letter. */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -53,109 +44,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  const documentType = formData.get("documentType") as string;
-
-  if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  }
-
-  if (!["resume", "cover_letter"].includes(documentType)) {
-    return NextResponse.json(
-      { error: "Invalid document type" },
-      { status: 400 },
-    );
-  }
-
-  const problem = uploadProblem(file);
-  if (problem) {
-    return NextResponse.json({ error: problem }, { status: 400 });
-  }
-
-  const { count, error: countError } = await supabase
-    .from("documents")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("document_type", documentType)
-    .eq("source", "uploaded")
-    .is("deleted_at", null);
-
-  if (countError) {
-    return NextResponse.json({ error: countError.message }, { status: 500 });
-  }
-
-  const existingCount = count ?? 0;
-  if (existingCount >= MAX_DOCUMENTS_PER_TYPE) {
-    return NextResponse.json(
-      {
-        error: `You can keep up to ${MAX_DOCUMENTS_PER_TYPE} of each document type. Delete one to upload another.`,
-      },
-      { status: 400 },
-    );
-  }
-
-  const displayName = cleanLabel(formData.get("displayName")) ?? file.name;
-  const targetRole = cleanLabel(formData.get("targetRole"));
-
+  let formData: FormData;
   try {
-    // Upload to Supabase Storage
-    const storagePath = storagePathFor(documentType as "resume" | "cover_letter", user.id, file.name);
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const { error: uploadError } = await supabase.storage
-      .from(UPLOAD_BUCKET)
-      .upload(storagePath, buffer, { contentType: file.type });
-
-    if (uploadError) {
-      throw new Error(`Storage upload failed: ${uploadError.message}`);
-    }
-
-    // Parse and convert to markdown
-    const { markdown } = await parseDocument(buffer, file.type, file.name);
-
-    const record = {
-      user_id: user.id,
-      document_type: documentType,
-      source: "uploaded",
-      original_filename: file.name,
-      display_name: displayName,
-      target_role: targetRole,
-      mime_type: file.type,
-      file_size_bytes: file.size,
-      storage_bucket: UPLOAD_BUCKET,
-      storage_path: storagePath,
-      parsed_markdown: markdown,
-      // The first document of a type becomes the default.
-      is_default: existingCount === 0,
-    };
-
-    let { data: doc, error: dbError } = await supabase
-      .from("documents")
-      .insert(record)
-      .select()
-      .single();
-
-    // A concurrent upload may have claimed the default first.
-    if (dbError?.code === "23505" && record.is_default) {
-      ({ data: doc, error: dbError } = await supabase
-        .from("documents")
-        .insert({ ...record, is_default: false })
-        .select()
-        .single());
-    }
-
-    if (dbError) {
-      throw new Error(`Database insert failed: ${dbError.message}`);
-    }
-
-    await scheduleRebuild(supabase, user.id);
-    return NextResponse.json(doc, { status: 201 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Failed to upload document: ${message}` },
-      { status: 500 },
-    );
+    formData = await request.formData();
+  } catch {
+    return documentResponse(failure("invalid", "Invalid request body"));
   }
+  const file = formData.get("file");
+  const result = await addUploadedDocument(documentDeps(supabase, user.id), {
+    file: file instanceof File ? file : null,
+    documentType: formData.get("documentType"),
+    displayName: formData.get("displayName"),
+    targetRole: formData.get("targetRole"),
+  });
+  return documentResponse(result, 201);
 }

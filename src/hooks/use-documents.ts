@@ -3,25 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateProfile } from "@/hooks/use-profile";
 import { invalidateResumeReviews } from "@/hooks/use-resume-reviews";
+import type { Document, DocumentChange } from "@/lib/documents/document";
 
-export interface Document {
-  id: string;
-  user_id: string;
-  document_type: "resume" | "cover_letter" | "project";
-  /** "written" is a project typed into the app, with no file. */
-  source: "uploaded" | "generated" | "written";
-  original_filename: string | null;
-  display_name: string;
-  target_role: string | null;
-  is_default: boolean;
-  mime_type: string | null;
-  file_size_bytes: number | null;
-  storage_bucket: string | null;
-  storage_path: string | null;
-  parsed_markdown: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type { Document } from "@/lib/documents/document";
+
+/** What the server sends back for a Document change. */
+export type DocumentChangeResponse = Omit<DocumentChange, "ok">;
 
 export function useDocuments() {
   return useQuery<Document[]>({
@@ -44,10 +31,10 @@ export function useUploadDocument() {
         body: formData,
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to upload document");
       }
-      return res.json() as Promise<Document>;
+      return res.json() as Promise<DocumentChangeResponse>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -81,7 +68,7 @@ export function useAddProjects() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to add projects");
       }
-      return res.json() as Promise<Document[]>;
+      return res.json() as Promise<DocumentChangeResponse>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });

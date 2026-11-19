@@ -99,7 +99,7 @@ export function AddProjectDialog({ children }: AddProjectDialogProps) {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const created = await addProjects.mutateAsync(formData);
+      const { documents: created } = await addProjects.mutateAsync(formData);
       toast.success(
         created.length === 1
           ? `Added 1 project from ${file.name}.`

@@ -1,0 +1,269 @@
+/**
+ * Document changes: every way a Document is added (and, from LAY-84, replaced,
+ * edited, set as default and deleted). Routes only check who's signed in,
+ * read the request and send back the result (see `http.ts`).
+ */
+import {
+  DefaultTakenError,
+  failure,
+  UnreadableFileError,
+  type Document,
+  type DocumentChange,
+  type DocumentDeps,
+  type DocumentResult,
+  type Failure,
+  type NewDocument,
+} from "./document";
+import { uploadProblem, FILE_TOO_LARGE_MESSAGE } from "./file-format";
+import { storagePathFor, UPLOAD_BUCKET } from "./files";
+import { MAX_PROJECTS, MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
+
+const MAX_UPLOADS_PER_TYPE = 20;
+const MAX_LABEL_LENGTH = 200;
+
+function cleanLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().slice(0, MAX_LABEL_LENGTH);
+  return trimmed || null;
+}
+
+/** Adding a Document always touches Source material. */
+function addedChange(documents: Document[]): DocumentChange {
+  return { ok: true, documents, rebuildRequested: true, contentChanged: true };
+}
+
+function fileProblem(file: File): Failure | null {
+  const problem = uploadProblem(file);
+  if (!problem) return null;
+  return failure(problem === FILE_TOO_LARGE_MESSAGE ? "too_large" : "unsupported_type", problem);
+}
+
+/** Runs a reader call, turning its errors into failures. */
+async function readFile<T>(run: () => Promise<T>): Promise<T | Failure> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof UnreadableFileError) return failure("unreadable", err.message);
+    console.error("Couldn't read an uploaded file", err);
+    return failure("save_failed", "Something went wrong reading that file. Please try again.");
+  }
+}
+
+const EXAMPLE_WORK_LIMIT_MESSAGE = `You can keep up to ${MAX_PROJECTS} projects. Delete one to add another.`;
+
+const COULDNT_SAVE = "Couldn't save the document. Please try again.";
+
+/** How many more Example Works the user can add, or a failure. */
+async function exampleWorkRoom(deps: DocumentDeps): Promise<number | Failure> {
+  try {
+    const remaining = MAX_PROJECTS - (await deps.store.count("project"));
+    return remaining > 0 ? remaining : failure("limit_reached", EXAMPLE_WORK_LIMIT_MESSAGE);
+  } catch (err) {
+    console.error("Couldn't count documents", err);
+    return failure("save_failed", COULDNT_SAVE);
+  }
+}
+
+const isFailure = (value: unknown): value is Failure =>
+  typeof value === "object" && value !== null && (value as Failure).ok === false;
+
+/**
+ * Stores the file, then inserts the rows pointing at it. If the insert fails,
+ * the file is removed, so a failed add leaves nothing behind.
+ */
+async function storeAndInsert(
+  deps: DocumentDeps,
+  path: string,
+  file: File,
+  rows: NewDocument[],
+): Promise<Document[] | Failure> {
+  try {
+    await deps.store.putFile(path, file);
+  } catch (err) {
+    console.error(`Couldn't store the uploaded file ${path}`, err);
+    return failure("save_failed", "Couldn't save the file. Please try again.");
+  }
+
+  try {
+    return await insertRetryingDefault(deps, rows);
+  } catch (err) {
+    console.error("Couldn't save the uploaded document", err);
+    try {
+      await deps.store.removeFile(path);
+    } catch (removeErr) {
+      console.error(`Couldn't remove the stored file ${path} after a failed save`, removeErr);
+    }
+    return failure("save_failed", COULDNT_SAVE);
+  }
+}
+
+/** A concurrent add may have claimed the Default document first: then this one isn't the default. */
+async function insertRetryingDefault(deps: DocumentDeps, rows: NewDocument[]): Promise<Document[]> {
+  try {
+    return await deps.store.insert(rows);
+  } catch (err) {
+    if (!(err instanceof DefaultTakenError)) throw err;
+    return deps.store.insert(rows.map((r) => ({ ...r, is_default: false })));
+  }
+}
+
+export interface UploadInput {
+  file: File | null;
+  documentType: unknown;
+  displayName?: unknown;
+  targetRole?: unknown;
+}
+
+/**
+ * Adds an uploaded Resume or Cover letter. The file is checked, read, stored
+ * and then saved; the first of its type becomes the Default document.
+ */
+export async function addUploadedDocument(deps: DocumentDeps, input: UploadInput): Promise<DocumentResult> {
+  const { documentType } = input;
+  if (documentType !== "resume" && documentType !== "cover_letter") {
+    return failure("invalid", "Invalid document type");
+  }
+  const file = input.file;
+  if (!file) return failure("invalid", "No file provided");
+  const problem = fileProblem(file);
+  if (problem) return problem;
+
+  let existing: number;
+  try {
+    existing = await deps.store.count(documentType, { source: "uploaded" });
+  } catch (err) {
+    console.error("Couldn't count documents", err);
+    return failure("save_failed", COULDNT_SAVE);
+  }
+  if (existing >= MAX_UPLOADS_PER_TYPE) {
+    return failure(
+      "limit_reached",
+      `You can keep up to ${MAX_UPLOADS_PER_TYPE} of each document type. Delete one to upload another.`,
+    );
+  }
+
+  const markdown = await readFile(() => deps.reader.toMarkdown(file));
+  if (isFailure(markdown)) return markdown;
+
+  const path = storagePathFor(documentType, deps.userId, file.name);
+  const docs = await storeAndInsert(deps, path, file, [
+    {
+      document_type: documentType,
+      source: "uploaded",
+      original_filename: file.name,
+      display_name: cleanLabel(input.displayName) ?? file.name,
+      target_role: cleanLabel(input.targetRole),
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_bucket: UPLOAD_BUCKET,
+      storage_path: path,
+      parsed_markdown: markdown,
+      is_default: existing === 0,
+    },
+  ]);
+  if (isFailure(docs)) return docs;
+
+  await deps.rebuild.request();
+  return addedChange(docs);
+}
+
+export interface WrittenExampleWorkInput {
+  title: unknown;
+  description: unknown;
+}
+
+/** Adds an Example Work the user typed into the app. */
+export async function addWrittenExampleWork(
+  deps: DocumentDeps,
+  input: WrittenExampleWorkInput,
+): Promise<DocumentResult> {
+  const title = typeof input.title === "string" ? input.title.trim() : "";
+  const description = typeof input.description === "string" ? input.description.trim() : "";
+  if (!title) return failure("invalid", "Give the project a title");
+  if (!description) return failure("invalid", "Describe the project");
+  if (title.length > MAX_PROJECT_TITLE_LENGTH) {
+    return failure("invalid", `Titles can be up to ${MAX_PROJECT_TITLE_LENGTH} characters`);
+  }
+  if (description.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
+    return failure(
+      "invalid",
+      `Descriptions can be up to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString("en-US")} characters`,
+    );
+  }
+
+  const room = await exampleWorkRoom(deps);
+  if (isFailure(room)) return room;
+
+  let docs: Document[];
+  try {
+    docs = await deps.store.insert([
+      {
+        document_type: "project",
+        source: "written",
+        original_filename: null,
+        display_name: title,
+        target_role: null,
+        mime_type: null,
+        file_size_bytes: null,
+        storage_bucket: null,
+        storage_path: null,
+        parsed_markdown: description,
+        is_default: false,
+      },
+    ]);
+  } catch (err) {
+    console.error("Couldn't save a written Example Work", err);
+    return failure("save_failed", COULDNT_SAVE);
+  }
+
+  await deps.rebuild.request();
+  return addedChange(docs);
+}
+
+/**
+ * Splits an uploaded file into Example Works and adds each one. They all
+ * point at the one stored file. Either every Example Work is added or none is.
+ */
+export async function importExampleWorks(deps: DocumentDeps, input: { file: File | null }): Promise<DocumentResult> {
+  const file = input.file;
+  if (!file) return failure("invalid", "No file provided");
+  const problem = fileProblem(file);
+  if (problem) return problem;
+
+  const room = await exampleWorkRoom(deps);
+  if (isFailure(room)) return room;
+
+  const works = await readFile(() => deps.reader.splitExampleWorks(file));
+  if (isFailure(works)) return works;
+  if (works.length === 0) return failure("unreadable", "We couldn't find any projects in that document.");
+  if (works.length > room) {
+    return failure(
+      "limit_reached",
+      `That document has ${works.length} projects, but you have room for ${room} more. You can keep up to ${MAX_PROJECTS}.`,
+    );
+  }
+
+  const path = storagePathFor("project", deps.userId, file.name);
+  const docs = await storeAndInsert(
+    deps,
+    path,
+    file,
+    works.map((w) => ({
+      document_type: "project" as const,
+      source: "uploaded" as const,
+      original_filename: file.name,
+      display_name: w.title,
+      target_role: null,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_bucket: UPLOAD_BUCKET,
+      storage_path: path,
+      parsed_markdown: w.description,
+      is_default: false,
+    })),
+  );
+  if (isFailure(docs)) return docs;
+
+  await deps.rebuild.request();
+  return addedChange(docs);
+}
