@@ -127,7 +127,7 @@ export async function runReview(supabase: SupabaseClient, userId: string, docume
         resume_document_id: resume.id,
         report_version: RESUME_REVIEW_VERSION,
         report: review,
-        resume_content_hash: resumeContentHash(resume.storage_path, resume.parsed_markdown),
+        resume_content_hash: resumeContentHash(resume.storage_path, resume.target_role, resume.parsed_markdown),
         updated_at: now,
       },
       { onConflict: "resume_document_id" },
