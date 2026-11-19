@@ -1,6 +1,7 @@
 import type { UserJob } from "@/hooks/use-jobs";
 import { displayCompany, displayTitle } from "@/lib/jobs/display";
 import { compareSortOrder } from "@/lib/jobs/sort-order";
+import { overallLabelOf } from "@/lib/match-report/label";
 
 export const SORT_STORAGE_KEY = "job-sort";
 
@@ -35,7 +36,7 @@ const STATUS_RANK: Record<string, number> = {
   closed: 3,
 };
 
-const MATCH_RANK: Record<string, number> = { strong: 0, partial: 1, weak: 2 };
+const MATCH_RANK: Record<string, number> = { perfect: 0, strong: 1, partial: 2, weak: 3 };
 
 type SortableJob = Pick<
   UserJob,
@@ -70,6 +71,10 @@ function compareNullable<T>(
 const rank = (map: Record<string, number>, key: string | undefined) =>
   key !== undefined && key in map ? map[key] : null;
 
+/** Reports saved under older rules get the current label, from their saved ratings. */
+const matchLabel = (job: SortableJob) =>
+  job.match_report?.overall ? overallLabelOf(job.match_report) : undefined;
+
 function comparatorFor(
   sort: JobSort,
 ): ((a: SortableJob, b: SortableJob) => number) | null {
@@ -99,8 +104,8 @@ function comparatorFor(
     case "match":
       return (a, b) =>
         compareNullable(
-          rank(MATCH_RANK, a.match_report?.overall?.label),
-          rank(MATCH_RANK, b.match_report?.overall?.label),
+          rank(MATCH_RANK, matchLabel(a)),
+          rank(MATCH_RANK, matchLabel(b)),
           (x, y) => x - y,
         );
   }

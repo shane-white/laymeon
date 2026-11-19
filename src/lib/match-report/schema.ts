@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const MATCH_REPORT_VERSION = 1;
 
-export const overallLabelSchema = z.enum(["strong", "partial", "weak"]);
+export const overallLabelSchema = z.enum(["perfect", "strong", "partial", "weak"]);
 export const importanceSchema = z.enum(["must_have", "nice_to_have"]);
 export const requirementMatchSchema = z.enum(["strong", "partial", "missing"]);
 export const requirementCategorySchema = z.enum([

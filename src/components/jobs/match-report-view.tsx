@@ -6,9 +6,11 @@ import { AlertTriangle, ArrowRight, BookUser, Check, Info, X } from "lucide-reac
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { countMissingConsidered, overallLabelOf } from "@/lib/match-report/label";
 import type { CareerStoryRef, MatchReport, Requirement, SearchWord } from "@/lib/match-report/schema";
 
 const OVERALL = {
+  perfect: { label: "Perfect match", className: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" },
   strong: { label: "Strong match", className: "bg-green-500/15 text-green-700 dark:text-green-400" },
   partial: { label: "Partial match", className: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400" },
   weak: { label: "Weak match", className: "bg-red-500/15 text-red-700 dark:text-red-400" },
@@ -59,20 +61,31 @@ function Section({
   );
 }
 
-function YourMatch({ overall }: { overall: MatchReport["overall"] }) {
-  const style = OVERALL[overall.label];
+function YourMatch({ report }: { report: MatchReport }) {
+  const { overall } = report;
+  const label = overallLabelOf(report);
+  const style = OVERALL[label];
+  const missing = label === "strong" ? countMissingConsidered(report.requirements) : 0;
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <h2 className="sr-only">Your match</h2>
-        <span
-          className={cn(
-            "w-fit rounded-full px-3 py-1 text-base font-semibold",
-            style.className,
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span
+            className={cn(
+              "w-fit rounded-full px-3 py-1 text-base font-semibold",
+              style.className,
+            )}
+          >
+            {style.label}
+          </span>
+          {missing > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              {missing} {missing === 1 ? "requirement" : "requirements"} may be missing
+            </span>
           )}
-        >
-          {style.label}
-        </span>
+        </div>
         <p className="text-sm">{overall.reason}</p>
         <p className="text-xs text-muted-foreground">
           Based on how well your resume covers the posting&apos;s must-have requirements, the
@@ -285,7 +298,7 @@ function SearchWords({ words }: { words: SearchWord[] }) {
 export function MatchReportView({ report }: { report: MatchReport }) {
   return (
     <div className="flex flex-col gap-6">
-      <YourMatch overall={report.overall} />
+      <YourMatch report={report} />
 
       <ScreenOutWarning screeners={report.screeners} />
 

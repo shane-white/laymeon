@@ -1,7 +1,8 @@
+import { overallLabelOf } from "./label";
 import type { MatchReport } from "./schema";
 
 const LABELS = {
-  overall: { strong: "Strong match", partial: "Partial match", weak: "Weak match" },
+  overall: { perfect: "Perfect match", strong: "Strong match", partial: "Partial match", weak: "Weak match" },
   match: { strong: "Strong", partial: "Partial", missing: "Missing" },
   importance: { must_have: "Must-have", nice_to_have: "Nice-to-have" },
   searchWord: { found: "Found", similar: "Similar wording", not_found: "Not found" },
@@ -11,7 +12,7 @@ const LABELS = {
 /** Compact markdown rendering of a match report, for use as model context. */
 export function formatMatchReportForPrompt(report: MatchReport): string {
   const lines: string[] = [
-    `**Overall:** ${LABELS.overall[report.overall.label]}. ${report.overall.reason}`,
+    `**Overall:** ${LABELS.overall[overallLabelOf(report)]}. ${report.overall.reason}`,
   ];
 
   if (report.overall.topFixes.length) {
