@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { DocumentAspect, DocumentChange } from "@/lib/documents/document";
 import type { ReviewSummary, StoredReview } from "@/lib/resume-review/store";
 
 const LIST_KEY = ["resume-reviews"] as const;
@@ -69,6 +70,20 @@ export function useDeleteResumeReview() {
 }
 
 /** After a document changes, its review may be out of date. */
+/**
+ * Whether a Document change shows in the Resume Reviews. A review is made from
+ * its resume's file, text and Target role (see `resumeContentHash()`), and the
+ * list also shows each resume's name and whether it was deleted.
+ */
+export function changeAffectsReviews(change: Pick<DocumentChange, "documents" | "changed">): boolean {
+  return (
+    change.documents.some((d) => d.document_type === "resume") &&
+    change.changed.some((aspect) => REVIEW_INPUTS.has(aspect))
+  );
+}
+
+const REVIEW_INPUTS = new Set<DocumentAspect>(["file", "text", "target_role", "name", "deleted"]);
+
 export function invalidateResumeReviews(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: LIST_KEY }),

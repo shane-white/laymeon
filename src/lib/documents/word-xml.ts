@@ -66,7 +66,7 @@ export async function readWordParts(buffer: Buffer): Promise<WordParts> {
  * and footers often hold contact details. Word keeps separate copies for the
  * first page and even pages, so repeated ones are kept once.
  */
-export async function extractWordText(buffer: Buffer): Promise<string> {
+export async function readWordXmlText(buffer: Buffer): Promise<string> {
   const { documentXml, headers, footers } = await readWordParts(buffer);
   const unique = (parts: string[]) => [...new Set(parts.map(textOfWordXml).filter((t) => t.trim()))];
   return [...unique(headers), textOfWordXml(documentXml), ...unique(footers)].filter(Boolean).join("\n\n");

@@ -6,19 +6,18 @@
  * copes with columns and text in images. So it hides exactly the problems an
  * ATS runs into. Comparing the two shows them.
  */
-import { readWordParts, textOfWordXml } from "@/lib/parsers/word-xml";
+import { DOCX_MIME, kindOf } from "@/lib/documents/file-format";
+import { readWordParts, textOfWordXml } from "@/lib/documents/word-xml";
 import type { SoftwareView } from "./types";
-
-const PDF = "application/pdf";
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 // DOCX sizes are in EMUs: 914400 per inch, 96 px per inch.
 const EMU_PER_PIXEL = 9525;
 
 /** Null for file types this can't read (such as the old .doc format). */
 export async function readAsSoftware(buffer: Buffer, mimeType: string): Promise<SoftwareView | null> {
-  if (mimeType === PDF) return readPdf(buffer);
-  if (mimeType === DOCX) return readDocx(buffer);
+  if (kindOf(mimeType) === "pdf") return readPdf(buffer);
+  // Only .docx has the XML this reads; an old .doc is Word too, but not readable here.
+  if (mimeType === DOCX_MIME) return readDocx(buffer);
   return null;
 }
 

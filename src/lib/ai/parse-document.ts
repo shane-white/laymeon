@@ -1,5 +1,7 @@
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
-import { extractTextFromFile } from "@/lib/parsers/extract-text";
+import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
+import { UnreadableFileError } from "@/lib/documents/document";
+import { readWordText } from "@/lib/documents/word-text";
 
 const MARKDOWN_PROMPT = `You are a document parser. Convert the following document into clean, simplified markdown.
 
@@ -18,14 +20,18 @@ export async function parseDocument(
   mimeType: string,
   filename: string,
 ): Promise<{ markdown: string }> {
-  if (mimeType === "application/pdf") {
+  const kind = kindOf(mimeType);
+  if (kind === "pdf") {
     return parsePdfWithClaude(buffer, filename);
   }
+  if (kind === "unsupported") {
+    throw new Error(UNSUPPORTED_FILE_MESSAGE);
+  }
 
-  const rawText = await extractTextFromFile(buffer, mimeType);
+  const rawText = await readWordText(buffer);
 
   if (!rawText || rawText.trim().length === 0) {
-    throw new Error("Could not extract any text from the document");
+    throw new UnreadableFileError("Could not extract any text from the document");
   }
 
   return parseTextWithClaude(rawText, filename);
@@ -48,7 +54,7 @@ async function parsePdfWithClaude(
             type: "document",
             source: {
               type: "base64",
-              media_type: "application/pdf",
+              media_type: PDF_MIME,
               data: buffer.toString("base64"),
             },
           },

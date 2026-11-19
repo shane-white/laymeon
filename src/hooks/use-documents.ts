@@ -1,27 +1,42 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { invalidateProfile } from "@/hooks/use-profile";
-import { invalidateResumeReviews } from "@/hooks/use-resume-reviews";
+import { changeAffectsReviews, invalidateResumeReviews } from "@/hooks/use-resume-reviews";
+import type { Document, DocumentChange } from "@/lib/documents/document";
 
-export interface Document {
-  id: string;
-  user_id: string;
-  document_type: "resume" | "cover_letter" | "project";
-  /** "written" is a project typed into the app, with no file. */
-  source: "uploaded" | "generated" | "written";
-  original_filename: string | null;
-  display_name: string;
-  target_role: string | null;
-  is_default: boolean;
-  mime_type: string | null;
-  file_size_bytes: number | null;
-  storage_bucket: string | null;
-  storage_path: string | null;
-  parsed_markdown: string | null;
-  created_at: string;
-  updated_at: string;
+export type { Document } from "@/lib/documents/document";
+
+/** What the server sends back for a Document change. */
+export type DocumentChangeResponse = Omit<DocumentChange, "ok">;
+
+/**
+ * Refreshes what a Document change made out of date: always the Documents, the
+ * Career Story when the server started a Rebuild, and the Resume Reviews when
+ * the change shows in them.
+ */
+export function onDocumentChanged(queryClient: QueryClient, change: DocumentChangeResponse) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["documents"] }),
+    change.rebuildRequested && invalidateProfile(queryClient),
+    changeAffectsReviews(change) && invalidateResumeReviews(queryClient),
+  ]);
 }
+
+/** Sends a Document change and returns what it changed, or throws the server's message. */
+async function sendChange(url: string, init: RequestInit, fallback: string): Promise<DocumentChangeResponse> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error || fallback);
+  }
+  return res.json();
+}
+
+const jsonBody = (body: unknown): RequestInit => ({
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
 
 export function useDocuments() {
   return useQuery<Document[]>({
@@ -38,24 +53,9 @@ export function useUploadDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (formData: FormData) => {
-      const res = await fetch("/api/documents", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to upload document");
-      }
-      return res.json() as Promise<Document>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // A changed or deleted resume makes its review out of date.
-      void invalidateResumeReviews(queryClient);
-    },
+    mutationFn: (formData: FormData) =>
+      sendChange("/api/documents", { method: "POST", body: formData }, "Failed to upload document"),
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }
 
@@ -67,29 +67,13 @@ export function useAddProjects() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { title: string; description: string } | FormData) => {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        ...(input instanceof FormData
-          ? { body: input }
-          : {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(input),
-            }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to add projects");
-      }
-      return res.json() as Promise<Document[]>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // A changed or deleted resume makes its review out of date.
-      void invalidateResumeReviews(queryClient);
-    },
+    mutationFn: (input: { title: string; description: string } | FormData) =>
+      sendChange(
+        "/api/projects",
+        { method: "POST", ...(input instanceof FormData ? { body: input } : jsonBody(input)) },
+        "Failed to add projects",
+      ),
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }
 
@@ -98,23 +82,12 @@ export function useReplaceDocumentFile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+    mutationFn: ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`/api/documents/${id}/file`, { method: "POST", body: formData });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to replace the file");
-      }
-      return res.json() as Promise<Document>;
+      return sendChange(`/api/documents/${id}/file`, { method: "POST", body: formData }, "Failed to replace the file");
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // The document's reviews were made from the old file.
-      void invalidateResumeReviews(queryClient);
-    },
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }
 
@@ -122,18 +95,8 @@ export function useDeleteDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete document");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // A changed or deleted resume makes its review out of date.
-      void invalidateResumeReviews(queryClient);
-    },
+    mutationFn: (id: string) => sendChange(`/api/documents/${id}`, { method: "DELETE" }, "Failed to delete document"),
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }
 
@@ -141,7 +104,7 @@ export function useUpdateDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       id,
       ...fields
     }: {
@@ -149,25 +112,8 @@ export function useUpdateDocument() {
       display_name?: string;
       target_role?: string | null;
       parsed_markdown?: string;
-    }) => {
-      const res = await fetch(`/api/documents/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update document");
-      }
-      return res.json() as Promise<Document>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // A changed or deleted resume makes its review out of date.
-      void invalidateResumeReviews(queryClient);
-    },
+    }) => sendChange(`/api/documents/${id}`, { method: "PATCH", ...jsonBody(fields) }, "Failed to update document"),
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }
 
@@ -175,24 +121,8 @@ export function useSetDefaultDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/documents/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_default: true }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to set default document");
-      }
-      return res.json() as Promise<Document>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The server rebuilds the Career Story after document changes.
-      void invalidateProfile(queryClient);
-      // A changed or deleted resume makes its review out of date.
-      void invalidateResumeReviews(queryClient);
-    },
+    mutationFn: (id: string) =>
+      sendChange(`/api/documents/${id}`, { method: "PATCH", ...jsonBody({ is_default: true }) }, "Failed to set default document"),
+    onSuccess: (change) => onDocumentChanged(queryClient, change),
   });
 }

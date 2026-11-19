@@ -1,20 +1,13 @@
-/** Rules shared by uploading a document and replacing its file. */
+/** Where uploaded files are stored. Which files are accepted is in `file-format.ts`. */
 
-export const ALLOWED_UPLOAD_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/rtf",
-  "application/vnd.oasis.opendocument.text",
-];
-
-/** The same limit the upload dialog enforces. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+import type { DocumentType } from "./document";
 
 export const UPLOAD_BUCKET = "imported-documents";
 
+const FOLDERS: Record<DocumentType, string> = { resume: "resumes", cover_letter: "cover-letters", project: "projects" };
+
 /** Where an uploaded file is stored. The timestamp keeps a replaced file's path different from the old one. */
-export function storagePathFor(documentType: "resume" | "cover_letter", userId: string, filename: string): string {
-  const folder = documentType === "resume" ? "resumes" : "cover-letters";
+export function storagePathFor(documentType: DocumentType, userId: string, filename: string): string {
+  const folder = FOLDERS[documentType];
   return `${folder}/${userId}/${Date.now()}-${filename}`;
 }

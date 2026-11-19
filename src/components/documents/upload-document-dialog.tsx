@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
+import { ACCEPTED_FILES_HINT, DROPZONE_ACCEPT, FILE_TOO_LARGE_MESSAGE, MAX_UPLOAD_BYTES, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +22,6 @@ interface UploadDocumentDialogProps {
   documentType: "resume" | "cover_letter";
   children: React.ReactNode;
 }
-
-const ACCEPT = {
-  "application/pdf": [".pdf"],
-  "application/msword": [".doc"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
-    ".docx",
-  ],
-};
 
 function nameFromFilename(filename: string): string {
   return filename.replace(/\.[^.]+$/, "").slice(0, 200);
@@ -56,16 +49,16 @@ export function UploadDocumentDialog({
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: ACCEPT,
+    accept: DROPZONE_ACCEPT,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_UPLOAD_BYTES,
     onDrop,
     onDropRejected: (rejections) => {
       const error = rejections[0]?.errors[0];
       if (error?.code === "file-too-large") {
-        toast.error("File is too large. Maximum size is 10 MB.");
+        toast.error(FILE_TOO_LARGE_MESSAGE);
       } else if (error?.code === "file-invalid-type") {
-        toast.error("Unsupported format. Please upload a PDF or DOCX file.");
+        toast.error(UNSUPPORTED_FILE_MESSAGE);
       }
     },
   });
@@ -116,7 +109,7 @@ export function UploadDocumentDialog({
         <DialogHeader>
           <DialogTitle>Upload {typeLabels[documentType]}</DialogTitle>
           <DialogDescription>
-            Supported formats: PDF, DOCX, DOC. Maximum size: 10 MB.
+            {ACCEPTED_FILES_HINT}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
