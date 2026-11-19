@@ -17,14 +17,20 @@
  * resume.docx or resume.md, plus job.md and expected.json. Only use --private
  * when the resumes' owners are fine with the text going to the model APIs.
  *
- * Usage: npm run eval:match-report -- [--runs 3] [--private] [pair-name ...]
- * Needs ANTHROPIC_API_KEY in .env.local.
+ * --pipeline picks what makes the report: "one-call" (one Claude call), "steps"
+ * (Claude lists the Requirements, Jev rates them, Claude writes up), or "both"
+ * (the default), which runs each on the same pairs and compares them. Jev's
+ * requests and answers are saved in scripts/resumes/results/match-report/.
+ *
+ * Usage: npm run eval:match-report -- [--runs 3] [--pipeline both] [--private] [pair-name ...]
+ * Needs ANTHROPIC_API_KEY and TYPESAFE_API_KEY in .env.local.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseDocument } from "@/lib/ai/parse-document";
-import { generateMatchReport, type MatchReportStep } from "@/lib/match-report/generate";
+import { generateMatchReport, generateMatchReportInSteps, type MatchReportStep } from "@/lib/match-report/generate";
+import type { RatingResult } from "@/lib/match-report/rate-requirements";
 import type { MatchReport, Requirement } from "@/lib/match-report/schema";
 import { buildProfile } from "@/lib/profile/build";
 import { extractDocument, type SourceDocumentType } from "@/lib/profile/extract";
@@ -34,7 +40,9 @@ type Rating = Requirement["match"];
 
 interface Expected {
   label: MatchReport["overall"]["label"];
-  /** Phrase → the rating every Requirement containing it should get. */
+  /** The Job title Jev sees. Defaults to the posting's first heading. */
+  jobTitle?: string;
+  /** Phrase →the rating every Requirement containing it should get. */
   ratings?: Record<string, Rating>;
   careerStory?: {
     documents: { file: string; type: SourceDocumentType; asOf: string }[];
@@ -147,47 +155,81 @@ function ratingMismatches(report: MatchReport, ratings: Record<string, Rating>):
 const ELIGIBILITY_PATTERN =
   /authori[sz]|sponsor|citizen|visa\b|criminal|background check|drug (test|screen)/i;
 
+const PIPELINES = ["one-call", "steps"] as const;
+type Pipeline = (typeof PIPELINES)[number];
+
 function parseArgs(argv: string[]) {
   let runs = 3;
   let includePrivate = false;
+  let pipelines: Pipeline[] = [...PIPELINES];
   const names: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--runs") runs = Number(argv[++i]);
     else if (argv[i] === "--private") includePrivate = true;
-    else names.push(argv[i]);
+    else if (argv[i] === "--pipeline") {
+      const value = argv[++i];
+      pipelines = value === "both" ? [...PIPELINES] : [value as Pipeline];
+      if (!pipelines.every((p) => PIPELINES.includes(p))) throw new Error(`Unknown pipeline ${value}`);
+    } else names.push(argv[i]);
   }
-  return { runs, includePrivate, names };
+  return { runs, includePrivate, pipelines, names };
 }
 
-/** Token totals per model across the whole run. */
-const usage = new Map<string, { calls: number; input: number; cacheRead: number; cacheWrite: number; output: number }>();
+// Jev's requests and answers, so any rating can be rerun. Inside scripts/resumes, which git ignores.
+const RESULTS_DIR = join(__dirname, "resumes", "results", "match-report");
 
-function recordStep(step: MatchReportStep) {
-  const total = usage.get(step.model) ?? { calls: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+type Tokens = { calls: number; input: number; cacheRead: number; cacheWrite: number; output: number };
+/** Token totals per pipeline and model across the whole run. */
+const usage = new Map<string, Tokens>();
+
+function addTokens(key: string, add: Omit<Tokens, "calls">) {
+  const total = usage.get(key) ?? { calls: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
   total.calls += 1;
-  total.input += step.usage.input_tokens;
-  total.cacheRead += step.usage.cache_read_input_tokens ?? 0;
-  total.cacheWrite += step.usage.cache_creation_input_tokens ?? 0;
-  total.output += step.usage.output_tokens;
-  usage.set(step.model, total);
+  total.input += add.input;
+  total.cacheRead += add.cacheRead;
+  total.cacheWrite += add.cacheWrite;
+  total.output += add.output;
+  usage.set(key, total);
+}
+
+function recordStep(pipeline: Pipeline, step: MatchReportStep) {
+  addTokens(`${pipeline}: ${step.model}`, {
+    input: step.usage.input_tokens,
+    cacheRead: step.usage.cache_read_input_tokens ?? 0,
+    cacheWrite: step.usage.cache_creation_input_tokens ?? 0,
+    output: step.usage.output_tokens,
+  });
 }
 
 function printUsage() {
   console.log("\nToken usage (Match Report calls only; Career Story extraction and resume parsing not counted):");
-  for (const [model, t] of usage) {
+  for (const [key, t] of usage) {
     console.log(
-      `  ${model}: ${t.calls} calls, ${t.input} input, ${t.cacheRead} cache read, ${t.cacheWrite} cache write, ${t.output} output`,
+      `  ${key}: ${t.calls} calls, ${t.input} input, ${t.cacheRead} cache read, ${t.cacheWrite} cache write, ${t.output} output`,
     );
   }
 }
 
-function summarize(report: MatchReport): string {
+/** The Job title Jev sees: expected.json's `jobTitle`, or the posting's first heading up to " — ". */
+function jobTitleOf(pair: Pair): string {
+  if (pair.expected.jobTitle) return pair.expected.jobTitle;
+  const heading = pair.job.match(/^#\s+(.+)$/m)?.[1] ?? pair.name;
+  return heading.split(/\s+[—–-]\s+/)[0].trim();
+}
+
+const pct = (n: number) => n.toFixed(2).replace(/^0/, "");
+
+function summarize(report: MatchReport, rating?: RatingResult): string {
   const reqs = report.requirements
-    .map(
-      (r) =>
-        `    ${r.importance === "must_have" ? "MUST" : "nice"} ${r.match.padEnd(7)} ${r.text}` +
-        (r.careerStory.length ? `  ← Career Story: ${r.careerStory.map((c) => c.label).join("; ")}` : ""),
-    )
+    .map((r, i) => {
+      const p = rating?.ratings[i]?.probabilities;
+      const probabilities = p ? ` [m ${pct(p.missing)} p ${pct(p.partial)} s ${pct(p.strong)}]` : "";
+      return (
+        `    ${r.importance === "must_have" ? "MUST" : "nice"} ${r.match.padEnd(7)}${probabilities} ${r.text}` +
+        (r.evidence ? `  “${r.evidence}”` : "") +
+        (r.careerStory.length ? `  ← Career Story: ${r.careerStory.map((c) => c.label).join("; ")}` : "")
+      );
+    })
     .join("\n");
   const words = report.searchWords
     .map((w) => `${w.term}=${w.status}${w.resumeWording ? `(${w.resumeWording})` : ""}`)
@@ -199,17 +241,63 @@ function summarize(report: MatchReport): string {
         (s.careerStory.length ? ` (Career Story: ${s.careerStory.map((c) => c.label).join("; ")})` : ""),
     )
     .join(", ");
-  return `${reqs}\n    screeners: ${screeners || "none"}\n    search words: ${words}`;
+  return `    reason: ${report.overall.reason}\n${reqs}\n    screeners: ${screeners || "none"}\n    search words: ${words}`;
 }
 
-async function evalPair(pair: Pair, runs: number): Promise<boolean> {
-  const { name, resume, job, expected } = pair;
-  // Built once, so the runs differ only in the report.
-  const profile = expected.careerStory ? await buildCareerStory(pair) : null;
+interface Run {
+  report: MatchReport;
+  rating?: RatingResult;
+}
 
-  const reports = await Promise.all(
-    Array.from({ length: runs }, () => generateMatchReport(resume, job, profile, { onStep: recordStep })),
+async function runPipeline(pair: Pair, profile: CareerProfile | null, pipeline: Pipeline, run: number): Promise<Run> {
+  const onStep = (step: MatchReportStep) => recordStep(pipeline, step);
+  if (pipeline === "one-call") {
+    return { report: await generateMatchReport(pair.resume, pair.job, profile, { onStep }) };
+  }
+  let rating: RatingResult | undefined;
+  const report = await generateMatchReportInSteps(
+    { resume: pair.resume, jobDescription: pair.job, jobTitle: jobTitleOf(pair), profile },
+    {
+      onStep,
+      onRating: (result) => {
+        rating = result;
+        addTokens(`steps: ${result.model}`, {
+          input: result.usage?.input_tokens ?? 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          output: result.usage?.output_tokens ?? 0,
+        });
+        mkdirSync(RESULTS_DIR, { recursive: true });
+        writeFileSync(
+          join(RESULTS_DIR, `${pair.name.replace("/", "-")}-run${run}-jev.json`),
+          JSON.stringify(result, null, 2),
+        );
+      },
+    },
   );
+  return { report, rating };
+}
+
+interface PairResult {
+  name: string;
+  pipeline: Pipeline;
+  ok: boolean;
+  labels: string[];
+  wrongRatings: number;
+  checkedRatings: number;
+}
+
+async function evalPipeline(
+  pair: Pair,
+  profile: CareerProfile | null,
+  pipeline: Pipeline,
+  runs: number,
+): Promise<PairResult> {
+  const { name, expected } = pair;
+  const results = await Promise.all(
+    Array.from({ length: runs }, (_, i) => runPipeline(pair, profile, pipeline, i + 1)),
+  );
+  const reports = results.map((r) => r.report);
   const missingCoverage = expected.careerStory
     ? reports.map((r) => uncovered(r, expected.careerStory!.covers))
     : [];
@@ -226,35 +314,62 @@ async function evalPair(pair: Pair, runs: number): Promise<boolean> {
   const ratingsOk = wrongRatings.every((m) => m.length === 0);
   const ok = consistent && correct && eligibilityLeaks.length === 0 && coverageOk && ratingsOk;
 
-  console.log(
-    `${ok ? "PASS" : "FAIL"} ${name}: expected ${expected.label}, got [${labels.join(", ")}]`,
-  );
+  // One block per pair and pipeline, so parallel runs don't interleave.
+  const lines = [`${ok ? "PASS" : "FAIL"} ${name} [${pipeline}]: expected ${expected.label}, got [${labels.join(", ")}]`];
   wrongRatings.forEach((wrong, i) => {
-    if (wrong.length) console.log(`  run ${i + 1}: ratings:\n${wrong.map((w) => `    ${w}`).join("\n")}`);
+    if (wrong.length) lines.push(`  run ${i + 1}: ratings:\n${wrong.map((w) => `    ${w}`).join("\n")}`);
   });
   missingCoverage.forEach((missing, i) => {
-    if (missing.length) console.log(`  run ${i + 1}: Career Story should cover: ${missing.join(", ")}`);
+    if (missing.length) lines.push(`  run ${i + 1}: Career Story should cover: ${missing.join(", ")}`);
   });
   if (eligibilityLeaks.length) {
-    console.log(`  eligibility questions that should be left out: ${eligibilityLeaks.join("; ")}`);
+    lines.push(`  eligibility questions that should be left out: ${eligibilityLeaks.join("; ")}`);
   }
-  if (!ok) {
-    reports.forEach((r, i) => console.log(`  run ${i + 1}:\n${summarize(r)}`));
-  } else {
-    console.log(summarize(reports[0]));
+  results.forEach((r, i) => {
+    if (!ok || i === 0) lines.push(`  run ${i + 1}:\n${summarize(r.report, r.rating)}`);
+  });
+  console.log(lines.join("\n"));
+
+  return {
+    name,
+    pipeline,
+    ok,
+    labels,
+    wrongRatings: wrongRatings.flat().length,
+    checkedRatings: expected.ratings ? Object.keys(expected.ratings).length * runs : 0,
+  };
+}
+
+async function evalPair(pair: Pair, pipelines: Pipeline[], runs: number): Promise<PairResult[]> {
+  // Built once, so the runs and pipelines differ only in the report.
+  const profile = pair.expected.careerStory ? await buildCareerStory(pair) : null;
+  return Promise.all(pipelines.map((pipeline) => evalPipeline(pair, profile, pipeline, runs)));
+}
+
+function printComparison(results: PairResult[], pipelines: Pipeline[]) {
+  console.log("\nBy pair (labels per run; wrong ratings / ratings checked):");
+  for (const name of new Set(results.map((r) => r.name))) {
+    const cells = pipelines.map((p) => {
+      const r = results.find((x) => x.name === name && x.pipeline === p)!;
+      return `${p}: ${r.ok ? "PASS" : "FAIL"} [${r.labels.join(", ")}] ${r.wrongRatings}/${r.checkedRatings}`;
+    });
+    console.log(`  ${name.padEnd(30)} ${cells.join("   ")}`);
   }
-  return ok;
 }
 
 async function main() {
-  const { runs, includePrivate, names } = parseArgs(process.argv.slice(2));
+  const { runs, includePrivate, pipelines, names } = parseArgs(process.argv.slice(2));
   const pairs = await loadPairs(names, includePrivate);
 
-  const results = await Promise.all(pairs.map((pair) => evalPair(pair, runs)));
-  const failed = results.filter((ok) => !ok).length;
-  console.log(`\n${results.length - failed}/${results.length} pairs passed (${runs} runs each)`);
+  const results = (await Promise.all(pairs.map((pair) => evalPair(pair, pipelines, runs)))).flat();
+  for (const pipeline of pipelines) {
+    const mine = results.filter((r) => r.pipeline === pipeline);
+    const failed = mine.filter((r) => !r.ok).length;
+    console.log(`\n${pipeline}: ${mine.length - failed}/${mine.length} pairs passed (${runs} runs each)`);
+  }
+  printComparison(results, pipelines);
   printUsage();
-  process.exit(failed ? 1 : 0);
+  process.exit(results.some((r) => !r.ok) ? 1 : 0);
 }
 
 main().catch((err) => {

@@ -7,6 +7,7 @@ import type { CareerProfile } from "@/lib/profile/schema";
 import { assembleModelReport, writeUpProblems } from "./assemble";
 import { buildMatchReport } from "./build";
 import { verifyEvidence } from "./evidence";
+import { rateRequirements, type RatingResult } from "./rate-requirements";
 import {
   listedReportSchema,
   modelReportSchema,
@@ -296,30 +297,30 @@ export interface MatchReportInput {
   profile?: CareerProfile | null;
 }
 
-/**
- * Rates each listed Requirement against the resume, in the listed order. It
- * throws rather than guess, so a failure never shows as Missing.
- */
-export type RateRequirements = (input: {
-  resume: string;
-  jobTitle: string;
-  requirements: ListedReport["requirements"];
-}) => Promise<RequirementMatch[]>;
+export interface StepOptions extends GenerateOptions {
+  /** Called with Jev's ratings, the request and the model that answered. */
+  onRating?: (result: RatingResult) => void;
+  /** Rates the Requirements. Jev by default. */
+  rate?: typeof rateRequirements;
+}
 
 /**
- * Generates a match report in three steps: Claude lists the Requirements,
- * `rate` rates each one, and Claude writes up the rated list. Code then
- * verifies the Evidence and computes the label as for the one-call report.
+ * Generates a match report in three steps: Claude lists the Requirements, Jev
+ * rates each one, and Claude writes up the rated list. Code then verifies the
+ * Evidence and computes the label as for the one-call report. If any step
+ * fails, the whole report fails.
  */
 export async function generateMatchReportInSteps(
   input: MatchReportInput,
-  rate: RateRequirements,
-  options: GenerateOptions = {},
+  options: StepOptions = {},
 ): Promise<MatchReport> {
   const { resume, jobDescription, jobTitle, profile } = input;
+  const rate = options.rate ?? rateRequirements;
   const careerStory = profile ? formatCareerStoryForPrompt(profile) : undefined;
   const listed = await listRequirements(resume, jobDescription, options);
-  const ratings = await rate({ resume, jobTitle, requirements: listed.requirements });
+  const rating = await rate({ resume, jobTitle, requirements: listed.requirements });
+  options.onRating?.(rating);
+  const ratings = rating.ratings.map((r) => r.match);
   const written = await writeUp(resume, jobDescription, listed, ratings, careerStory, options);
   return buildMatchReport(assembleModelReport(listed, ratings, written), resume, careerStory);
 }
