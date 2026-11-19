@@ -18,8 +18,8 @@ describe("documentResponse", () => {
   });
 
   it("sends a change with the Documents and what it changed", async () => {
-    const res = documentResponse({ ok: true, documents: [], rebuildRequested: true, contentChanged: false }, 201);
+    const res = documentResponse({ ok: true, documents: [], rebuildRequested: true, changed: ["added"] }, 201);
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ documents: [], rebuildRequested: true, contentChanged: false });
+    expect(await res.json()).toEqual({ documents: [], rebuildRequested: true, changed: ["added"] });
   });
 });

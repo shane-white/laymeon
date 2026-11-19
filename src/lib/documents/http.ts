@@ -13,13 +13,13 @@ const STATUS: Record<FailureKind, number> = {
 };
 
 /**
- * A change is sent as `{ documents, rebuildRequested, contentChanged }`; a
+ * A change is sent as `{ documents, changed, rebuildRequested }`; a
  * failure as `{ error, kind }` with the status for its kind.
  */
 export function documentResponse(result: DocumentResult, successStatus = 200): NextResponse {
   if (!result.ok) {
     return NextResponse.json({ error: result.message, kind: result.kind }, { status: STATUS[result.kind] });
   }
-  const { documents, rebuildRequested, contentChanged } = result;
-  return NextResponse.json({ documents, rebuildRequested, contentChanged }, { status: successStatus });
+  const { documents, changed, rebuildRequested } = result;
+  return NextResponse.json({ documents, changed, rebuildRequested }, { status: successStatus });
 }

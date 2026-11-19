@@ -33,7 +33,7 @@ describe("adding an uploaded Resume or Cover letter", () => {
       targetRole: "Product Designer",
     });
 
-    expect(result).toMatchObject({ ok: true, rebuildRequested: true, contentChanged: true });
+    expect(result).toMatchObject({ ok: true, rebuildRequested: true, changed: ["added"] });
     if (!result.ok) return;
     expect(result.documents).toHaveLength(1);
     const [doc] = result.documents;
@@ -155,7 +155,7 @@ describe("adding a written Example Work", () => {
     expect(result).toMatchObject({
       ok: true,
       rebuildRequested: true,
-      contentChanged: true,
+      changed: ["added"],
       documents: [
         {
           document_type: "project",
@@ -208,7 +208,7 @@ describe("importing Example Works from a file", () => {
   it("adds one Example Work per project in the file, all sharing one stored file", async () => {
     const { deps, store, rebuild } = setup(scriptedReader({ exampleWorks: works(2) }));
     const result = await importExampleWorks(deps, { file: pdf("portfolio.pdf") });
-    expect(result).toMatchObject({ ok: true, rebuildRequested: true, contentChanged: true });
+    expect(result).toMatchObject({ ok: true, rebuildRequested: true, changed: ["added"] });
     if (!result.ok) return;
     expect(result.documents).toMatchObject([
       { document_type: "project", source: "uploaded", display_name: "Work 1", parsed_markdown: "Did thing 1", original_filename: "portfolio.pdf" },
@@ -302,7 +302,7 @@ describe("replacing a file", () => {
 
     const result = await replaceFile(deps, old.id, { file: pdf("new.pdf") });
 
-    expect(result).toMatchObject({ ok: true, rebuildRequested: true, contentChanged: true });
+    expect(result).toMatchObject({ ok: true, rebuildRequested: true, changed: ["file", "text"] });
     if (!result.ok) return;
     const [doc] = result.documents;
     expect(doc).toMatchObject({
@@ -416,7 +416,7 @@ describe("editing a Document", () => {
     expect(result).toMatchObject({
       ok: true,
       rebuildRequested: false,
-      contentChanged: false,
+      changed: ["name"],
       documents: [{ id, display_name: "New name" }],
     });
     expect(store.documents()[0].display_name).toBe("New name");
@@ -434,7 +434,7 @@ describe("editing a Document", () => {
     expect(await editDocument(deps, id, { displayName: "New title" })).toMatchObject({
       ok: true,
       rebuildRequested: true,
-      contentChanged: true,
+      changed: ["name"],
       documents: [{ display_name: "New title" }],
     });
     expect(rebuild.requests).toBe(1);
@@ -445,7 +445,7 @@ describe("editing a Document", () => {
     expect(await editDocument(deps, id, { parsedMarkdown: " New text " })).toMatchObject({
       ok: true,
       rebuildRequested: true,
-      contentChanged: true,
+      changed: ["text"],
       documents: [{ parsed_markdown: "New text" }],
     });
     expect(rebuild.requests).toBe(1);
@@ -456,7 +456,7 @@ describe("editing a Document", () => {
     expect(await editDocument(deps, id, { displayName: "New name", targetRole: "Researcher" })).toMatchObject({
       ok: true,
       rebuildRequested: true,
-      contentChanged: true,
+      changed: ["name", "target_role"],
       documents: [{ display_name: "New name", target_role: "Researcher" }],
     });
     expect(rebuild.requests).toBe(1);
@@ -464,7 +464,7 @@ describe("editing a Document", () => {
 
   it.each([null, "  "])("clears the Target role when given %o", async (targetRole) => {
     const { deps, rebuild, id } = seeded({ document_type: "resume" });
-    expect(await editDocument(deps, id, { targetRole })).toMatchObject({ ok: true, documents: [{ target_role: null }] });
+    expect(await editDocument(deps, id, { targetRole })).toMatchObject({ ok: true, changed: ["target_role"], documents: [{ target_role: null }] });
     expect(rebuild.requests).toBe(1);
   });
 
@@ -473,7 +473,7 @@ describe("editing a Document", () => {
     expect(await editDocument(deps, id, { displayName: "Old name", targetRole: " Designer ", parsedMarkdown: "Old text" })).toMatchObject({
       ok: true,
       rebuildRequested: false,
-      contentChanged: false,
+      changed: [],
       documents: [{ id }],
     });
     expect(rebuild.requests).toBe(0);
@@ -527,7 +527,7 @@ describe("setting the Default document", () => {
     expect(await setDefaultDocument(deps, second.id)).toMatchObject({
       ok: true,
       rebuildRequested: false,
-      contentChanged: false,
+      changed: ["default"],
       documents: [{ id: second.id, is_default: true }],
     });
     expect(store.documents().filter((d) => d.is_default).map((d) => d.id)).toEqual([second.id, letter.id]);
@@ -552,7 +552,7 @@ describe("deleting a Document", () => {
     const doc = store.seed({ document_type: "resume", storage_path: "resumes/u1/1-a.pdf" });
     const { deps, rebuild } = setup(undefined, store);
 
-    expect(await deleteDocument(deps, doc.id)).toEqual({ ok: true, documents: [], rebuildRequested: true, contentChanged: true });
+    expect(await deleteDocument(deps, doc.id)).toMatchObject({ ok: true, documents: [{ id: doc.id }], rebuildRequested: true, changed: ["deleted"] });
     expect(store.documents()).toEqual([]);
     expect(store.files()).toEqual(["resumes/u1/1-a.pdf"]);
     expect(rebuild.requests).toBe(1);

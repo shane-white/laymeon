@@ -10,9 +10,11 @@ import {
   failure,
   UnreadableFileError,
   type Document,
+  type DocumentAspect,
   type DocumentChange,
   type DocumentDeps,
   type DocumentResult,
+  type DocumentType,
   type DocumentUpdate,
   type Failure,
   type NewDocument,
@@ -30,9 +32,20 @@ function cleanLabel(value: unknown): string | null {
   return trimmed || null;
 }
 
-/** A successful change. Touching Source material means a Rebuild was requested and saved results are out of date. */
-function changed(documents: Document[], touchedSourceMaterial: boolean): DocumentChange {
-  return { ok: true, documents, rebuildRequested: touchedSourceMaterial, contentChanged: touchedSourceMaterial };
+/**
+ * Whether a change touched Source material, which the Career Story is built
+ * from: every aspect but the Default document, and a name only when it's an
+ * Example Work's title.
+ */
+function touchesSourceMaterial(type: DocumentType, changed: DocumentAspect[]): boolean {
+  return changed.some((aspect) => aspect !== "default" && (aspect !== "name" || type === "project"));
+}
+
+/** Ends a successful change, requesting a Rebuild if it touched Source material. */
+async function finish(deps: DocumentDeps, documents: Document[], changed: DocumentAspect[]): Promise<DocumentChange> {
+  const rebuildRequested = documents.length > 0 && touchesSourceMaterial(documents[0].document_type, changed);
+  if (rebuildRequested) await deps.rebuild.request();
+  return { ok: true, documents, changed, rebuildRequested };
 }
 
 function fileProblem(file: File): Failure | null {
@@ -171,8 +184,7 @@ export async function addUploadedDocument(deps: DocumentDeps, input: UploadInput
   ]);
   if (isFailure(docs)) return docs;
 
-  await deps.rebuild.request();
-  return changed(docs, true);
+  return finish(deps, docs, ["added"]);
 }
 
 export interface WrittenExampleWorkInput {
@@ -224,8 +236,7 @@ export async function addWrittenExampleWork(
     return failure("save_failed", COULDNT_SAVE);
   }
 
-  await deps.rebuild.request();
-  return changed(docs, true);
+  return finish(deps, docs, ["added"]);
 }
 
 /**
@@ -272,8 +283,7 @@ export async function importExampleWorks(deps: DocumentDeps, input: { file: File
   );
   if (isFailure(docs)) return docs;
 
-  await deps.rebuild.request();
-  return changed(docs, true);
+  return finish(deps, docs, ["added"]);
 }
 
 const NOT_FOUND = failure("not_found", "Document not found");
@@ -344,8 +354,7 @@ export async function replaceFile(deps: DocumentDeps, id: string, input: { file:
     await removeUnusedFile(deps, doc.storage_path, "after it was replaced");
   }
 
-  await deps.rebuild.request();
-  return changed([updated], true);
+  return finish(deps, [updated], ["file", "text"]);
 }
 
 export interface EditInput {
@@ -358,6 +367,12 @@ export interface EditInput {
 }
 
 type EditFields = Pick<DocumentUpdate, "display_name" | "target_role" | "parsed_markdown">;
+
+const EDITED_ASPECT: Record<keyof EditFields, DocumentAspect> = {
+  display_name: "name",
+  target_role: "target_role",
+  parsed_markdown: "text",
+};
 
 /** The checked fields to save, or a failure. */
 function editFields(input: EditInput): EditFields | Failure {
@@ -406,7 +421,7 @@ export async function editDocument(deps: DocumentDeps, id: string, input: EditIn
   }
 
   const changedKeys = (Object.keys(fields) as (keyof EditFields)[]).filter((key) => fields[key] !== doc[key]);
-  if (changedKeys.length === 0) return changed([doc], false);
+  if (changedKeys.length === 0) return finish(deps, [doc], []);
 
   let updated: Document | null;
   try {
@@ -417,10 +432,7 @@ export async function editDocument(deps: DocumentDeps, id: string, input: EditIn
   }
   if (!updated) return NOT_FOUND;
 
-  // A rename counts as Source material only for an Example Work, whose name is its title.
-  const touchedSourceMaterial = changedKeys.some((key) => key === "target_role" || isExampleWork);
-  if (touchedSourceMaterial) await deps.rebuild.request();
-  return changed([updated], touchedSourceMaterial);
+  return finish(deps, [updated], changedKeys.map((key) => EDITED_ASPECT[key]));
 }
 
 /** Runs a store call, turning its `DocumentNotFoundError` into a not_found failure and other errors into save_failed. */
@@ -444,13 +456,14 @@ export async function setDefaultDocument(deps: DocumentDeps, id: string): Promis
   if (problem) return problem;
   const doc = await findDocument(deps, id);
   if (isFailure(doc)) return doc;
-  return changed([doc], false);
+  return finish(deps, [doc], ["default"]);
 }
 
 /** Deletes a Document. Its file stays in storage. */
 export async function deleteDocument(deps: DocumentDeps, id: string): Promise<DocumentResult> {
+  const doc = await findDocument(deps, id);
+  if (isFailure(doc)) return doc;
   const problem = await runOnDocument(id, "delete", () => deps.store.softDelete(id));
   if (problem) return problem;
-  await deps.rebuild.request();
-  return changed([], true);
+  return finish(deps, [doc], ["deleted"]);
 }

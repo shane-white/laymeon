@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { invalidateProfile } from "@/hooks/use-profile";
-import { invalidateResumeReviews } from "@/hooks/use-resume-reviews";
+import { changeAffectsReviews, invalidateResumeReviews } from "@/hooks/use-resume-reviews";
 import type { Document, DocumentChange } from "@/lib/documents/document";
 
 export type { Document } from "@/lib/documents/document";
@@ -13,13 +13,13 @@ export type DocumentChangeResponse = Omit<DocumentChange, "ok">;
 /**
  * Refreshes what a Document change made out of date: always the Documents, the
  * Career Story when the server started a Rebuild, and the Resume Reviews when
- * Source material changed.
+ * the change shows in them.
  */
 export function onDocumentChanged(queryClient: QueryClient, change: DocumentChangeResponse) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ["documents"] }),
     change.rebuildRequested && invalidateProfile(queryClient),
-    change.contentChanged && invalidateResumeReviews(queryClient),
+    changeAffectsReviews(change) && invalidateResumeReviews(queryClient),
   ]);
 }
 

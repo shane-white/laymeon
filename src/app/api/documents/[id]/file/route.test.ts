@@ -49,7 +49,7 @@ describe("POST /api/documents/[id]/file", () => {
     expect(await res.json()).toMatchObject({
       documents: [{ id: docId, original_filename: "new.pdf", parsed_markdown: "# New resume" }],
       rebuildRequested: true,
-      contentChanged: true,
+      changed: ["file", "text"],
     });
     expect(store.files()).not.toContain(OLD_PATH);
     expect(rebuild.requests).toBe(1);

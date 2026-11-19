@@ -141,15 +141,33 @@ export interface Failure {
   message: string;
 }
 
+/**
+ * One thing a Document change did to its Documents. Each saved result decides
+ * for itself which of these it was built from: the Career Story in
+ * `lifecycle.ts`, the Resume Reviews in `use-resume-reviews.ts`.
+ */
+export type DocumentAspect =
+  | "added"
+  | "deleted"
+  /** A new file was stored. */
+  | "file"
+  /** The text read from the file, or an Example Work's description. */
+  | "text"
+  /** A Resume's or Cover letter's name, or an Example Work's title. */
+  | "name"
+  | "target_role"
+  /** Which Document is the Default document. */
+  | "default";
+
 /** What a Document change did. */
 export interface DocumentChange {
   ok: true;
-  /** The Documents added or changed. */
+  /** The Documents added, changed or deleted, as they are now (a deleted one as it was). All of one type. */
   documents: Document[];
+  /** What changed. Empty when the change left everything as it was. */
+  changed: DocumentAspect[];
   /** A Career Story Rebuild was requested. */
   rebuildRequested: boolean;
-  /** Source material changed, so saved results made from it are now an Earlier version. */
-  contentChanged: boolean;
 }
 
 export type DocumentResult = DocumentChange | Failure;
