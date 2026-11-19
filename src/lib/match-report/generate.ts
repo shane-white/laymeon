@@ -6,7 +6,7 @@ import { formatCareerStoryForPrompt, type CareerStoryContext } from "@/lib/profi
 import type { CareerProfile } from "@/lib/profile/schema";
 import { assembleModelReport, writeUpProblems } from "./assemble";
 import { buildMatchReport } from "./build";
-import { rateRequirements, type RatingResult } from "./rate-requirements";
+import { LEVELS, rateRequirements, type RatingResult } from "./rate-requirements";
 import {
   listedReportSchema,
   writeUpSchema,
@@ -53,9 +53,7 @@ Rules:
 
 /** Step 3 of the pipeline: write up the rated Requirements. */
 const WRITE_UP_SYSTEM_PROMPT = `You write up a match report comparing a candidate's resume to a job posting. Each requirement in the posting has already been rated against the resume:
-- strong: the resume clearly shows it, possibly under a different name or a specific tool that counts as it.
-- partial: the resume shows related experience, or only implies it.
-- missing: nothing on the resume shows it or anything close to it.
+${[...LEVELS].reverse().map((l) => `- ${l.match}: ${l.description}`).join("\n")}
 Each screener has already been marked shown or not shown. The ratings and screeners are final: explain them, don't re-judge them.
 
 ${PLAIN_LANGUAGE}
@@ -146,7 +144,7 @@ async function requestStructured<T>(call: StructuredCall<T>, content: string, op
       { role: "assistant", content: first.response.content },
       {
         role: "user",
-        content: `Your answer didn't match the schema. Fix these problems and return the full answer again:\n${first.problems}`,
+        content: `Your answer has these problems. Fix them and return the full answer again:\n${first.problems}`,
       },
     ],
     options,

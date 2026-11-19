@@ -32,19 +32,17 @@ import { join } from "node:path";
 import { parseDocument } from "@/lib/ai/parse-document";
 import { generateMatchReport, type MatchReportStep } from "@/lib/match-report/generate";
 import type { RatingResult } from "@/lib/match-report/rate-requirements";
-import type { MatchReport, Requirement } from "@/lib/match-report/schema";
+import type { MatchReport, RequirementMatch } from "@/lib/match-report/schema";
 import { buildProfile } from "@/lib/profile/build";
 import { extractDocument, type SourceDocumentType } from "@/lib/profile/extract";
 import type { CareerProfile } from "@/lib/profile/schema";
-
-type Rating = Requirement["match"];
 
 interface Expected {
   label: MatchReport["overall"]["label"];
   /** The Job title Jev sees. Defaults to the posting's first heading. */
   jobTitle?: string;
-  /** Phrase →the rating every Requirement containing it should get. */
-  ratings?: Record<string, Rating>;
+  /** Phrase → the rating every Requirement containing it should get. */
+  ratings?: Record<string, RequirementMatch>;
   careerStory?: {
     documents: { file: string; type: SourceDocumentType; asOf: string }[];
     /** Phrases naming requirements or screeners the Career Story should cover. */
@@ -142,7 +140,7 @@ function uncovered(report: MatchReport, covers: string[]): string[] {
 }
 
 /** Expected ratings the report doesn't match, one line each. */
-function ratingMismatches(report: MatchReport, ratings: Record<string, Rating>): string[] {
+function ratingMismatches(report: MatchReport, ratings: Record<string, RequirementMatch>): string[] {
   return Object.entries(ratings).flatMap(([phrase, rating]) => {
     const matching = report.requirements.filter((r) => r.text.toLowerCase().includes(phrase.toLowerCase()));
     if (matching.length === 0) return [`"${phrase}": no Requirement mentions it`];

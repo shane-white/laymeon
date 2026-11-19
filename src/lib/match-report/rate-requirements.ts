@@ -17,8 +17,11 @@ import type { ListedReport, RequirementMatch } from "./schema";
 /** Pinned rather than `jev-latest`, so a new Jev release can't change ratings unnoticed. */
 export const JEV_MODEL = "jev-1.14.0";
 
-/** The levels from low to high, and what each one means, as Jev reads them. */
-const LEVELS: { match: RequirementMatch; description: string }[] = [
+/**
+ * The levels from low to high, and what each one means, as Jev reads them.
+ * The write-up prompt quotes the same descriptions, so both steps mean the same thing.
+ */
+export const LEVELS: { match: RequirementMatch; description: string }[] = [
   { match: "missing", description: "Nothing on the resume shows this or anything close to it." },
   { match: "partial", description: "The resume shows related experience, or only implies it." },
   {
@@ -76,7 +79,8 @@ export async function rateRequirements(input: RateInput, client?: JevClient): Pr
 
   const request: SystemOneRequest<Questions> = {
     model: JEV_MODEL,
-    state: { resume, job_title: jobTitle },
+    // A Job without a title sends only the resume, rather than an empty field Jev might read as a signal.
+    state: jobTitle.trim() ? { resume, job_title: jobTitle } : { resume },
     questions: Object.fromEntries(requirements.map((r, i) => [questionId(i), question(r.text)])),
   };
   const jev = client ?? (defaultClient ??= new TypeSafeClient());

@@ -39,7 +39,7 @@ const overallWriteUpSchema = z.object({
     .describe("The top 3 things to fix, most important first. Short imperative sentences."),
 });
 
-const screenerListing = {
+const screenerFields = {
   item: z
     .string()
     .describe(
@@ -53,7 +53,7 @@ const screenerListing = {
 };
 const SCREENERS_DESCRIPTION = "Only hard requirements the posting actually states. Empty if none.";
 
-const requirementListing = {
+const requirementFields = {
   text: z.string().describe("The requirement, as stated or closely paraphrased from the posting."),
   importance: importanceSchema.describe(
     "must_have if the posting says required/must/minimum or lists it under requirements; nice_to_have for preferred/bonus/plus.",
@@ -120,12 +120,12 @@ const nextStepsSchema = z
 export const modelReportSchema = z.object({
   overall: overallWriteUpSchema,
   screeners: z
-    .array(z.object({ ...screenerListing, careerStoryIds }))
+    .array(z.object({ ...screenerFields, careerStoryIds }))
     .describe(SCREENERS_DESCRIPTION),
   requirements: z
     .array(
       z.object({
-        ...requirementListing,
+        ...requirementFields,
         match: requirementMatchSchema.describe(
           "strong: clearly on the resume. partial: related experience, or only implied. missing: not on the resume.",
         ),
@@ -147,8 +147,8 @@ export type ModelReport = z.infer<typeof modelReportSchema>;
  * the Requirements or seeing the Career Story.
  */
 export const listedReportSchema = z.object({
-  screeners: z.array(z.object(screenerListing)).describe(SCREENERS_DESCRIPTION),
-  requirements: z.array(z.object(requirementListing)).describe(REQUIREMENTS_DESCRIPTION),
+  screeners: z.array(z.object(screenerFields)).describe(SCREENERS_DESCRIPTION),
+  requirements: z.array(z.object(requirementFields)).describe(REQUIREMENTS_DESCRIPTION),
   searchWords: searchWordsSchema,
   firstImpression: firstImpressionSchema,
 });
