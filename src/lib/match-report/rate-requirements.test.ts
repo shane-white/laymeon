@@ -50,6 +50,14 @@ describe("rateRequirements", () => {
     expect(JSON.stringify(requests[0].questions.requirement_1.instructions)).toContain("Experience mentoring other engineers");
   });
 
+  it("gives a tie the lower level", async () => {
+    const { client } = fakeClient({ requirement_0: [0, 0.5, 0.5], requirement_1: [0.5, 0.5, 0] });
+
+    const result = await rateRequirements({ resume: "Postgres", jobTitle: "Backend Engineer", requirements }, client);
+
+    expect(result.ratings.map((r) => r.match)).toEqual(["partial", "missing"]);
+  });
+
   it("throws when a Requirement comes back without an answer, rather than calling it missing", async () => {
     const { client } = fakeClient({ requirement_0: [0, 0, 1], requirement_1: undefined });
 

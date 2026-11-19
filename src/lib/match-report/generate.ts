@@ -6,15 +6,12 @@ import { formatCareerStoryForPrompt, type CareerStoryContext } from "@/lib/profi
 import type { CareerProfile } from "@/lib/profile/schema";
 import { assembleModelReport, writeUpProblems } from "./assemble";
 import { buildMatchReport } from "./build";
-import { verifyEvidence } from "./evidence";
 import { rateRequirements, type RatingResult } from "./rate-requirements";
 import {
   listedReportSchema,
-  modelReportSchema,
   writeUpSchema,
   type ListedReport,
   type MatchReport,
-  type ModelReport,
   type RequirementMatch,
   type WriteUp,
 } from "./schema";
@@ -40,22 +37,6 @@ const NO_CLAIMS_RULE =
   'Actions and next steps: never suggest claiming skills or experience the candidate may not have. Phrase wording suggestions as "If true, add…".';
 
 const CONSISTENCY_RULE = "Be consistent: the same resume and posting should always produce the same assessment.";
-
-/** The single call the app uses until the step-by-step pipeline replaces it (LAY-91). */
-const SYSTEM_PROMPT = `You compare a candidate's resume to a job posting the way applicant tracking systems (ATS) and recruiters do, and return the result as a structured match report.
-
-${PLAIN_LANGUAGE}
-
-Rules:
-- Judge only what is written on the resume. "Missing" means missing from the resume, not that the candidate lacks the skill.
-- ${REQUIREMENTS_RULE}
-- Evidence: ${QUOTE_RULE} If there is no quote that supports the match, the match is not strong.
-- ${SCREENERS_RULE}
-- Never include ${ELIGIBILITY_QUESTIONS}. Don't list them anywhere in the report: not as screeners, requirements, search words, fixes or next steps.
-- ${SEARCH_WORDS_RULE}
-- ${NO_CLAIMS_RULE}
-- ${CONSISTENCY_RULE}
-- Career Story: the candidate may also have a Career Story, built from their other documents and their own edits. It is not the resume. Never use it to decide a match, evidence, screener "shown", search words or the first impression: those are only about the resume. Use it only to fill careerStoryIds: for a requirement that isn't strong, or a screener that isn't shown, list the IDs of Career Story items that clearly show the candidate has it, most relevant first, or an empty list. For years-of-experience requirements and screeners, use the "Time in each role" items (R1, R2…) and the jobs' dates. Items marked "stated by the candidate" are the candidate's own statement and count the same. When an item shows a requirement, the action should suggest adding it to this resume, still phrased "If true, add…". Without a Career Story, leave every careerStoryIds empty.`;
 
 /** Step 1 of the pipeline: list what the posting asks for. It doesn't see the Career Story. */
 const LIST_SYSTEM_PROMPT = `You read a job posting and a candidate's resume the way applicant tracking systems (ATS) and recruiters do, and list what the posting asks for. Another step rates each requirement against the resume, so don't rate requirements here.
@@ -89,19 +70,23 @@ Rules:
 - Career Story: the candidate may also have a Career Story, built from their other documents and their own edits. It is not the resume. Never use it for evidence. Use it only to fill careerStoryIds: for a requirement that isn't strong, or a screener that isn't shown, list the IDs of Career Story items that clearly show the candidate has it, most relevant first, or an empty list. For years-of-experience requirements and screeners, use the "Time in each role" items (R1, R2…) and the jobs' dates. Items marked "stated by the candidate" are the candidate's own statement and count the same. When an item shows a requirement, the action should suggest adding it to this resume, still phrased "If true, add…". Without a Career Story, leave every careerStoryIds empty.
 - Give one requirements entry per rated requirement and one screeners entry per screener, with its number as the index.`;
 
-/** The write-up model. Chosen from the eval in LAY-91; it may be cheaper than CLAUDE_MODEL. */
+/** The write-up model. Haiku 5.5 was tried in LAY-91 and dropped Career Story links, so it stays on CLAUDE_MODEL. */
 const WRITE_UP_MODEL = CLAUDE_MODEL;
 
 /** One Claude call made while generating a Match Report, reported for evals and logs. */
 export interface MatchReportStep {
-  step: "report" | "list" | "write_up";
+  step: "list" | "write_up";
   model: string;
   usage: Anthropic.Usage;
 }
 
 export interface GenerateOptions {
-  /** Called after each model call. */
+  /** Called after each Claude call. */
   onStep?: (step: MatchReportStep) => void;
+  /** Called with Jev's ratings, the request as sent and the model that answered. */
+  onRating?: (result: RatingResult) => void;
+  /** Overrides the write-up model, to compare models in the eval. */
+  writeUpModel?: string;
 }
 
 interface StructuredCall<T> {
@@ -189,52 +174,6 @@ function careerStorySection(careerStory?: CareerStoryContext): string {
 ${careerStory?.text || "No Career Story."}`;
 }
 
-/** Asks the model for a whole match report in one call. */
-export async function generateModelReport(
-  resume: string,
-  jobDescription: string,
-  careerStory?: CareerStoryContext,
-  options: GenerateOptions = {},
-): Promise<ModelReport> {
-  const content = `${resumeAndPosting(resume, jobDescription)}\n\n---\n\n${careerStorySection(careerStory)}`;
-  return requestStructured(
-    { step: "report", model: CLAUDE_MODEL, system: SYSTEM_PROMPT, schema: modelReportSchema },
-    content,
-    options,
-  );
-}
-
-/**
- * The one-call pipeline's rule that Strong needs a verified quote. verifyEvidence
- * no longer applies it, so the app keeps today's behaviour until LAY-91 switches
- * to the step-by-step pipeline.
- */
-function downgradeUnquotedStrong(model: ModelReport, resume: string): ModelReport {
-  const verified = verifyEvidence(model, resume);
-  return {
-    ...model,
-    requirements: model.requirements.map((r, i) =>
-      r.match === "strong" && !verified.requirements[i].evidence ? { ...r, match: "partial" } : r,
-    ),
-  };
-}
-
-/**
- * Generates, verifies and labels a match report for a resume and job posting
- * in one Claude call. With the user's Career Story, the report also shows where
- * it covers requirements the resume doesn't.
- */
-export async function generateMatchReport(
-  resume: string,
-  jobDescription: string,
-  profile?: CareerProfile | null,
-  options: GenerateOptions = {},
-): Promise<MatchReport> {
-  const careerStory = profile ? formatCareerStoryForPrompt(profile) : undefined;
-  const model = await generateModelReport(resume, jobDescription, careerStory, options);
-  return buildMatchReport(downgradeUnquotedStrong(model, resume), resume, careerStory);
-}
-
 /** Step 1: lists the Requirements and Screeners, Search words and first impression. */
 export function listRequirements(
   resume: string,
@@ -279,7 +218,7 @@ export function writeUp(
   return requestStructured(
     {
       step: "write_up",
-      model: WRITE_UP_MODEL,
+      model: options.writeUpModel ?? WRITE_UP_MODEL,
       system: WRITE_UP_SYSTEM_PROMPT,
       schema: writeUpSchema,
       check: (data) => writeUpProblems(data, listed),
@@ -297,28 +236,21 @@ export interface MatchReportInput {
   profile?: CareerProfile | null;
 }
 
-export interface StepOptions extends GenerateOptions {
-  /** Called with Jev's ratings, the request and the model that answered. */
-  onRating?: (result: RatingResult) => void;
-  /** Rates the Requirements. Jev by default. */
-  rate?: typeof rateRequirements;
-}
-
 /**
  * Generates a match report in three steps: Claude lists the Requirements, Jev
  * rates each one, and Claude writes up the rated list. Code then verifies the
- * Evidence and computes the label as for the one-call report. If any step
+ * Evidence and computes the label. With the user's Career Story, the report
+ * also shows where it covers requirements the resume doesn't. If any step
  * fails, the whole report fails.
  */
-export async function generateMatchReportInSteps(
+export async function generateMatchReport(
   input: MatchReportInput,
-  options: StepOptions = {},
+  options: GenerateOptions = {},
 ): Promise<MatchReport> {
   const { resume, jobDescription, jobTitle, profile } = input;
-  const rate = options.rate ?? rateRequirements;
   const careerStory = profile ? formatCareerStoryForPrompt(profile) : undefined;
   const listed = await listRequirements(resume, jobDescription, options);
-  const rating = await rate({ resume, jobTitle, requirements: listed.requirements });
+  const rating = await rateRequirements({ resume, jobTitle, requirements: listed.requirements });
   options.onRating?.(rating);
   const ratings = rating.ratings.map((r) => r.match);
   const written = await writeUp(resume, jobDescription, listed, ratings, careerStory, options);

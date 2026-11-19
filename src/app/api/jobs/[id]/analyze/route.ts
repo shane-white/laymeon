@@ -14,8 +14,9 @@ const VALID_TYPES = [
 
 type AnalysisType = (typeof VALID_TYPES)[number];
 
-// The structured match report can take over a minute, plus one retry.
-export const maxDuration = 180;
+// The structured match report makes two Claude calls in a row (each can retry
+// once) around a quick Jev request, so it can take several minutes.
+export const maxDuration = 300;
 
 // match_analysis returns a structured report instead (see generateMatchReport).
 const PROMPTS: Record<Exclude<AnalysisType, "match_analysis">, string> = {
@@ -76,8 +77,10 @@ export async function POST(
       resume_document_id,
       cover_letter_document_id,
       analysis_documents,
+      custom_job_title,
       job_listing:job_listings (
-        description
+        description,
+        extracted_job_title
       )
     `)
     .eq("id", id)
@@ -117,7 +120,11 @@ export async function POST(
     },
   };
 
-  const jobDescription = (userJob.job_listing as unknown as { description: string | null })?.description;
+  const listing = userJob.job_listing as unknown as {
+    description: string | null;
+    extracted_job_title: string | null;
+  } | null;
+  const jobDescription = listing?.description;
 
   if (!jobDescription) {
     return NextResponse.json(
@@ -134,7 +141,15 @@ export async function POST(
         console.error("Couldn't load the Career Story for a match report", err);
         return null;
       });
-      const report = await generateMatchReport(resume.parsed_markdown, jobDescription, profile);
+      const report = await generateMatchReport(
+        {
+          resume: resume.parsed_markdown,
+          jobDescription,
+          jobTitle: userJob.custom_job_title || listing?.extracted_job_title || "",
+          profile,
+        },
+        { onRating: (rating) => console.info(`Match report Requirements rated by ${rating.model}`) },
+      );
 
       // Clearing the old markdown analysis makes the UI show the new report.
       const { error: updateError } = await supabase

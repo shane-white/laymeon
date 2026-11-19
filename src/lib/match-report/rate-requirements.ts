@@ -90,6 +90,7 @@ export async function rateRequirements(input: RateInput, client?: JevClient): Pr
       RequirementMatch,
       number
     >;
+    // A tie goes to the lower level, so a split answer never overstates the match.
     const top = LEVELS.reduce((best, l) => (probabilities[l.match] > probabilities[best.match] ? l : best));
     return { match: top.match, probabilities };
   });

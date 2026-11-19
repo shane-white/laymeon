@@ -113,10 +113,9 @@ const nextStepsSchema = z
   .describe("Up to 5 actions in priority order.");
 
 /**
- * The whole report before code checks it: what `buildMatchReport` takes.
- * Today one Claude call returns it; the step-by-step pipeline assembles it
- * from the list step, the ratings and the write-up (see assemble.ts).
- * The overall label and search word statuses are computed in code, not by the model.
+ * The whole report before code checks it: what `buildMatchReport` takes,
+ * assembled from the list step, Jev's ratings and the write-up (see assemble.ts).
+ * The overall label and search word statuses are computed in code, not by a model.
  */
 export const modelReportSchema = z.object({
   overall: overallWriteUpSchema,
