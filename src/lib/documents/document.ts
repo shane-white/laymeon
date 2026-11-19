@@ -36,14 +36,44 @@ export interface SplitExampleWork {
   description: string;
 }
 
+/** The fields of a Document that can change after it's added. */
+export type DocumentUpdate = Partial<
+  Pick<
+    Document,
+    | "display_name"
+    | "target_role"
+    | "parsed_markdown"
+    | "original_filename"
+    | "mime_type"
+    | "file_size_bytes"
+    | "storage_bucket"
+    | "storage_path"
+  >
+>;
+
 /**
  * Where one user's Documents and their files are kept. Every method acts on
  * the signed-in user's own Documents only, and only on ones not deleted.
  */
 export interface DocumentStore {
+  /** The Document, or null if there's none. */
+  find(id: string): Promise<Document | null>;
   count(type: DocumentType, filter?: { source?: DocumentSource }): Promise<number>;
   /** Inserts the rows together. Throws `DefaultTakenError` if one would make a second Default document. */
   insert(rows: NewDocument[]): Promise<Document[]>;
+  /** Saves the changed fields and returns the Document, or null if there's none. */
+  update(id: string, fields: DocumentUpdate): Promise<Document | null>;
+  /**
+   * Makes an uploaded Resume or Cover letter its type's Default document.
+   * Throws `DocumentNotFoundError` if there's no such Document.
+   */
+  setDefault(id: string): Promise<void>;
+  /**
+   * Deletes the Document, keeping its file. If it was the Default document, the
+   * newest remaining uploaded one of its type takes over. Throws
+   * `DocumentNotFoundError` if there's none.
+   */
+  softDelete(id: string): Promise<void>;
   putFile(path: string, file: File): Promise<void>;
   removeFile(path: string): Promise<void>;
 }
@@ -53,6 +83,14 @@ export class DefaultTakenError extends Error {
   constructor() {
     super("This document type already has a default");
     this.name = "DefaultTakenError";
+  }
+}
+
+/** Thrown by `DocumentStore.setDefault` and `softDelete` when there's no such Document. */
+export class DocumentNotFoundError extends Error {
+  constructor() {
+    super("Document not found");
+    this.name = "DocumentNotFoundError";
   }
 }
 

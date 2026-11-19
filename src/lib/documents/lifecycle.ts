@@ -1,16 +1,19 @@
 /**
- * Document changes: every way a Document is added (and, from LAY-84, replaced,
- * edited, set as default and deleted). Routes only check who's signed in,
- * read the request and send back the result (see `http.ts`).
+ * Every change to a user's Documents: adding, replacing, editing, deleting and
+ * setting the Default document. Each one decides whether it touched Source
+ * material, and so whether a Rebuild is requested. Routes only check who's signed in, read the
+ * request and send back the result (see `http.ts`).
  */
 import {
   DefaultTakenError,
+  DocumentNotFoundError,
   failure,
   UnreadableFileError,
   type Document,
   type DocumentChange,
   type DocumentDeps,
   type DocumentResult,
+  type DocumentUpdate,
   type Failure,
   type NewDocument,
 } from "./document";
@@ -27,9 +30,9 @@ function cleanLabel(value: unknown): string | null {
   return trimmed || null;
 }
 
-/** Adding a Document always touches Source material. */
-function addedChange(documents: Document[]): DocumentChange {
-  return { ok: true, documents, rebuildRequested: true, contentChanged: true };
+/** A successful change. Touching Source material means a Rebuild was requested and saved results are out of date. */
+function changed(documents: Document[], touchedSourceMaterial: boolean): DocumentChange {
+  return { ok: true, documents, rebuildRequested: touchedSourceMaterial, contentChanged: touchedSourceMaterial };
 }
 
 function fileProblem(file: File): Failure | null {
@@ -67,6 +70,15 @@ async function exampleWorkRoom(deps: DocumentDeps): Promise<number | Failure> {
 const isFailure = (value: unknown): value is Failure =>
   typeof value === "object" && value !== null && (value as Failure).ok === false;
 
+/** Removes a stored file that nothing points at any more. Only logs if it can't. */
+async function removeUnusedFile(deps: DocumentDeps, path: string, why: string): Promise<void> {
+  try {
+    await deps.store.removeFile(path);
+  } catch (err) {
+    console.error(`Couldn't remove the stored file ${path} ${why}`, err);
+  }
+}
+
 /**
  * Stores the file, then inserts the rows pointing at it. If the insert fails,
  * the file is removed, so a failed add leaves nothing behind.
@@ -88,11 +100,7 @@ async function storeAndInsert(
     return await insertRetryingDefault(deps, rows);
   } catch (err) {
     console.error("Couldn't save the uploaded document", err);
-    try {
-      await deps.store.removeFile(path);
-    } catch (removeErr) {
-      console.error(`Couldn't remove the stored file ${path} after a failed save`, removeErr);
-    }
+    await removeUnusedFile(deps, path, "after a failed save");
     return failure("save_failed", COULDNT_SAVE);
   }
 }
@@ -164,7 +172,7 @@ export async function addUploadedDocument(deps: DocumentDeps, input: UploadInput
   if (isFailure(docs)) return docs;
 
   await deps.rebuild.request();
-  return addedChange(docs);
+  return changed(docs, true);
 }
 
 export interface WrittenExampleWorkInput {
@@ -217,7 +225,7 @@ export async function addWrittenExampleWork(
   }
 
   await deps.rebuild.request();
-  return addedChange(docs);
+  return changed(docs, true);
 }
 
 /**
@@ -265,5 +273,184 @@ export async function importExampleWorks(deps: DocumentDeps, input: { file: File
   if (isFailure(docs)) return docs;
 
   await deps.rebuild.request();
-  return addedChange(docs);
+  return changed(docs, true);
+}
+
+const NOT_FOUND = failure("not_found", "Document not found");
+
+/** The Document, or a failure if there's none or it can't be loaded. */
+async function findDocument(deps: DocumentDeps, id: string): Promise<Document | Failure> {
+  try {
+    return (await deps.store.find(id)) ?? NOT_FOUND;
+  } catch (err) {
+    console.error(`Couldn't load document ${id}`, err);
+    return failure("save_failed", "Couldn't load the document. Please try again.");
+  }
+}
+
+/**
+ * Replaces an uploaded Resume's or Cover letter's file. The Document keeps its
+ * ID, name, Target role, Default document setting and Jobs.
+ *
+ * Order matters: the new file is read first, so a file that can't be read
+ * changes nothing; the old file is removed only once the Document points at
+ * the new one, and the new file is removed if that fails.
+ */
+export async function replaceFile(deps: DocumentDeps, id: string, input: { file: File | null }): Promise<DocumentResult> {
+  const doc = await findDocument(deps, id);
+  if (isFailure(doc)) return doc;
+  if (doc.source !== "uploaded" || doc.document_type === "project") {
+    return failure("invalid", "Only uploaded resumes and cover letters can have their file replaced");
+  }
+  const file = input.file;
+  if (!file) return failure("invalid", "No file provided");
+  const problem = fileProblem(file);
+  if (problem) return problem;
+
+  const markdown = await readFile(() => deps.reader.toMarkdown(file));
+  if (isFailure(markdown)) return markdown;
+
+  const path = storagePathFor(doc.document_type, deps.userId, file.name);
+  try {
+    await deps.store.putFile(path, file);
+  } catch (err) {
+    console.error(`Couldn't store the replacement file ${path}`, err);
+    return failure("save_failed", "Couldn't save the file. Please try again.");
+  }
+
+  let updated: Document | null;
+  try {
+    updated = await deps.store.update(id, {
+      storage_bucket: UPLOAD_BUCKET,
+      storage_path: path,
+      original_filename: file.name,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      parsed_markdown: markdown,
+    });
+  } catch (err) {
+    console.error(`Couldn't point document ${id} at its new file`, err);
+    await removeUnusedFile(deps, path, "after a failed replace");
+    return failure("save_failed", COULDNT_SAVE);
+  }
+  if (!updated) {
+    // Deleted while the file was being read.
+    await removeUnusedFile(deps, path, "after a failed replace");
+    return NOT_FOUND;
+  }
+
+  // The Document already uses the new file; an old file left behind only costs storage.
+  if (doc.storage_bucket === UPLOAD_BUCKET && doc.storage_path && doc.storage_path !== path) {
+    await removeUnusedFile(deps, doc.storage_path, "after it was replaced");
+  }
+
+  await deps.rebuild.request();
+  return changed([updated], true);
+}
+
+export interface EditInput {
+  /** Each field left undefined is left as it is. */
+  displayName?: unknown;
+  /** null or blank clears it. */
+  targetRole?: unknown;
+  /** An Example Work's text. */
+  parsedMarkdown?: unknown;
+}
+
+type EditFields = Pick<DocumentUpdate, "display_name" | "target_role" | "parsed_markdown">;
+
+/** The checked fields to save, or a failure. */
+function editFields(input: EditInput): EditFields | Failure {
+  const fields: EditFields = {};
+  const { displayName, targetRole, parsedMarkdown } = input;
+
+  if (displayName !== undefined) {
+    const name = cleanLabel(displayName);
+    if (!name) return failure("invalid", "Name can't be empty");
+    fields.display_name = name;
+  }
+  if (targetRole !== undefined) {
+    if (targetRole !== null && typeof targetRole !== "string") return failure("invalid", "Invalid target role");
+    fields.target_role = cleanLabel(targetRole);
+  }
+  if (parsedMarkdown !== undefined) {
+    const text = typeof parsedMarkdown === "string" ? parsedMarkdown.trim() : "";
+    if (!text) return failure("invalid", "Description can't be empty");
+    if (text.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
+      return failure(
+        "invalid",
+        `Descriptions can be up to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString("en-US")} characters`,
+      );
+    }
+    fields.parsed_markdown = text;
+  }
+
+  if (Object.keys(fields).length === 0) return failure("invalid", "No fields to update");
+  return fields;
+}
+
+/**
+ * Edits a Document's name, Target role or (for an Example Work) text. A
+ * Rebuild is requested only if Source material changed: the Target role, or
+ * an Example Work's title or text. A Resume's or Cover letter's name isn't.
+ */
+export async function editDocument(deps: DocumentDeps, id: string, input: EditInput): Promise<DocumentResult> {
+  const fields = editFields(input);
+  if (isFailure(fields)) return fields;
+
+  const doc = await findDocument(deps, id);
+  if (isFailure(doc)) return doc;
+  const isExampleWork = doc.document_type === "project";
+  if (fields.parsed_markdown !== undefined && !isExampleWork) {
+    return failure("invalid", "Only a project's description can be edited");
+  }
+
+  const changedKeys = (Object.keys(fields) as (keyof EditFields)[]).filter((key) => fields[key] !== doc[key]);
+  if (changedKeys.length === 0) return changed([doc], false);
+
+  let updated: Document | null;
+  try {
+    updated = await deps.store.update(id, Object.fromEntries(changedKeys.map((key) => [key, fields[key]])));
+  } catch (err) {
+    console.error(`Couldn't update document ${id}`, err);
+    return failure("save_failed", COULDNT_SAVE);
+  }
+  if (!updated) return NOT_FOUND;
+
+  // A rename counts as Source material only for an Example Work, whose name is its title.
+  const touchedSourceMaterial = changedKeys.some((key) => key === "target_role" || isExampleWork);
+  if (touchedSourceMaterial) await deps.rebuild.request();
+  return changed([updated], touchedSourceMaterial);
+}
+
+/** Runs a store call, turning its `DocumentNotFoundError` into a not_found failure and other errors into save_failed. */
+async function runOnDocument(id: string, what: string, run: () => Promise<void>): Promise<Failure | null> {
+  try {
+    await run();
+    return null;
+  } catch (err) {
+    if (err instanceof DocumentNotFoundError) return NOT_FOUND;
+    console.error(`Couldn't ${what} document ${id}`, err);
+    return failure("save_failed", `Couldn't ${what} the document. Please try again.`);
+  }
+}
+
+/**
+ * Makes an uploaded Resume or Cover letter its type's Default document. Which
+ * Document is the default isn't Source material, so there's no Rebuild.
+ */
+export async function setDefaultDocument(deps: DocumentDeps, id: string): Promise<DocumentResult> {
+  const problem = await runOnDocument(id, "update", () => deps.store.setDefault(id));
+  if (problem) return problem;
+  const doc = await findDocument(deps, id);
+  if (isFailure(doc)) return doc;
+  return changed([doc], false);
+}
+
+/** Deletes a Document. Its file stays in storage. */
+export async function deleteDocument(deps: DocumentDeps, id: string): Promise<DocumentResult> {
+  const problem = await runOnDocument(id, "delete", () => deps.store.softDelete(id));
+  if (problem) return problem;
+  await deps.rebuild.request();
+  return changed([], true);
 }

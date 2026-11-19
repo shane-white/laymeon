@@ -1,12 +1,29 @@
 /** The Document store in production: the `documents` table and the uploads bucket. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DefaultTakenError, type Document, type DocumentStore } from "./document";
+import { DefaultTakenError, DocumentNotFoundError, type Document, type DocumentStore } from "./document";
 import { UPLOAD_BUCKET } from "./files";
 
 const UNIQUE_VIOLATION = "23505";
+// Raised by set_default_document / delete_document when the row isn't visible.
+const NOT_FOUND_CODE = "P0002";
 
 export function supabaseStore(supabase: SupabaseClient, userId: string): DocumentStore {
+  const own = () => supabase.from("documents").select("*").eq("user_id", userId).is("deleted_at", null);
+
+  async function callFunction(name: "set_default_document" | "delete_document", id: string) {
+    const { error } = await supabase.rpc(name, { doc_id: id });
+    if (!error) return;
+    if (error.code === NOT_FOUND_CODE) throw new DocumentNotFoundError();
+    throw new Error(`${name} failed: ${error.message}`);
+  }
+
   return {
+    async find(id) {
+      const { data, error } = await own().eq("id", id).maybeSingle<Document>();
+      if (error) throw new Error(`Couldn't load the document: ${error.message}`);
+      return data;
+    },
+
     async count(type, filter = {}) {
       let query = supabase
         .from("documents")
@@ -32,6 +49,23 @@ export function supabaseStore(supabase: SupabaseClient, userId: string): Documen
       }
       return data as Document[];
     },
+
+    async update(id, fields) {
+      const { data, error } = await supabase
+        .from("documents")
+        .update({ ...fields, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", userId)
+        .is("deleted_at", null)
+        .select("*")
+        .maybeSingle<Document>();
+      if (error) throw new Error(`Couldn't update the document: ${error.message}`);
+      return data;
+    },
+
+    setDefault: (id) => callFunction("set_default_document", id),
+
+    softDelete: (id) => callFunction("delete_document", id),
 
     async putFile(path, file) {
       const bytes = Buffer.from(await file.arrayBuffer());

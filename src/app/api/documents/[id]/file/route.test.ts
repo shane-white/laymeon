@@ -1,126 +1,83 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { parseDocument } from "@/lib/ai/parse-document";
-import { scheduleRebuild } from "@/lib/profile/auto-rebuild";
+import { documentDeps } from "@/lib/documents/deps";
+import { UnreadableFileError, type DocumentDeps } from "@/lib/documents/document";
+import { memoryStore, rebuildRecorder, scriptedReader, type MemoryStore } from "@/lib/documents/testing";
 import { createClient } from "@/lib/supabase/server";
 import { POST } from "./route";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/ai/parse-document", () => ({ parseDocument: vi.fn() }));
-vi.mock("@/lib/profile/auto-rebuild", () => ({ scheduleRebuild: vi.fn() }));
+vi.mock("@/lib/documents/deps", () => ({ documentDeps: vi.fn() }));
 
 const PDF = "application/pdf";
-const OLD = { id: "doc-1", document_type: "resume", source: "uploaded", storage_bucket: "imported-documents", storage_path: "resumes/u1/1-old.pdf" };
+const OLD_PATH = "resumes/u1/1-old.pdf";
 
-/** A fake Supabase client that records what the route does, in order. */
-function fake({ doc = OLD as unknown, updateFails = false } = {}) {
-  const log: string[] = [];
-  const chain = (result: unknown, label: string) => {
-    const c: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "is"]) c[m] = () => c;
-    c.maybeSingle = async () => {
-      log.push(label);
-      return result;
-    };
-    return c;
-  };
-  const client = {
-    auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
-    from: () => ({
-      select: () => chain({ data: doc, error: null }, "load"),
-      update: (row: Record<string, unknown>) => {
-        log.push(`update ${row.storage_path}`);
-        return chain(updateFails ? { data: null, error: { message: "db down" } } : { data: { ...OLD, ...row }, error: null }, "updated");
-      },
-    }),
-    storage: {
-      from: () => ({
-        upload: async (path: string) => {
-          log.push(`upload ${path}`);
-          return { error: null };
-        },
-        remove: async (paths: string[]) => {
-          log.push(`remove ${paths.join(",")}`);
-          return { error: null };
-        },
-      }),
-    },
-  };
-  vi.mocked(createClient).mockResolvedValue(client as never);
-  return log;
+let store: MemoryStore;
+let rebuild: ReturnType<typeof rebuildRecorder>;
+let docId: string;
+
+function signIn(user: { id: string } | null, reader = scriptedReader({ markdown: "# New resume" })) {
+  vi.mocked(createClient).mockResolvedValue({ auth: { getUser: async () => ({ data: { user } }) } } as never);
+  vi.mocked(documentDeps).mockReturnValue({ userId: "u1", store, reader, rebuild } satisfies DocumentDeps);
 }
 
 function request(file: File | null) {
   const form = new FormData();
   if (file) form.append("file", file);
-  return new NextRequest("http://localhost/api/documents/doc-1/file", { method: "POST", body: form });
+  return new NextRequest(`http://localhost/api/documents/${docId}/file`, { method: "POST", body: form });
 }
 
-const params = { params: Promise.resolve({ id: "doc-1" }) };
+const params = () => ({ params: Promise.resolve({ id: docId }) });
 const newFile = () => new File(["%PDF-1.4"], "new.pdf", { type: PDF });
 
 beforeEach(() => {
-  vi.mocked(parseDocument).mockReset().mockResolvedValue({ markdown: "# New resume" });
-  vi.mocked(scheduleRebuild).mockReset();
+  store = memoryStore();
+  rebuild = rebuildRecorder();
+  docId = store.seed({
+    document_type: "resume",
+    storage_bucket: "imported-documents",
+    storage_path: OLD_PATH,
+    original_filename: "old.pdf",
+  }).id;
 });
 
 describe("POST /api/documents/[id]/file", () => {
-  it("parses, uploads, points the document at the new file, then removes the old one", async () => {
-    const log = fake();
-    const res = await POST(request(newFile()), params);
+  it("replaces the file and sends back the Document and what changed", async () => {
+    signIn({ id: "u1" });
+    const res = await POST(request(newFile()), params());
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({ id: "doc-1", original_filename: "new.pdf", parsed_markdown: "# New resume" });
-
-    const upload = log.find((l) => l.startsWith("upload "))!;
-    const newPath = upload.slice("upload ".length);
-    expect(newPath).toMatch(/^resumes\/u1\/\d+-new\.pdf$/);
-    expect(log).toEqual(["load", `upload ${newPath}`, `update ${newPath}`, "updated", `remove ${OLD.storage_path}`]);
-    expect(parseDocument).toHaveBeenCalledOnce();
-    expect(scheduleRebuild).toHaveBeenCalledOnce();
+    expect(await res.json()).toMatchObject({
+      documents: [{ id: docId, original_filename: "new.pdf", parsed_markdown: "# New resume" }],
+      rebuildRequested: true,
+      contentChanged: true,
+    });
+    expect(store.files()).not.toContain(OLD_PATH);
+    expect(rebuild.requests).toBe(1);
   });
 
-  it("changes nothing when the new file can't be read", async () => {
-    const log = fake();
-    vi.mocked(parseDocument).mockRejectedValue(new Error("Could not extract any text"));
-    const res = await POST(request(newFile()), params);
+  it("refuses someone who isn't signed in", async () => {
+    signIn(null);
+    expect((await POST(request(newFile()), params())).status).toBe(401);
+    expect(store.files()).toEqual([OLD_PATH]);
+  });
+
+  it("sends a missing file as a 400", async () => {
+    signIn({ id: "u1" });
+    const res = await POST(request(null), params());
     expect(res.status).toBe(400);
-    expect(log).toEqual(["load"]);
-    expect(scheduleRebuild).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: "No file provided", kind: "invalid" });
   });
 
-  it("keeps the old file and removes the new one when saving fails", async () => {
-    const log = fake({ updateFails: true });
-    const res = await POST(request(newFile()), params);
-    expect(res.status).toBe(500);
-    const newPath = log.find((l) => l.startsWith("upload "))!.slice("upload ".length);
-    expect(log.at(-1)).toBe(`remove ${newPath}`);
-    expect(log).not.toContain(`remove ${OLD.storage_path}`);
+  it("sends a file that can't be read as a 422", async () => {
+    signIn({ id: "u1" }, scriptedReader({ markdown: new UnreadableFileError("Could not extract any text from the document") }));
+    const res = await POST(request(newFile()), params());
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: "Could not extract any text from the document", kind: "unreadable" });
   });
 
-  it.each([
-    ["a missing document", null, 404],
-    ["a project", { ...OLD, document_type: "project", source: "written" }, 400],
-    ["a generated document", { ...OLD, source: "generated" }, 400],
-  ])("refuses %s", async (_name, doc, status) => {
-    const log = fake({ doc });
-    expect((await POST(request(newFile()), params)).status).toBe(status);
-    expect(log).toEqual(["load"]);
-  });
-
-  it("refuses an unsupported or missing file", async () => {
-    fake();
-    expect((await POST(request(new File(["x"], "a.png", { type: "image/png" })), params)).status).toBe(400);
-    expect((await POST(request(null), params)).status).toBe(400);
-    expect(parseDocument).not.toHaveBeenCalled();
-  });
-
-  it("turns away an RTF file before anything is stored", async () => {
-    const log = fake();
-    const res = await POST(request(new File(["{\\rtf1}"], "resume.rtf", { type: "application/rtf" })), params);
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Please upload a PDF or Word file");
-    expect(log).toEqual(["load"]);
-    expect(parseDocument).not.toHaveBeenCalled();
+  it("sends a missing Document as a 404", async () => {
+    signIn({ id: "u1" });
+    docId = "nope";
+    expect((await POST(request(newFile()), params())).status).toBe(404);
   });
 });
