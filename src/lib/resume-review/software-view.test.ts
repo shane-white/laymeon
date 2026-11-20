@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { makeRtf, rtfFrame, rtfPicture, rtfTableRow, rtfTextBox } from "@/lib/documents/__fixtures__/rtf-files";
+import {
+  makeRtf,
+  rtfBarePicture,
+  rtfFrame,
+  rtfPicture,
+  rtfTableRow,
+  rtfTextBox,
+} from "@/lib/documents/__fixtures__/rtf-files";
 import {
   makeOdt,
   odtColumnsStyle,
@@ -185,6 +192,21 @@ describe("readAsSoftware: RTF", () => {
       RTF_MIME,
     );
     expect(view?.images).toEqual([{ page: null, width: 96, height: 144 }]);
+  });
+
+  it("sizes a picture by its own size when it has no display size", async () => {
+    const view = await readAsSoftware(
+      makeRtf({
+        app: "textedit",
+        // A 200 × 300 pixel PNG, and a 2 × 1 inch metafile (in hundredths of a millimetre).
+        paragraphs: ["Jane Doe", rtfBarePicture("pngblip", 200, 300), rtfBarePicture("wmetafile8", 5080, 2540)],
+      }),
+      RTF_MIME,
+    );
+    expect(view?.images).toEqual([
+      { page: null, width: 200, height: 300 },
+      { page: null, width: 192, height: 96 },
+    ]);
   });
 
   it("has no page count or layout elements in a plain TextEdit file", async () => {

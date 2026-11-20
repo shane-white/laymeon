@@ -126,3 +126,12 @@ export function rtfPicture(widthTwips: number, heightTwips: number, scale = 100)
   const sizes = `\\picscalex${scale}\\picscaley${scale}\\piccropl0\\piccropr0\\piccropt0\\piccropb0\\picw${widthTwips}\\pich${heightTwips}\\picwgoal${widthTwips}\\pichgoal${heightTwips}`;
   return `{\\*\\shppict{\\pict{\\*\\picprop\\shplid1025{\\sp{\\sn shapeType}{\\sv 75}}{\\sp{\\sn fLayoutInCell}{\\sv 1}}}${sizes}\\pngblip\\bliptag-1{\\*\\blipuid 00000000000000000000000000000000}89504e470d0a1a0a0000000d49484452}}{\\nonshppict{\\pict${sizes}\\wmetafile8\\bliptag-1 010009000003}}`;
 }
+
+/**
+ * A picture with no display size (`\picwgoal`/`\pichgoal`), as some apps
+ * write one: only its own size, `\picw`/`\pich`. That is in pixels for a PNG
+ * and in hundredths of a millimetre for a metafile.
+ */
+export function rtfBarePicture(blip: "pngblip" | "wmetafile8", width: number, height: number): string {
+  return `{\\pict\\${blip}\\picw${width}\\pich${height} 89504e470d0a1a0a}`;
+}

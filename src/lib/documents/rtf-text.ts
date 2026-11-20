@@ -25,7 +25,7 @@ export interface RtfParts {
   columns: number;
   /** The page count in the document info (`\nofpagesN`), or null when it isn't recorded. Word records it; WordPad and TextEdit don't. */
   pageCount: number | null;
-  /** Pictures in the body, in pixels as shown (`\picwgoal`/`\pichgoal`, scaled). */
+  /** Pictures in the body, in pixels as shown (`\picwgoal`/`\pichgoal`, or else `\picw`/`\pich`, scaled). */
   images: { width: number; height: number }[];
 }
 
@@ -189,10 +189,25 @@ interface GroupState {
 }
 
 interface Picture {
+  /** The size shown (`\picwgoal`/`\pichgoal`), in twips; 0 when not given. */
   width: number;
   height: number;
+  /** The picture's own size (`\picw`/`\pich`): pixels for a bitmap, hundredths of a millimetre for a metafile. */
+  ownWidth: number;
+  ownHeight: number;
+  metafile: boolean;
   scaleX: number;
   scaleY: number;
+}
+
+// Metafiles (\wmetafile, \emfblip) give their own size in hundredths of a millimetre; 96 pixels per inch.
+const PIXELS_PER_HUNDREDTH_MM = 96 / 2540;
+
+/** A picture's size in pixels as shown: its display size if given, or else its own size, scaled. */
+function pictureSize(p: Picture): { width: number; height: number } {
+  const pixels = (goal: number, own: number, scale: number) =>
+    Math.round(((goal ? goal / TWIPS_PER_PIXEL : p.metafile ? own * PIXELS_PER_HUNDREDTH_MM : own) * scale) / 100);
+  return { width: pixels(p.width, p.ownWidth, p.scaleX), height: pixels(p.height, p.ownHeight, p.scaleY) };
 }
 
 /** The text of an RTF file's body, headers and footers. Throws `UnreadableFileError` if the file isn't RTF. */
@@ -280,7 +295,7 @@ export function readRtfParts(buffer: Buffer): RtfParts {
       return;
     }
     if (word === "pict" && !state.copy && state.out === body) {
-      state.picture = { width: 0, height: 0, scaleX: 100, scaleY: 100 };
+      state.picture = { width: 0, height: 0, ownWidth: 0, ownHeight: 0, metafile: false, scaleX: 100, scaleY: 100 };
       pictures.push(state.picture);
     }
     if (COPIES.includes(word)) state.copy = true;
@@ -328,6 +343,16 @@ export function readRtfParts(buffer: Buffer): RtfParts {
         return;
       case "nofpages":
         pageCount = param && param > 0 ? param : null;
+        return;
+      case "picw":
+        if (state.picture) state.picture.ownWidth = param ?? 0;
+        return;
+      case "pich":
+        if (state.picture) state.picture.ownHeight = param ?? 0;
+        return;
+      case "wmetafile":
+      case "emfblip":
+        if (state.picture) state.picture.metafile = true;
         return;
       case "picwgoal":
         if (state.picture) state.picture.width = param ?? 0;
@@ -431,10 +456,7 @@ export function readRtfParts(buffer: Buffer): RtfParts {
     textBoxes,
     columns,
     pageCount,
-    images: pictures.map((p) => ({
-      width: Math.round((p.width * p.scaleX) / 100 / TWIPS_PER_PIXEL),
-      height: Math.round((p.height * p.scaleY) / 100 / TWIPS_PER_PIXEL),
-    })),
+    images: pictures.map(pictureSize),
   };
 }
 
