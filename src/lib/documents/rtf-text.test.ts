@@ -71,6 +71,19 @@ describe("reading the text of an RTF file", () => {
     );
   });
 
+  it("reads Symbol font characters written as \\uN in the Private Use Area, and drops other ones", () => {
+    // Word writes a Symbol font character as U+F000 plus its code, as a negative \uN: -3913 is U+F0B7, -4064 U+F020.
+    const file = makeRtf({
+      app: "word",
+      paragraphs: [
+        String.raw`${u(-3913)}\'b7\tab Led the redesign`,
+        String.raw`Python${u(-4064)}\'20Figma`,
+        String.raw`Jane ${u(57344)}?Doe${u(63743)}?`,
+      ],
+    });
+    expect(readRtfText(file)).toBe("•\tLed the redesign\nPython Figma\nJane Doe");
+  });
+
   it("decodes \\'hh with the declared code page, and with Windows-1252 when there is none", () => {
     const cyrillic = makeRtf({ app: "word", codepage: 1251, paragraphs: [String.raw`\'cf\'f0\'e8\'e2\'e5\'f2`] });
     expect(readRtfText(cyrillic)).toBe("Привет");

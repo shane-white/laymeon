@@ -130,6 +130,20 @@ const SYMBOL_CHARSET = 2;
 // Bullets in the Symbol and Wingdings fonts, which Word and WordPad use for lists.
 const SYMBOL_FONT_CHARS: Record<number, string> = { 0xb7: "\u2022", 0xa7: "\u25aa", 0xd8: "\u27a2", 0xfc: "\u2713" };
 
+// The Private Use Area, which has no visible characters of its own. Word
+// writes Symbol and Wingdings characters there as U+F000 plus their code.
+const PRIVATE_USE_START = 0xe000;
+const PRIVATE_USE_END = 0xf8ff;
+const SYMBOL_FONT_BASE = 0xf000;
+
+/** The text for a `\uN` character: Symbol font bullets and spaces are mapped, other private ones dropped. */
+function unicodeChar(code: number): string {
+  if (code < PRIVATE_USE_START || code > PRIVATE_USE_END) return String.fromCharCode(code);
+  const symbol = code - SYMBOL_FONT_BASE;
+  if (symbol === 0x20) return " ";
+  return SYMBOL_FONT_CHARS[symbol] ?? "";
+}
+
 const ENCODINGS: Record<number, string> = {
   932: "shift_jis",
   936: "gbk",
@@ -329,7 +343,8 @@ export function readRtfParts(buffer: Buffer): RtfParts {
         return;
       case "u":
         if (param !== undefined) {
-          emit(String.fromCharCode(param < 0 ? param + 65536 : param));
+          const char = unicodeChar(param < 0 ? param + 65536 : param);
+          if (char) emit(char);
           fallbackLeft = state.uc;
         }
         return;
