@@ -1,6 +1,7 @@
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import { UnreadableFileError } from "@/lib/documents/document";
+import { readOdtText } from "@/lib/documents/odt-text";
 import { readRtfText } from "@/lib/documents/rtf-text";
 import { readWordText } from "@/lib/documents/word-text";
 
@@ -28,12 +29,8 @@ export async function parseDocument(
   if (kind === "unsupported") {
     throw new Error(UNSUPPORTED_FILE_MESSAGE);
   }
-  // Accepted for upload, but not readable yet.
-  if (kind === "odt") {
-    throw new UnreadableFileError("We can't read ODT files yet. Save it as a PDF or Word file.");
-  }
-
-  const rawText = kind === "rtf" ? readRtfText(buffer) : await readWordText(buffer);
+  const rawText =
+    kind === "rtf" ? readRtfText(buffer) : kind === "odt" ? await readOdtText(buffer) : await readWordText(buffer);
 
   if (!rawText || rawText.trim().length === 0) {
     throw new UnreadableFileError("Could not extract any text from the document");

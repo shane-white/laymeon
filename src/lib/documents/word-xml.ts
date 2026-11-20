@@ -9,7 +9,8 @@ import JSZip from "jszip";
 // the text; <w:tab w:pos=…/> inside <w:tabs> is a tab stop setting.
 const WORD_TEXT = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:br|cr)\b[^>]*\/>|<w:tab\/>/g;
 
-function decodeXml(text: string): string {
+/** Decodes the entities in XML text. */
+export function decodeXml(text: string): string {
   return text
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
