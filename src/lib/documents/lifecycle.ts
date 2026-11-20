@@ -19,7 +19,7 @@ import {
   type Failure,
   type NewDocument,
 } from "./document";
-import { uploadProblem, FILE_TOO_LARGE_MESSAGE } from "./file-format";
+import { FILE_TOO_LARGE_MESSAGE, resolveType, uploadProblem } from "./file-format";
 import { storagePathFor, UPLOAD_BUCKET } from "./files";
 import { MAX_PROJECTS, MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
@@ -48,10 +48,16 @@ async function finish(deps: DocumentDeps, documents: Document[], changed: Docume
   return { ok: true, documents, changed, rebuildRequested };
 }
 
-function fileProblem(file: File): Failure | null {
+/**
+ * The uploaded file with the standard MIME type for its kind, or why it can't
+ * be uploaded. Readers, storage and the saved Document all use that type, even
+ * when the browser gave the file none.
+ */
+function checkFile(file: File): File | Failure {
   const problem = uploadProblem(file);
-  if (!problem) return null;
-  return failure(problem === FILE_TOO_LARGE_MESSAGE ? "too_large" : "unsupported_type", problem);
+  if (problem) return failure(problem === FILE_TOO_LARGE_MESSAGE ? "too_large" : "unsupported_type", problem);
+  const type = resolveType(file) ?? file.type;
+  return type === file.type ? file : new File([file], file.name, { type, lastModified: file.lastModified });
 }
 
 /** Runs a reader call, turning its errors into failures. */
@@ -144,10 +150,9 @@ export async function addUploadedDocument(deps: DocumentDeps, input: UploadInput
   if (documentType !== "resume" && documentType !== "cover_letter") {
     return failure("invalid", "Invalid document type");
   }
-  const file = input.file;
-  if (!file) return failure("invalid", "No file provided");
-  const problem = fileProblem(file);
-  if (problem) return problem;
+  if (!input.file) return failure("invalid", "No file provided");
+  const file = checkFile(input.file);
+  if (isFailure(file)) return file;
 
   let existing: number;
   try {
@@ -244,10 +249,9 @@ export async function addWrittenExampleWork(
  * point at the one stored file. Either every Example Work is added or none is.
  */
 export async function importExampleWorks(deps: DocumentDeps, input: { file: File | null }): Promise<DocumentResult> {
-  const file = input.file;
-  if (!file) return failure("invalid", "No file provided");
-  const problem = fileProblem(file);
-  if (problem) return problem;
+  if (!input.file) return failure("invalid", "No file provided");
+  const file = checkFile(input.file);
+  if (isFailure(file)) return file;
 
   const room = await exampleWorkRoom(deps);
   if (isFailure(room)) return room;
@@ -312,10 +316,9 @@ export async function replaceFile(deps: DocumentDeps, id: string, input: { file:
   if (doc.source !== "uploaded" || doc.document_type === "project") {
     return failure("invalid", "Only uploaded resumes and cover letters can have their file replaced");
   }
-  const file = input.file;
-  if (!file) return failure("invalid", "No file provided");
-  const problem = fileProblem(file);
-  if (problem) return problem;
+  if (!input.file) return failure("invalid", "No file provided");
+  const file = checkFile(input.file);
+  if (isFailure(file)) return file;
 
   const markdown = await readFile(() => deps.reader.toMarkdown(file));
   if (isFailure(markdown)) return markdown;

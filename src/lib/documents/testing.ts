@@ -132,16 +132,20 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
 export function scriptedReader(script: {
   markdown?: string | Error;
   exampleWorks?: SplitExampleWork[] | Error;
-}): FileReader & { calls: number } {
+}): FileReader & { calls: number; files: File[] } {
   const reader = {
     calls: 0,
-    async toMarkdown() {
+    /** The files the reader was given, in order. */
+    files: [] as File[],
+    async toMarkdown(file: File) {
       reader.calls++;
+      reader.files.push(file);
       if (script.markdown instanceof Error) throw script.markdown;
       return script.markdown ?? "";
     },
-    async splitExampleWorks() {
+    async splitExampleWorks(file: File) {
       reader.calls++;
+      reader.files.push(file);
       if (script.exampleWorks instanceof Error) throw script.exampleWorks;
       return script.exampleWorks ?? [];
     },

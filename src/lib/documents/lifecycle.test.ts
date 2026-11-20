@@ -74,7 +74,7 @@ describe("adding an uploaded Resume or Cover letter", () => {
 
   it.each([
     ["a file over 10 MB", pdf("big.pdf", 10 * 1024 * 1024 + 1), "too_large", "File is too large. Maximum size is 10 MB."],
-    ["an RTF file", new File(["{\\rtf1}"], "resume.rtf", { type: "application/rtf" }), "unsupported_type", "Please upload a PDF or Word file"],
+    ["a text file", new File(["hi"], "resume.txt", { type: "text/plain" }), "unsupported_type", "Please upload a PDF, Word, RTF or ODT file"],
     ["no file", null, "invalid", "No file provided"],
   ])("refuses %s before reading or storing anything", async (_name, file, kind, message) => {
     const reader = scriptedReader({ markdown: "# x" });
@@ -84,6 +84,15 @@ describe("adding an uploaded Resume or Cover letter", () => {
     expect(reader.calls).toBe(0);
     expect(store.files()).toEqual([]);
     expect(rebuild.requests).toBe(0);
+  });
+
+  it("accepts an RTF file the browser gave no type, and saves it with the standard RTF type", async () => {
+    const reader = scriptedReader({ markdown: "# My resume" });
+    const { deps } = setup(reader);
+    const file = new File(["{\rtf1 Jane}"], "resume.rtf", { type: "" });
+    const result = await addUploadedDocument(deps, { file, documentType: "resume" });
+    expect(result).toMatchObject({ ok: true, documents: [{ mime_type: "application/rtf", original_filename: "resume.rtf" }] });
+    expect(reader.files.map((f) => [f.name, f.type])).toEqual([["resume.rtf", "application/rtf"]]);
   });
 
   it("accepts a file of exactly 10 MB", async () => {
@@ -221,6 +230,15 @@ describe("importing Example Works from a file", () => {
     expect(rebuild.requests).toBe(1);
   });
 
+  it("saves an ODT file the browser gave a generic type with the standard ODT type", async () => {
+    const reader = scriptedReader({ exampleWorks: works(1) });
+    const { deps } = setup(reader);
+    const file = new File(["PK"], "portfolio.odt", { type: "application/octet-stream" });
+    const result = await importExampleWorks(deps, { file });
+    expect(result).toMatchObject({ ok: true, documents: [{ mime_type: "application/vnd.oasis.opendocument.text" }] });
+    expect(reader.files.map((f) => f.type)).toEqual(["application/vnd.oasis.opendocument.text"]);
+  });
+
   it("refuses a file over 10 MB before reading it", async () => {
     const reader = scriptedReader({ exampleWorks: works(1) });
     const { deps, store } = setup(reader);
@@ -321,6 +339,14 @@ describe("replacing a file", () => {
     expect(rebuild.requests).toBe(1);
   });
 
+  it("saves a replacement RTF file with the standard RTF type", async () => {
+    const store = memoryStore();
+    const old = seedResume(store);
+    const { deps } = setup(scriptedReader({ markdown: "# New resume" }), store);
+    const result = await replaceFile(deps, old.id, { file: new File(["{\rtf1}"], "new.rtf", { type: "text/rtf" }) });
+    expect(result).toMatchObject({ ok: true, documents: [{ mime_type: "application/rtf", original_filename: "new.rtf" }] });
+  });
+
   it("changes nothing when the new file can't be read", async () => {
     const store = memoryStore();
     const old = seedResume(store);
@@ -389,7 +415,7 @@ describe("replacing a file", () => {
 
   it.each([
     ["a file over 10 MB", pdf("big.pdf", 10 * 1024 * 1024 + 1), "too_large"],
-    ["an RTF file", new File(["{\rtf1}"], "resume.rtf", { type: "application/rtf" }), "unsupported_type"],
+    ["a text file", new File(["hi"], "resume.txt", { type: "text/plain" }), "unsupported_type"],
     ["no file", null, "invalid"],
   ])("refuses %s before reading or storing anything", async (_name, file, kind) => {
     const store = memoryStore();

@@ -76,6 +76,13 @@ function fileType(ctx: CheckContext): CheckResult {
       "This is the old Word format (.doc). Some systems read it poorly. Save it as .docx or PDF.",
     );
   }
+  if (kind === "rtf" || kind === "odt") {
+    return check(
+      "readability.file_type",
+      "could_improve",
+      `This is ${kind === "rtf" ? "an RTF" : "an ODT"} file. LayMeOn can read it, but many resume-reading systems can't. Save it as PDF or .docx before you send it to employers.`,
+    );
+  }
   return check("readability.file_type", "fix", "Upload the resume as a PDF or Word (.docx) file.");
 }
 

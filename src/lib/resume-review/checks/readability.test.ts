@@ -139,6 +139,16 @@ describe("file type and name", () => {
     expect(result(results, "readability.file_type").label).toBe("could_improve");
   });
 
+  it.each([
+    ["application/rtf", "Jane Doe.rtf", "RTF"],
+    ["application/vnd.oasis.opendocument.text", "Jane Doe.odt", "ODT"],
+  ])("suggests saving %s as PDF or .docx before sending it to employers", (mimeType, filename, format) => {
+    const check = result(readabilityChecks(context({ mimeType, filename })), "readability.file_type");
+    expect(check.label).toBe("could_improve");
+    expect(check.summary).toContain(format);
+    expect(check.summary).toContain("Save it as PDF or .docx before you send it to employers.");
+  });
+
   it.each(["resume.pdf", "CV_final.pdf", "Jane Resume (1).pdf", "jane-resume-v3.pdf", "Resume copy.pdf"])(
     "flags %s",
     (filename) => {

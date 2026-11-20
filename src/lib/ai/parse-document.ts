@@ -27,6 +27,10 @@ export async function parseDocument(
   if (kind === "unsupported") {
     throw new Error(UNSUPPORTED_FILE_MESSAGE);
   }
+  // Accepted for upload, but not readable yet.
+  if (kind === "rtf" || kind === "odt") {
+    throw new UnreadableFileError("We can't read RTF or ODT files yet. Save it as a PDF or Word file.");
+  }
 
   const rawText = await readWordText(buffer);
 
