@@ -53,11 +53,14 @@ const UNKNOWN_TYPES = new Set(["", "application/octet-stream"]);
 
 /**
  * The standard MIME type to store for an uploaded file, or null if it isn't
- * accepted. When the browser gave no type, the file's extension decides.
+ * accepted. When the browser gave no type, the file's extension decides. It
+ * also decides for a .rtf file typed as Word: Windows browsers report RTF
+ * files that way when Word is installed.
  */
 export function resolveType(file: { type: string; name: string }): string | null {
   const extension = /\.[^.]+$/.exec(file.name)?.[0].toLowerCase();
-  const accepted = UNKNOWN_TYPES.has(file.type)
+  const byExtension = UNKNOWN_TYPES.has(file.type) || (file.type === DOC_MIME && extension === ".rtf");
+  const accepted = byExtension
     ? ACCEPTED.find((t) => extension !== undefined && t.extensions.includes(extension))
     : ACCEPTED.find((t) => t.mimes.includes(file.type));
   return accepted?.mimes[0] ?? null;

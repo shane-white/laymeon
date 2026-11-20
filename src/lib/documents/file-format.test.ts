@@ -58,6 +58,10 @@ describe("resolveType", () => {
     expect(resolveType({ type: "application/octet-stream", name: "a.ODT" })).toBe(ODT);
   });
 
+  it("trusts a .rtf extension over the Word type that Windows browsers with Word installed give RTF files", () => {
+    expect(resolveType({ type: "application/msword", name: "Resume.RTF" })).toBe(RTF);
+  });
+
   it("is null for types it doesn't accept", () => {
     expect(resolveType({ type: "text/plain", name: "a.rtf" })).toBeNull();
     expect(resolveType({ type: "", name: "a.txt" })).toBeNull();
