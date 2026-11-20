@@ -4,6 +4,7 @@ import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import { UnreadableFileError } from "@/lib/documents/document";
+import { readOdtText } from "@/lib/documents/odt-text";
 import { readWordText } from "@/lib/documents/word-text";
 import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
@@ -34,7 +35,7 @@ A project is one distinct piece of work: a product, feature, initiative, engagem
 
 Use only what the document says.`;
 
-/** Splits an uploaded PDF or Word document into the projects it describes. */
+/** Splits an uploaded PDF, Word or ODT document into the projects it describes. */
 export async function splitProjects(
   buffer: Buffer,
   mimeType: string,
@@ -45,8 +46,8 @@ export async function splitProjects(
     throw new Error(UNSUPPORTED_FILE_MESSAGE);
   }
   // Accepted for upload, but not readable yet.
-  if (kind === "rtf" || kind === "odt") {
-    throw new UnreadableFileError("We can't read RTF or ODT files yet. Save it as a PDF or Word file.");
+  if (kind === "rtf") {
+    throw new UnreadableFileError("We can't read RTF files yet. Save it as a PDF or Word file.");
   }
 
   let content: Anthropic.ContentBlockParam[];
@@ -63,7 +64,7 @@ export async function splitProjects(
       { type: "text", text: `Filename: ${filename}` },
     ];
   } else {
-    const text = await readWordText(buffer);
+    const text = kind === "odt" ? await readOdtText(buffer) : await readWordText(buffer);
     if (!text.trim()) {
       throw new UnreadableFileError("Could not extract any text from the document");
     }
