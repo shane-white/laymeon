@@ -14,8 +14,9 @@
  *
  * Pairs come from scripts/fixtures/match-report. With --private, real pairs
  * in scripts/resumes/match-report/<pair>/ (ignored by git) run too: resume.pdf,
- * resume.docx or resume.md, plus job.md and expected.json. Only use --private
- * when the resumes' owners are fine with the text going to the model APIs.
+ * resume.docx, resume.rtf, resume.odt or resume.md, plus job.md and
+ * expected.json. Only use --private when the resumes' owners are fine with
+ * the text going to the model APIs.
  *
  * Each Requirement's rating comes from Jev; the summary shows Jev's
  * probability for each level (m/p/s), so split answers are visible. Jev's
@@ -30,6 +31,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseDocument } from "@/lib/ai/parse-document";
+import { DOCX_MIME, ODT_MIME, PDF_MIME, RTF_MIME } from "@/lib/documents/file-format";
 import { generateMatchReport, type MatchReportStep } from "@/lib/match-report/generate";
 import type { RatingResult } from "@/lib/match-report/rate-requirements";
 import type { MatchReport, RequirementMatch } from "@/lib/match-report/schema";
@@ -64,11 +66,13 @@ const PRIVATE_DIR = join(__dirname, "resumes", "match-report");
 const CACHE_DIR = join(__dirname, "resumes", ".cache");
 
 const RESUME_FILES: [file: string, mimeType: string][] = [
-  ["resume.pdf", "application/pdf"],
-  ["resume.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ["resume.pdf", PDF_MIME],
+  ["resume.docx", DOCX_MIME],
+  ["resume.rtf", RTF_MIME],
+  ["resume.odt", ODT_MIME],
 ];
 
-/** Reads resume.md, or parses resume.pdf or resume.docx once and caches the markdown. */
+/** Reads resume.md, or parses resume.pdf, .docx, .rtf or .odt once and caches the markdown. */
 async function readResume(dir: string): Promise<string> {
   const md = join(dir, "resume.md");
   if (existsSync(md)) return readFileSync(md, "utf8");
@@ -84,7 +88,7 @@ async function readResume(dir: string): Promise<string> {
     writeFileSync(cachePath, JSON.stringify(parsed, null, 2));
     return parsed.markdown;
   }
-  throw new Error(`No resume.md, resume.pdf or resume.docx in ${dir}`);
+  throw new Error(`No resume.md, resume.pdf, resume.docx, resume.rtf or resume.odt in ${dir}`);
 }
 
 async function loadPair(name: string, dir: string): Promise<Pair> {

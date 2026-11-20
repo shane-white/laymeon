@@ -2,7 +2,7 @@
  * Runs the resume review on real resume files, to see how the labels hold up
  * outside the generated test fixtures.
  *
- * Put PDF or .docx resumes in scripts/resumes/ (ignored by git: they're
+ * Put PDF, Word, RTF or ODT resumes in scripts/resumes/ (ignored by git: they're
  * personal data). For each file this prints every check that isn't Good, and
  * writes the full results to scripts/resumes/results/<file>.md.
  *
@@ -22,8 +22,9 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseDocument } from "@/lib/ai/parse-document";
+import { resolveType } from "@/lib/documents/file-format";
 import { extractDocument } from "@/lib/profile/extract";
 import { EXTRACTION_VERSION, type Extraction } from "@/lib/profile/schema";
 import { buildResumeReview } from "@/lib/resume-review/build-report";
@@ -37,11 +38,8 @@ const RESUMES_DIR = join(__dirname, "resumes");
 const RESULTS_DIR = join(RESUMES_DIR, "results");
 const CACHE_DIR = join(RESUMES_DIR, ".cache");
 
-const MIME_TYPES: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".doc": "application/msword",
-};
+/** The MIME type for a resume file, from its extension, or null if LayMeOn doesn't accept it. */
+const mimeTypeOf = (file: string) => resolveType({ type: "", name: file });
 
 const LABELS: Record<CheckResult["label"], string> = {
   good: "Good",
@@ -104,9 +102,9 @@ function formatResults(file: string, checks: AnyCheck[], markdown: string, revie
 async function reviewFile(path: string, options: Options): Promise<void> {
   const { withStory, full, fresh, targetRole, asOf } = options;
   const file = basename(path);
-  const mimeType = MIME_TYPES[extname(path).toLowerCase()];
+  const mimeType = mimeTypeOf(path);
   if (!mimeType) {
-    console.log(`\n${file}: skipped (not a PDF, .docx or .doc)`);
+    console.log(`\n${file}: skipped (not a PDF, Word, RTF or ODT file)`);
     return;
   }
 
@@ -173,11 +171,11 @@ async function main() {
   const files = named.length
     ? named.map((f) => resolve(f))
     : readdirSync(RESUMES_DIR)
-        .filter((f) => MIME_TYPES[extname(f).toLowerCase()])
+        .filter((f) => mimeTypeOf(f))
         .map((f) => join(RESUMES_DIR, f));
 
   if (files.length === 0) {
-    console.log(`No resumes found. Put PDF or .docx files in ${RESUMES_DIR}, or pass file paths.`);
+    console.log(`No resumes found. Put PDF, Word, RTF or ODT files in ${RESUMES_DIR}, or pass file paths.`);
     return;
   }
   if (!options.withStory) {
