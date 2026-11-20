@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ODT_MIME } from "@/lib/documents/file-format";
+import { makeRtf, rtfFrame, rtfPicture, rtfTableRow, rtfTextBox } from "@/lib/documents/__fixtures__/rtf-files";
+import { ODT_MIME, RTF_MIME } from "@/lib/documents/file-format";
 import {
   makeDocx,
   makeOdt,
@@ -118,6 +119,67 @@ describe("readAsSoftware: ODT", () => {
     expect(view?.format).toBe("odt");
     expect(view?.pageCount).toBe(1);
     expect(view?.layout).toEqual({ tables: 1, textBoxes: 0, columns: 1, headerFooterText: "Page 1" });
+    expect(view?.text).toContain("Experience");
+  });
+});
+
+describe("readAsSoftware: RTF", () => {
+  it("finds tables, text boxes and frames, columns, header and footer text, and the page count", async () => {
+    const view = await readAsSoftware(
+      makeRtf({
+        app: "word",
+        header: "jane@example.com",
+        footer: "Page 1",
+        columns: 2,
+        pages: 2,
+        paragraphs: [
+          "Jane Doe",
+          rtfTextBox(["Sidebar"]),
+          rtfTableRow(["Skills", "Python"]),
+          rtfTableRow(["Tools", "dbt"]),
+          "Experience",
+          rtfTableRow(["Acme", "2020"]),
+          rtfFrame("Pull quote"),
+          rtfFrame("More of the quote"),
+          "Education",
+        ],
+      }),
+      RTF_MIME,
+    );
+    expect(view?.format).toBe("rtf");
+    expect(view?.pageCount).toBe(2);
+    expect(view?.pages).toBeNull();
+    // Two tables (two rows, then one), a text box and a frame of two paragraphs.
+    expect(view?.layout).toEqual({
+      tables: 2,
+      textBoxes: 2,
+      columns: 2,
+      headerFooterText: "jane@example.com\nPage 1",
+    });
+    expect(view?.images).toEqual([]);
+    expect(view?.text.split("\n")[0]).toBe("Jane Doe");
+    expect(view?.text).not.toContain("jane@example.com");
+  });
+
+  it("finds pictures bigger than an icon, counting Word's copy for older readers once", async () => {
+    const view = await readAsSoftware(
+      makeRtf({ app: "word", paragraphs: ["Jane Doe", rtfPicture(2880, 4320, 50), rtfPicture(300, 300)] }),
+      RTF_MIME,
+    );
+    expect(view?.images).toEqual([{ page: null, width: 96, height: 144 }]);
+  });
+
+  it("has no page count or layout elements in a plain TextEdit file", async () => {
+    const view = await readAsSoftware(makeRtf({ app: "textedit", paragraphs: ["Jane Doe", "Experience"] }), RTF_MIME);
+    expect(view?.pageCount).toBeNull();
+    expect(view?.layout).toEqual({ tables: 0, textBoxes: 0, columns: 1, headerFooterText: "" });
+    expect(view?.text).toBe("Jane Doe\nExperience");
+  });
+
+  it("reads a WordPad file and its skills table", async () => {
+    const view = await readAsSoftware(sample("wordpad.rtf"), RTF_MIME);
+    expect(view?.format).toBe("rtf");
+    expect(view?.layout?.tables).toBe(1);
     expect(view?.text).toContain("Experience");
   });
 });

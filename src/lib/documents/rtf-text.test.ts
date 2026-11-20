@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { UnreadableFileError } from "./document";
-import { makeRtf, rtfBullet, rtfTableRow } from "./__fixtures__/rtf-files";
+import { makeRtf, rtfBullet, rtfFrame, rtfPicture, rtfTableRow, rtfTextBox } from "./__fixtures__/rtf-files";
 import { readRtfText } from "./rtf-text";
 
 const sample = (name: string) => readFileSync(new URL(`./__fixtures__/samples/${name}`, import.meta.url));
@@ -83,6 +83,14 @@ describe("reading the text of an RTF file", () => {
   it("decodes multi-byte code pages", () => {
     const japanese = makeRtf({ app: "textedit", codepage: 932, paragraphs: [String.raw`\'93\'fa\'96\'7b`] });
     expect(readRtfText(japanese)).toBe("日本");
+  });
+
+  it("reads a text box's text once and a frame's text in place, and nothing from a picture", () => {
+    const file = makeRtf({
+      app: "word",
+      paragraphs: ["Jane Doe", rtfTextBox(["Skills", "Python"]), rtfFrame("Framed note"), rtfPicture(1440, 1440), "Experience"],
+    });
+    expect(readRtfText(file)).toBe(["Jane Doe", "Skills", "Python", "Framed note", "Experience"].join("\n"));
   });
 
   it("fails as unreadable for a file that isn't RTF", () => {

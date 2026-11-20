@@ -2,8 +2,11 @@
  * Reads the text of an RTF file (a file whose `kindOf` is "rtf"), as saved by
  * WordPad, TextEdit and Word. A small tokenizer of our own: it keeps
  * paragraphs, line breaks, tabs and table cells, decodes accented letters
- * and other special characters, and skips everything that isn't text (font
- * and colour tables, styles, document info, pictures, field codes).
+ * and other special characters, reads text boxes once (not the copies Word
+ * keeps for older readers), and skips everything else that isn't text (font
+ * and colour tables, styles, document info, pictures, field codes). It also
+ * notes the layout resume-reading software stumbles on: tables, text boxes
+ * and frames, columns, pictures and the recorded page count.
  */
 import { UnreadableFileError } from "./document";
 
@@ -13,6 +16,16 @@ export interface RtfParts {
   /** Page header text. Word keeps separate ones for the first page and left and right pages. */
   headers: string[];
   footers: string[];
+  /** Tables in the body: runs of rows (`\trowd` … `\row`) with no other paragraph between them. */
+  tables: number;
+  /** Text boxes (`\shptxt` in a shape) and text frames (paragraphs positioned with `\posx`, `\absw` and the like) in the body. */
+  textBoxes: number;
+  /** The most text columns (`\colsN`) any section uses. */
+  columns: number;
+  /** The page count in the document info (`\nofpagesN`), or null when it isn't recorded. Word records it; WordPad and TextEdit don't. */
+  pageCount: number | null;
+  /** Pictures in the body, in pixels as shown (`\picwgoal`/`\pichgoal`, scaled). */
+  images: { width: number; height: number }[];
 }
 
 /**
@@ -26,6 +39,8 @@ export function readRtfText(buffer: Buffer): string {
   return [...unique(headers), body, ...unique(footers)].filter(Boolean).join("\n\n");
 }
 
+// Copies of shapes and pictures for readers that don't understand \shp and \shppict.
+const COPIES = ["shprslt", "nonshppict"];
 // Groups that hold no text for the reader. Groups starting with \* are skipped too.
 const SKIPPED = new Set([
   "fonttbl",
@@ -43,7 +58,34 @@ const SKIPPED = new Set([
   "footnote",
   "xe",
   "tc",
+  ...COPIES,
 ]);
+// Paragraph properties that put a paragraph in a text frame.
+const FRAME_WORDS = new Set([
+  "absw",
+  "absh",
+  "posx",
+  "posxc",
+  "posxi",
+  "posxo",
+  "posxl",
+  "posxr",
+  "posy",
+  "posyc",
+  "posyt",
+  "posyb",
+  "posyil",
+  "posyin",
+  "posyout",
+  "phmrg",
+  "phpg",
+  "phcol",
+  "pvmrg",
+  "pvpg",
+  "pvpara",
+]);
+// 1440 twips per inch, 96 pixels per inch.
+const TWIPS_PER_PIXEL = 15;
 const HEADERS = new Set(["header", "headerl", "headerr", "headerf"]);
 const FOOTERS = new Set(["footer", "footerl", "footerr", "footerf"]);
 
@@ -120,6 +162,24 @@ interface GroupState {
   font: number;
   inFontTable: boolean;
   out: string[];
+  /** In a shape (\shpinst) whose text box text (\shptxt) is read. */
+  readableShape: boolean;
+  /** In a shape or a list item's bullet, whose paragraphs aren't the body's own. */
+  ignoreLayout: boolean;
+  /** In a copy of a shape or picture for older readers (\shprslt, \nonshppict). */
+  copy: boolean;
+  /** The current paragraph is in a table (\intbl) or a text frame. */
+  inTable: boolean;
+  inFrame: boolean;
+  /** The picture whose sizes are being read. */
+  picture: Picture | null;
+}
+
+interface Picture {
+  width: number;
+  height: number;
+  scaleX: number;
+  scaleY: number;
 }
 
 /** The text of an RTF file's body, headers and footers. Throws `UnreadableFileError` if the file isn't RTF. */
@@ -137,14 +197,47 @@ export function readRtfParts(buffer: Buffer): RtfParts {
   const fontCharsets = new Map<number, number>();
   let fontBeingDefined = -1;
 
-  let state: GroupState = { skip: false, uc: 1, font: -1, inFontTable: false, out: body };
+  let state: GroupState = {
+    skip: false,
+    uc: 1,
+    font: -1,
+    inFontTable: false,
+    out: body,
+    readableShape: false,
+    ignoreLayout: false,
+    copy: false,
+    inTable: false,
+    inFrame: false,
+    picture: null,
+  };
   const stack: GroupState[] = [];
   // Fallback characters still to skip after a \uN.
   let fallbackLeft = 0;
   let bytes: number[] = [];
 
+  let tables = 0;
+  let textBoxes = 0;
+  let columns = 1;
+  let pageCount: number | null = null;
+  const pictures: Picture[] = [];
+  // Whether the last body paragraph with content was in a table, or in a frame.
+  let lastInTable = false;
+  let lastInFrame = false;
+  const inBody = () => state.out === body && !state.ignoreLayout && !state.copy;
+
+  // Counts a table or frame when a body paragraph starts one: the paragraph before wasn't in one.
+  const bodyContent = () => {
+    if (!inBody()) return;
+    if (state.inTable && !lastInTable) tables++;
+    if (state.inFrame && !lastInFrame) textBoxes++;
+    lastInTable = state.inTable;
+    lastInFrame = state.inFrame;
+  };
+
   const emit = (text: string) => {
-    if (!state.skip) state.out.push(text);
+    if (state.skip) return;
+    bodyContent();
+    state.out.push(text);
   };
   // A character that can be a \uN fallback.
   const emitChar = (char: string) => {
@@ -169,6 +262,15 @@ export function readRtfParts(buffer: Buffer): RtfParts {
 
   const controlWord = (word: string, param: number | undefined) => {
     if (word in SYMBOLS) return emit(SYMBOLS[word]);
+    if (FRAME_WORDS.has(word)) {
+      state.inFrame = true;
+      return;
+    }
+    if (word === "pict" && !state.copy && state.out === body) {
+      state.picture = { width: 0, height: 0, scaleX: 100, scaleY: 100 };
+      pictures.push(state.picture);
+    }
+    if (COPIES.includes(word)) state.copy = true;
     if (SKIPPED.has(word)) {
       state.skip = true;
       if (word === "fonttbl") state.inFontTable = true;
@@ -180,6 +282,52 @@ export function readRtfParts(buffer: Buffer): RtfParts {
       return;
     }
     switch (word) {
+      // A shape's properties are skipped (\*\shpinst), but a text box's text
+      // is read, unless the shape is itself in a skipped group.
+      case "shpinst":
+        state.readableShape = !(stack.at(-1)?.skip ?? false);
+        state.ignoreLayout = true;
+        return;
+      case "shptxt":
+        if (state.readableShape) state.skip = false;
+        if (state.out === body && !state.copy) textBoxes++;
+        return;
+      // A text box in Word 95's drawing objects.
+      case "dptxbx":
+        if (state.out === body && !state.copy) textBoxes++;
+        return;
+      case "listtext":
+        state.ignoreLayout = true;
+        return;
+      case "pard":
+        state.inTable = false;
+        state.inFrame = false;
+        return;
+      case "intbl":
+        state.inTable = true;
+        return;
+      // The table nesting depth. Word writes \itap0 with \intbl in a top-level table, so 0 doesn't clear it.
+      case "itap":
+        if ((param ?? 1) > 0) state.inTable = true;
+        return;
+      case "cols":
+        columns = Math.max(columns, param ?? 1);
+        return;
+      case "nofpages":
+        pageCount = param && param > 0 ? param : null;
+        return;
+      case "picwgoal":
+        if (state.picture) state.picture.width = param ?? 0;
+        return;
+      case "pichgoal":
+        if (state.picture) state.picture.height = param ?? 0;
+        return;
+      case "picscalex":
+        if (state.picture) state.picture.scaleX = param ?? 100;
+        return;
+      case "picscaley":
+        if (state.picture) state.picture.scaleY = param ?? 100;
+        return;
       case "u":
         if (param !== undefined) {
           emit(String.fromCharCode(param < 0 ? param + 65536 : param));
@@ -261,7 +409,19 @@ export function readRtfParts(buffer: Buffer): RtfParts {
   }
   flushBytes();
 
-  return { body: tidy(body), headers: headers.map(tidy), footers: footers.map(tidy) };
+  return {
+    body: tidy(body),
+    headers: headers.map(tidy),
+    footers: footers.map(tidy),
+    tables,
+    textBoxes,
+    columns,
+    pageCount,
+    images: pictures.map((p) => ({
+      width: Math.round((p.width * p.scaleX) / 100 / TWIPS_PER_PIXEL),
+      height: Math.round((p.height * p.scaleY) / 100 / TWIPS_PER_PIXEL),
+    })),
+  };
 }
 
 /** One line per paragraph, without trailing whitespace or blank lines. */

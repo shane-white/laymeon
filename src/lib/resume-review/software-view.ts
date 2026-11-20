@@ -8,6 +8,7 @@
  */
 import { DOCX_MIME, kindOf } from "@/lib/documents/file-format";
 import { readOdtParts, textOfOdtXml } from "@/lib/documents/odt-text";
+import { readRtfParts } from "@/lib/documents/rtf-text";
 import { readWordParts, textOfWordXml } from "@/lib/documents/word-xml";
 import type { SoftwareView } from "./types";
 
@@ -28,6 +29,7 @@ export async function readAsSoftware(buffer: Buffer, mimeType: string): Promise<
   // Only .docx has the XML this reads; an old .doc is Word too, but not readable here.
   if (mimeType === DOCX_MIME) return readDocx(buffer);
   if (kind === "odt") return readOdt(buffer);
+  if (kind === "rtf") return readRtf(buffer);
   return null;
 }
 
@@ -138,6 +140,24 @@ async function readOdt(buffer: Buffer): Promise<SoftwareView> {
       // Page styles (styles.xml) and sections (content.xml) can both set columns.
       columns: mostColumns((contentXml + stylesXml).matchAll(/\bfo:column-count="(\d+)"/g)),
       headerFooterText,
+    },
+  };
+}
+
+function readRtf(buffer: Buffer): SoftwareView {
+  const { body, headers, footers, tables, textBoxes, columns, pageCount, images } = readRtfParts(buffer);
+  return {
+    format: "rtf",
+    text: body,
+    pages: null,
+    pageCount,
+    images: images.map((img) => ({ page: null, ...img })).filter(notAnIcon),
+    layout: {
+      tables,
+      textBoxes,
+      columns,
+      // Word keeps separate headers for the first page and left and right pages.
+      headerFooterText: [...new Set([...headers, ...footers].filter((t) => t.trim()))].join("\n"),
     },
   };
 }
