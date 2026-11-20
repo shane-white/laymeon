@@ -9,6 +9,7 @@
  * and frames, columns, pictures and the recorded page count.
  */
 import { UnreadableFileError } from "./document";
+import { joinDocumentText } from "./document-text";
 
 /** The text of an RTF file's parts, each one line per paragraph or line break, without blank lines. */
 export interface RtfParts {
@@ -34,9 +35,7 @@ export interface RtfParts {
  * `UnreadableFileError` if the file isn't RTF.
  */
 export function readRtfText(buffer: Buffer): string {
-  const { body, headers, footers } = readRtfParts(buffer);
-  const unique = (parts: string[]) => [...new Set(parts.filter((t) => t.trim()))];
-  return [...unique(headers), body, ...unique(footers)].filter(Boolean).join("\n\n");
+  return joinDocumentText(readRtfParts(buffer));
 }
 
 // Copies of shapes and pictures for readers that don't understand \shp and \shppict.

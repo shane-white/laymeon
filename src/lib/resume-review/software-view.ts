@@ -6,6 +6,7 @@
  * copes with columns and text in images. So it hides exactly the problems an
  * ATS runs into. Comparing the two shows them.
  */
+import { distinctTexts } from "@/lib/documents/document-text";
 import { DOCX_MIME, kindOf } from "@/lib/documents/file-format";
 import { readOdtParts, textOfOdtXml } from "@/lib/documents/odt-text";
 import { readRtfParts } from "@/lib/documents/rtf-text";
@@ -71,7 +72,7 @@ function mostColumns(counts: Iterable<RegExpMatchArray>): number {
 
 async function readDocx(buffer: Buffer): Promise<SoftwareView> {
   const { documentXml, headers, footers, appXml } = await readWordParts(buffer);
-  const headerFooterText = [...headers, ...footers].map(textOfWordXml).filter(Boolean).join("\n");
+  const headerFooterText = distinctTexts([...headers, ...footers].map(textOfWordXml)).join("\n");
 
   // Drawings with a picture in them. Text boxes and shapes are drawings too, without one.
   const images = [...documentXml.matchAll(/<w:drawing>([\s\S]*?)<\/w:drawing>/g)]
@@ -114,8 +115,7 @@ function odfPixels(length: string | undefined): number {
 
 async function readOdt(buffer: Buffer): Promise<SoftwareView> {
   const { contentXml, headers, footers, stylesXml, metaXml } = await readOdtParts(buffer);
-  // Page styles often repeat the same header for left and first pages.
-  const headerFooterText = [...new Set([...headers, ...footers].map(textOfOdtXml).filter((t) => t.trim()))].join("\n");
+  const headerFooterText = distinctTexts([...headers, ...footers].map(textOfOdtXml)).join("\n");
 
   // A frame holding a picture, up to the next frame tag: text boxes are frames too, and can hold image frames.
   const images = [...contentXml.matchAll(/<draw:frame\b([^>]*)>((?:(?!<\/?draw:frame\b)[\s\S])*)/g)]
@@ -156,8 +156,7 @@ function readRtf(buffer: Buffer): SoftwareView {
       tables,
       textBoxes,
       columns,
-      // Word keeps separate headers for the first page and left and right pages.
-      headerFooterText: [...new Set([...headers, ...footers].filter((t) => t.trim()))].join("\n"),
+      headerFooterText: distinctTexts([...headers, ...footers]).join("\n"),
     },
   };
 }

@@ -4,9 +4,7 @@ import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import { UnreadableFileError } from "@/lib/documents/document";
-import { readOdtText } from "@/lib/documents/odt-text";
-import { readRtfText } from "@/lib/documents/rtf-text";
-import { readWordText } from "@/lib/documents/word-text";
+import { readText } from "@/lib/documents/read-text";
 import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
 const splitProjectsSchema = z.object({
@@ -60,11 +58,7 @@ export async function splitProjects(
       { type: "text", text: `Filename: ${filename}` },
     ];
   } else {
-    const text =
-      kind === "rtf" ? readRtfText(buffer) : kind === "odt" ? await readOdtText(buffer) : await readWordText(buffer);
-    if (!text.trim()) {
-      throw new UnreadableFileError("Could not extract any text from the document");
-    }
+    const text = await readText(buffer, kind);
     content = [{ type: "text", text: `Filename: ${filename}\n\n${text}` }];
   }
 

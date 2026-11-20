@@ -4,7 +4,8 @@
  * headers and footers, like the .docx reader in `word-xml.ts`.
  */
 import JSZip from "jszip";
-import { decodeXml } from "./word-xml";
+import { joinDocumentText } from "./document-text";
+import { decodeXml } from "./xml";
 
 // A tag or a run of text. Comments, processing instructions and CDATA don't
 // appear in the parts LibreOffice and Google Docs write.
@@ -101,6 +102,9 @@ export async function readOdtParts(buffer: Buffer): Promise<OdtParts> {
  */
 export async function readOdtText(buffer: Buffer): Promise<string> {
   const { contentXml, headers, footers } = await readOdtParts(buffer);
-  const unique = (parts: string[]) => [...new Set(parts.map(textOfOdtXml).filter((t) => t.trim()))];
-  return [...unique(headers), textOfOdtXml(contentXml), ...unique(footers)].filter(Boolean).join("\n\n");
+  return joinDocumentText({
+    headers: headers.map(textOfOdtXml),
+    body: textOfOdtXml(contentXml),
+    footers: footers.map(textOfOdtXml),
+  });
 }
