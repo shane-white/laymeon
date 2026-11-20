@@ -67,6 +67,8 @@ export interface OdtParts {
   /** The XML of each page style's headers and footers, from styles.xml. */
   headers: string[];
   footers: string[];
+  /** styles.xml, where page styles set text columns. Empty if missing. */
+  stylesXml: string;
   /** meta.xml, where the page count is recorded. Empty if missing. */
   metaXml: string;
 }
@@ -90,7 +92,7 @@ export async function readOdtParts(buffer: Buffer): Promise<OdtParts> {
   for (const [, which, , xml] of stylesXml.matchAll(HEADER_FOOTER)) {
     (which === "header" ? headers : footers).push(xml);
   }
-  return { contentXml, headers, footers, metaXml };
+  return { contentXml, headers, footers, stylesXml, metaXml };
 }
 
 /**

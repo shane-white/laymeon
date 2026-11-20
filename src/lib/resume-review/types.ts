@@ -98,17 +98,17 @@ export const MAX_EVIDENCE = 5;
 
 /** What resume-reading software gets from the file. */
 export interface SoftwareView {
-  format: "pdf" | "docx";
+  format: "pdf" | "docx" | "odt" | "rtf";
   /** All the body text, in the order software reads it. */
   text: string;
   /** Text per page (PDF only). */
   pages: string[] | null;
-  /** Null when the file doesn't say (DOCX saved without page statistics). */
+  /** Null when the file doesn't say (a .docx, .odt or .rtf saved without page statistics). */
   pageCount: number | null;
-  /** Images in the file. `page` is null for DOCX, which has no fixed pages. */
+  /** Images in the file, in pixels. `page` is null for editor files, which have no fixed pages. */
   images: { page: number | null; width: number; height: number }[];
-  /** Layout elements that many parsers skip or misread (DOCX only). */
-  docx: {
+  /** Layout elements that many parsers skip or misread (.docx, .odt and .rtf; null for PDF). */
+  layout: {
     tables: number;
     textBoxes: number;
     /** The most text columns any section of the document uses. */
