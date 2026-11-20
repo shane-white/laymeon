@@ -53,7 +53,7 @@ async function finish(deps: DocumentDeps, documents: Document[], changed: Docume
  * be uploaded. Readers, storage and the saved Document all use that type, even
  * when the browser gave the file none.
  */
-function checkFile(file: File): File | Failure {
+function normaliseUpload(file: File): File | Failure {
   const problem = uploadProblem(file);
   if (problem) return failure(problem === FILE_TOO_LARGE_MESSAGE ? "too_large" : "unsupported_type", problem);
   const type = resolveType(file) ?? file.type;
@@ -151,7 +151,7 @@ export async function addUploadedDocument(deps: DocumentDeps, input: UploadInput
     return failure("invalid", "Invalid document type");
   }
   if (!input.file) return failure("invalid", "No file provided");
-  const file = checkFile(input.file);
+  const file = normaliseUpload(input.file);
   if (isFailure(file)) return file;
 
   let existing: number;
@@ -250,7 +250,7 @@ export async function addWrittenExampleWork(
  */
 export async function importExampleWorks(deps: DocumentDeps, input: { file: File | null }): Promise<DocumentResult> {
   if (!input.file) return failure("invalid", "No file provided");
-  const file = checkFile(input.file);
+  const file = normaliseUpload(input.file);
   if (isFailure(file)) return file;
 
   const room = await exampleWorkRoom(deps);
@@ -317,7 +317,7 @@ export async function replaceFile(deps: DocumentDeps, id: string, input: { file:
     return failure("invalid", "Only uploaded resumes and cover letters can have their file replaced");
   }
   if (!input.file) return failure("invalid", "No file provided");
-  const file = checkFile(input.file);
+  const file = normaliseUpload(input.file);
   if (isFailure(file)) return file;
 
   const markdown = await readFile(() => deps.reader.toMarkdown(file));

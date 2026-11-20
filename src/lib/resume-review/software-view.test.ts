@@ -1,19 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { makeRtf, rtfFrame, rtfPicture, rtfTableRow, rtfTextBox } from "@/lib/documents/__fixtures__/rtf-files";
+import { makeOdt, odtImage, odtPara, odtTable, odtTextBox } from "@/lib/documents/__fixtures__/odt-files";
 import { ODT_MIME, RTF_MIME } from "@/lib/documents/file-format";
-import {
-  makeDocx,
-  makeOdt,
-  makePdf,
-  odtImage,
-  odtPara,
-  odtTable,
-  odtTextBox,
-  para,
-  table,
-  textBox,
-} from "./__fixtures__/files";
+import { makeDocx, makePdf, para, table, textBox } from "./__fixtures__/files";
 import { DOCX, PDF } from "./__fixtures__/helpers";
 import { readAsSoftware } from "./software-view";
 

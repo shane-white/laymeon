@@ -38,9 +38,6 @@ const RESUMES_DIR = join(__dirname, "resumes");
 const RESULTS_DIR = join(RESUMES_DIR, "results");
 const CACHE_DIR = join(RESUMES_DIR, ".cache");
 
-/** The MIME type for a resume file, from its extension, or null if LayMeOn doesn't accept it. */
-const mimeTypeOf = (file: string) => resolveType({ type: "", name: file });
-
 const LABELS: Record<CheckResult["label"], string> = {
   good: "Good",
   could_improve: "Could improve",
@@ -102,7 +99,8 @@ function formatResults(file: string, checks: AnyCheck[], markdown: string, revie
 async function reviewFile(path: string, options: Options): Promise<void> {
   const { withStory, full, fresh, targetRole, asOf } = options;
   const file = basename(path);
-  const mimeType = mimeTypeOf(path);
+  // From the extension; null if LayMeOn doesn't accept the file.
+  const mimeType = resolveType({ type: "", name: path });
   if (!mimeType) {
     console.log(`\n${file}: skipped (not a PDF, Word, RTF or ODT file)`);
     return;
@@ -171,7 +169,7 @@ async function main() {
   const files = named.length
     ? named.map((f) => resolve(f))
     : readdirSync(RESUMES_DIR)
-        .filter((f) => mimeTypeOf(f))
+        .filter((f) => resolveType({ type: "", name: f }))
         .map((f) => join(RESUMES_DIR, f));
 
   if (files.length === 0) {

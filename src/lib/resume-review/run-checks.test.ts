@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { makeOdt, odtPara, odtTextBox } from "@/lib/documents/__fixtures__/odt-files";
 import { makeRtf, rtfTableRow } from "@/lib/documents/__fixtures__/rtf-files";
 import { ODT_MIME, RTF_MIME } from "@/lib/documents/file-format";
-import { makeDocx, makeOdt, makePdf, odtPara, odtTextBox, para } from "./__fixtures__/files";
+import { makeDocx, makePdf, para } from "./__fixtures__/files";
 import { DOCX, PDF, result } from "./__fixtures__/helpers";
 import { GOOD_RESUME_LINES, input } from "./__fixtures__/resumes";
 import { runCodeChecks } from "./run-checks";

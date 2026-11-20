@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ODT_MIME } from "@/lib/documents/file-format";
-import { makeOdt } from "@/lib/resume-review/__fixtures__/files";
+import { makeOdt } from "@/lib/documents/__fixtures__/odt-files";
 
 // Claude is the boundary: record what it's sent and answer with fixed text.
 const create = vi.fn();

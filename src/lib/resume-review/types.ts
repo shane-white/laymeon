@@ -3,6 +3,7 @@
  * ID. The report stores IDs, and the slides look up "Read further" sources by
  * ID, so an ID must never change meaning. Add a new ID instead.
  */
+import type { FileKind } from "@/lib/documents/file-format";
 import type { Extraction } from "@/lib/profile/schema";
 
 /** The report's sections, in slide order. */
@@ -98,7 +99,8 @@ export const MAX_EVIDENCE = 5;
 
 /** What resume-reading software gets from the file. */
 export interface SoftwareView {
-  format: "pdf" | "docx" | "odt" | "rtf";
+  /** The accepted file kinds, except that only .docx is read of the Word kind (not the old .doc). */
+  format: Exclude<FileKind, "word" | "unsupported"> | "docx";
   /** All the body text, in the order software reads it. */
   text: string;
   /** Text per page (PDF only). */

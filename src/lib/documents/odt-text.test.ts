@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { makeOdt, odtPara } from "@/lib/resume-review/__fixtures__/files";
+import { makeOdt, odtPara } from "./__fixtures__/odt-files";
 import { readOdtText } from "./odt-text";
 
 /** A paragraph with a line break (Shift+Enter), a tab and repeated spaces, as LibreOffice saves them. */
