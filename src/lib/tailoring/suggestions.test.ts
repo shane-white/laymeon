@@ -4,6 +4,7 @@ import {
   add,
   careerStory,
   memoryCareerStory,
+  memoryExampleWorks,
   memoryJobs,
   memoryTailoringStore,
   requirement,
@@ -34,7 +35,7 @@ const story = careerStory();
 function setup(job: TailoringJob, suggestions: NonNullable<Parameters<typeof scriptedSteps>[0]>["suggestions"] = []) {
   const steps = scriptedSteps({ markdown: MARKDOWN, suggestions });
   const store = memoryTailoringStore();
-  const deps: TailoringDeps = { jobs: memoryJobs(job), store, steps, careerStory: memoryCareerStory(story.profile) };
+  const deps: TailoringDeps = { jobs: memoryJobs(job), store, steps, careerStory: memoryCareerStory(story.profile), exampleWorks: memoryExampleWorks() };
   return { deps, steps, store };
 }
 

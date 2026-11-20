@@ -6,10 +6,13 @@ import type { CareerStoryRef, MatchReport, Requirement } from "@/lib/match-repor
 import { buildProfile } from "@/lib/profile/build";
 import type { CareerProfile } from "@/lib/profile/schema";
 import type {
+  AddedExampleWork,
+  ExampleWorkInput,
   NewTailoring,
   SuggestionRequest,
   Tailoring,
   TailoringCareerStory,
+  TailoringExampleWorks,
   TailoringItem,
   TailoringJob,
   TailoringJobs,
@@ -219,6 +222,27 @@ Skills: SQL, Payments`;
       if (!item) throw new Error(`No ${section} ${name} in the test Career Story`);
       return { section, key: item.key, label: name, byUser: false };
     },
+  };
+}
+
+/**
+ * Example Works added in memory, with IDs `example-work-1`, `example-work-2`
+ * and so on. Pass a failure to answer every add with it, or an error to throw it.
+ */
+export function memoryExampleWorks(fail?: Extract<AddedExampleWork, { ok: false }> | Error): TailoringExampleWorks & {
+  /** The Example Works added, in order. */
+  added(): ({ documentId: string } & ExampleWorkInput)[];
+} {
+  const added: ({ documentId: string } & ExampleWorkInput)[] = [];
+  return {
+    async add(input) {
+      if (fail instanceof Error) throw fail;
+      if (fail) return fail;
+      const documentId = `example-work-${added.length + 1}`;
+      added.push({ documentId, ...input });
+      return { ok: true, documentId, title: input.title };
+    },
+    added: () => [...added],
   };
 }
 

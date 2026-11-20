@@ -71,6 +71,26 @@ describe("writeSuggestions", () => {
     expect(sent).toContain("Only reword");
   });
 
+  it("sends an Example Work the user wrote for a gap as the item's only source", async () => {
+    answer(json([entry(1, { kind: "add", section: "Experience", text: "- Moved services onto Kubernetes" })]));
+
+    const written = await claudeSteps.writeSuggestions(MARKDOWN, [
+      {
+        itemId: "item-k",
+        target: { kind: "requirement", text: "Kubernetes", importance: "must_have", category: "skill", match: "missing" },
+        basis: "example_work",
+        sources: [{ label: "Cluster migration", quotes: ["I moved our services onto Kubernetes. Deploys went from an hour to ten minutes."] }],
+      },
+    ]);
+
+    expect(written).toMatchObject([{ itemId: "item-k", kind: "add", section: "Experience" }]);
+    const sent = create.mock.calls[0][0].messages[0].content as string;
+    expect(sent).toContain("Example Work");
+    expect(sent).toContain("Cluster migration");
+    expect(sent).toContain("I moved our services onto Kubernetes. Deploys went from an hour to ten minutes.");
+    expect(sent).not.toContain("Only reword");
+  });
+
   it("asks once more when a quote or section isn't in the Markdown, or an item is unknown or repeated", async () => {
     answer(json([entry(1, { quote: "Shipped invoicing" }), entry(1, { quote: "SQL" }), entry(3, { quote: "SQL" }), entry(2, { kind: "add", section: "Projects" })]));
     answer(json([entry(1, { quote: "Shipped billing" })]));

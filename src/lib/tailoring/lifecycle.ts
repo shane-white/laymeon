@@ -3,12 +3,14 @@
  * throw: every seam call is wrapped and turned into a `Failure`. Routes only
  * check who's signed in and send back the result (see `http.ts`).
  */
-import { newItems, suggestionRequests, withSuggestions } from "./items";
+import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
+import { exampleWorkRequest, exampleWorkSuggestion, newItems, suggestionRequests, withSuggestions } from "./items";
 import {
   failure,
   MAX_DECISION_TEXT_LENGTH,
   TAILORING_VERSION,
   type Decision,
+  type ExampleWorkInput,
   type Failure,
   type StartBlocker,
   type Tailoring,
@@ -224,5 +226,81 @@ export async function decide(
   } catch (err) {
     console.error("Couldn't save a Tailoring decision", err);
     return failure("save_failed", "Couldn't save your decision. Please try again.");
+  }
+}
+
+/** Why the Example Work can't be added as it is, or null if it can. */
+function exampleWorkProblem({ title, description }: ExampleWorkInput): string | null {
+  if (!title) return "Give the project a title.";
+  if (!description) return "Describe the project.";
+  if (title.length > MAX_PROJECT_TITLE_LENGTH) return `Keep the title to ${MAX_PROJECT_TITLE_LENGTH} characters.`;
+  if (description.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
+    return `Keep the description to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString("en-US")} characters.`;
+  }
+  return null;
+}
+
+const NO_GAP_SUGGESTION_MESSAGE =
+  "Your project is saved in your Example Works, but we couldn't write a Suggestion from it. It will show in your next Match Report.";
+
+/**
+ * Fills a gap in the Job's Tailoring for its current Resume: adds the user's
+ * written Example Work (which requests a Rebuild, without waiting for it),
+ * then writes the item's Suggestion from it, with the Example Work as its
+ * Evidence. The item stops being a gap, and its decision is reset to
+ * undecided. Works on a Tailoring that's an Earlier version, and doesn't make
+ * it one. If no Suggestion can be written, the Example Work stays added.
+ */
+export async function fillGap(
+  deps: TailoringDeps,
+  jobId: string,
+  itemId: string,
+  input: ExampleWorkInput,
+): Promise<TailoringResult> {
+  const job = await findJob(deps, jobId);
+  if (isFailure(job)) return job;
+  const tailoring = await findTailoring(deps, job);
+  if (isFailure(tailoring)) return tailoring;
+  const item = tailoring?.items.find((i) => i.id === itemId);
+  if (!tailoring || !item) return failure("not_found", "This item is no longer in your Tailoring. Reload the page.");
+  if (!item.gap) return failure("invalid_example_work", "This item already has a Suggestion.");
+
+  const exampleWork = { title: input.title.trim(), description: input.description.trim() };
+  const problem = exampleWorkProblem(exampleWork);
+  if (problem) return failure("invalid_example_work", problem);
+
+  let added;
+  try {
+    added = await deps.exampleWorks.add(exampleWork);
+  } catch (err) {
+    console.error("Couldn't add an Example Work for a Tailoring gap", err);
+    return failure("save_failed", "Couldn't save your project. Please try again.");
+  }
+  if (!added.ok) return failure(added.invalid ? "invalid_example_work" : "save_failed", added.message);
+
+  let suggestion;
+  try {
+    const written = await deps.steps.writeSuggestions(tailoring.markdown, [exampleWorkRequest(item, exampleWork)]);
+    suggestion = exampleWorkSuggestion(item, written, tailoring.markdown, { documentId: added.documentId, title: added.title });
+  } catch (err) {
+    console.error("Couldn't write a Suggestion from an Example Work", err);
+    return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
+  }
+  if (!suggestion) return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
+
+  // Read again: decisions may have been saved while Claude wrote.
+  const current = await findTailoring(deps, job);
+  if (isFailure(current)) return current;
+  if (current?.id !== tailoring.id || !current.items.some((i) => i.id === itemId)) {
+    return failure("not_found", "This item is no longer in your Tailoring. Reload the page.");
+  }
+  try {
+    const items = current.items.map((i) =>
+      i.id === itemId ? { ...i, suggestion, gap: false, decision: { status: "undecided" as const } } : i,
+    );
+    return state(job, await deps.store.saveItems(current.id, items));
+  } catch (err) {
+    console.error("Couldn't save a Tailoring gap's Suggestion", err);
+    return failure("save_failed", "Your project is saved in your Example Works, but we couldn't save its Suggestion. Please reload the page.");
   }
 }

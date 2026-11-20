@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tailoringDeps } from "@/lib/tailoring/deps";
 import {
   memoryCareerStory,
+  memoryExampleWorks,
   memoryJobs,
   memoryTailoringStore,
   requirement,
@@ -40,7 +41,7 @@ beforeEach(() => {
     suggestions: [rewrite("Roadmapping", "Ran weekly planning", "Ran weekly roadmap planning")],
   });
   const job = withReport(tailoringJob(), { requirements: [requirement("Roadmapping", { match: "partial" })] });
-  deps = { jobs: memoryJobs(job), store: memoryTailoringStore(), steps, careerStory: memoryCareerStory() };
+  deps = { jobs: memoryJobs(job), store: memoryTailoringStore(), steps, careerStory: memoryCareerStory(), exampleWorks: memoryExampleWorks() };
   vi.mocked(tailoringDeps).mockReturnValue(deps);
   signIn({ id: "u1" });
 });

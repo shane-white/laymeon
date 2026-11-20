@@ -99,14 +99,13 @@ export function suggestionRequests(items: TailoringItem[], profile: CareerProfil
 /**
  * The Suggestion Claude wrote, with its quotes and heading exactly as they are
  * in the Markdown, or null if any of them isn't there or it's otherwise
- * unusable.
+ * unusable. `evidence` gives its Evidence, given a Rewrite's quote.
  */
 function checked(
   written: WrittenSuggestion,
-  request: SuggestionRequest,
-  item: TailoringItem,
+  basis: SuggestionRequest["basis"],
   markdown: string,
-  profile: CareerProfile | null,
+  evidence: (rewriteQuote: string | null) => SuggestionEvidence[],
 ): Suggestion | null {
   const text = written.text.trim();
   const why = written.why.trim();
@@ -115,19 +114,15 @@ function checked(
     const span = findQuote(markdown, quote);
     return span && markdown.slice(span.start, span.end);
   };
-  const careerStoryEvidence = (): SuggestionEvidence[] =>
-    item.careerStory.map((ref) => ({ source: "career_story", ...ref, quotes: quotesOf(ref, profile) }));
 
   if (written.kind === "rewrite") {
     const quote = quoted(written.quote);
     if (!quote || normalizeText(quote) === normalizeText(text)) return null;
-    const evidence: SuggestionEvidence[] =
-      request.basis === "resume" ? [{ source: "resume", quote }] : careerStoryEvidence();
-    return { kind: "rewrite", quote, text, why, evidence };
+    return { kind: "rewrite", quote, text, why, evidence: evidence(quote) };
   }
 
   // A rewording Suggestion can only reword what's there.
-  if (request.basis === "resume") return null;
+  if (basis === "resume") return null;
   let anchor: AddAnchor | null = null;
   if (written.quote.trim()) {
     const quote = quoted(written.quote);
@@ -137,7 +132,22 @@ function checked(
     anchor = heading ? { type: "section", heading } : null;
   }
   if (!anchor) return null;
-  return { kind: "add", anchor, text, why, evidence: careerStoryEvidence() };
+  return { kind: "add", anchor, text, why, evidence: evidence(null) };
+}
+
+/** The first of the written Suggestions for the item that's usable, or null. */
+function firstUsable(
+  item: TailoringItem,
+  written: WrittenSuggestion[],
+  basis: SuggestionRequest["basis"],
+  markdown: string,
+  evidence: (rewriteQuote: string | null) => SuggestionEvidence[],
+): Suggestion | null {
+  for (const w of written.filter((w) => w.itemId === item.id)) {
+    const suggestion = checked(w, basis, markdown, evidence);
+    if (suggestion) return suggestion;
+  }
+  return null;
 }
 
 /**
@@ -156,13 +166,34 @@ export function withSuggestions(
 ): TailoringItem[] {
   return items.map((item) => {
     const request = requests.find((r) => r.itemId === item.id);
-    let suggestion: Suggestion | null = null;
-    if (request) {
-      for (const w of written.filter((w) => w.itemId === item.id)) {
-        suggestion = checked(w, request, item, markdown, profile);
-        if (suggestion) break;
-      }
-    }
+    const evidence = (rewriteQuote: string | null): SuggestionEvidence[] =>
+      request?.basis === "resume" && rewriteQuote
+        ? [{ source: "resume", quote: rewriteQuote }]
+        : item.careerStory.map((ref) => ({ source: "career_story", ...ref, quotes: quotesOf(ref, profile) }));
+    const suggestion = request ? firstUsable(item, written, request.basis, markdown, evidence) : null;
     return { ...item, suggestion, gap: request?.basis !== "career_story" || suggestion === null };
   });
+}
+
+/** What to ask Claude for to fill a gap: a Suggestion based only on the Example Work the user wrote for it. */
+export function exampleWorkRequest(item: TailoringItem, exampleWork: { title: string; description: string }): SuggestionRequest {
+  return {
+    itemId: item.id,
+    target: item.target,
+    basis: "example_work",
+    sources: [{ label: exampleWork.title, quotes: [exampleWork.description] }],
+  };
+}
+
+/**
+ * The gap's Suggestion from the ones Claude wrote for its Example Work, with
+ * the Example Work as its Evidence, or null if none is usable.
+ */
+export function exampleWorkSuggestion(
+  item: TailoringItem,
+  written: WrittenSuggestion[],
+  markdown: string,
+  exampleWork: { documentId: string; title: string },
+): Suggestion | null {
+  return firstUsable(item, written, "example_work", markdown, () => [{ source: "example_work", ...exampleWork }]);
 }

@@ -1,7 +1,7 @@
 /** Sends a Tailoring operation's result from a route, and reads what routes are sent. */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { Decision, FailureKind, TailoringResult } from "./tailoring";
+import type { Decision, ExampleWorkInput, FailureKind, TailoringResult } from "./tailoring";
 
 /** The body of a request to save a decision: `{ itemId, decision }`. */
 export const decisionRequestSchema = z.object({
@@ -12,12 +12,20 @@ export const decisionRequestSchema = z.object({
   ]),
 }) satisfies z.ZodType<{ itemId: string; decision: Decision }>;
 
+/** The body of a request to fill a gap with an Example Work: `{ itemId, title, description }`. */
+export const exampleWorkRequestSchema = z.object({
+  itemId: z.string().min(1),
+  title: z.string(),
+  description: z.string(),
+}) satisfies z.ZodType<{ itemId: string } & ExampleWorkInput>;
+
 const STATUS: Record<FailureKind, number> = {
   not_found: 404,
   no_resume: 409,
   no_match_report: 409,
   match_report_earlier_version: 409,
   invalid_decision: 400,
+  invalid_example_work: 400,
   step_failed: 502,
   save_failed: 500,
 };

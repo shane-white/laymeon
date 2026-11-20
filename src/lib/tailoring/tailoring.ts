@@ -36,7 +36,7 @@ export interface EvidenceQuote {
  *   with its Evidence quotes (none for time in a role, or for an item the user
  *   added themselves).
  * - `resume`: the Resume's own text, for a rewording Suggestion.
- * - `example_work`: an Example Work the user wrote for a gap (LAY-102).
+ * - `example_work`: an Example Work the user wrote for a gap.
  */
 export type SuggestionEvidence =
   | ({ source: "career_story"; quotes: EvidenceQuote[] } & CareerStoryRef)
@@ -183,8 +183,10 @@ export interface SuggestionRequest {
   /**
    * `career_story`: write from `sources`, as a Rewrite or an Add.
    * `resume`: only reword what the Resume already says, as a Rewrite.
+   * `example_work`: write from the Example Work the user just wrote for a
+   *   gap (its title and description are the one source), as a Rewrite or an Add.
    */
-  basis: "career_story" | "resume";
+  basis: "career_story" | "resume" | "example_work";
   /** What the Suggestion may draw on: each source's label and its Evidence quotes. */
   sources: { label: string; quotes: string[] }[];
 }
@@ -209,17 +211,41 @@ export interface TailoringSteps {
   writeSuggestions(markdown: string, requests: SuggestionRequest[]): Promise<WrittenSuggestion[]>;
 }
 
+/** A written Example Work, as the user gives it for a gap. */
+export interface ExampleWorkInput {
+  title: string;
+  description: string;
+}
+
+/** The outcome of adding an Example Work. */
+export type AddedExampleWork =
+  | { ok: true; documentId: string; title: string }
+  /** `invalid`: the user can fix it (for example, too long, or too many Example Works). */
+  | { ok: false; invalid: boolean; message: string };
+
+/** Adds the signed-in user's written Example Works, through the Document lifecycle (which requests a Rebuild). */
+export interface TailoringExampleWorks {
+  add(input: ExampleWorkInput): Promise<AddedExampleWork>;
+}
+
 export interface TailoringDeps {
   jobs: TailoringJobs;
   store: TailoringStore;
   steps: TailoringSteps;
   careerStory: TailoringCareerStory;
+  exampleWorks: TailoringExampleWorks;
 }
 
 /** Why a Tailoring can't be started. */
 export type StartBlocker = "no_resume" | "no_match_report" | "match_report_earlier_version";
 
-export type FailureKind = "not_found" | StartBlocker | "invalid_decision" | "step_failed" | "save_failed";
+export type FailureKind =
+  | "not_found"
+  | StartBlocker
+  | "invalid_decision"
+  | "invalid_example_work"
+  | "step_failed"
+  | "save_failed";
 
 export interface Failure {
   ok: false;

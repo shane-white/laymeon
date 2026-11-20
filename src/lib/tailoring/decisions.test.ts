@@ -3,6 +3,7 @@ import { decide, getTailoring, startOver, startTailoring } from "./lifecycle";
 import {
   careerStory,
   memoryCareerStory,
+  memoryExampleWorks,
   memoryJobs,
   memoryTailoringStore,
   requirement,
@@ -32,7 +33,7 @@ async function setup(options: { failSaveItems?: boolean } = {}) {
     ],
   });
   const store = memoryTailoringStore(options);
-  const deps: TailoringDeps = { jobs: memoryJobs(job), store, steps, careerStory: memoryCareerStory(story.profile) };
+  const deps: TailoringDeps = { jobs: memoryJobs(job), store, steps, careerStory: memoryCareerStory(story.profile), exampleWorks: memoryExampleWorks() };
   const result = await startTailoring(deps, "job-1");
   if (!result.ok || !result.tailoring) throw new Error("Didn't start");
   const idOf = (text: string) => result.tailoring!.items.find((i) => i.target.text === text)!.id;

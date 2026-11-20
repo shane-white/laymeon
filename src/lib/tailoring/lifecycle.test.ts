@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { getTailoring, startOver, startTailoring } from "./lifecycle";
-import { memoryCareerStory, memoryJobs, memoryTailoringStore, scriptedSteps, tailoringJob } from "./testing";
+import { memoryCareerStory, memoryExampleWorks, memoryJobs, memoryTailoringStore, scriptedSteps, tailoringJob } from "./testing";
 import type { TailoringJob } from "./tailoring";
 
 function setup(job: TailoringJob = tailoringJob(), steps = scriptedSteps({ markdown: "## Experience" })) {
   const jobs = memoryJobs(job);
   const store = memoryTailoringStore();
-  return { deps: { jobs, store, steps, careerStory: memoryCareerStory() }, jobs, store, steps };
+  return { deps: { jobs, store, steps, careerStory: memoryCareerStory(), exampleWorks: memoryExampleWorks() }, jobs, store, steps };
 }
 
 describe("getTailoring", () => {
@@ -214,19 +214,19 @@ describe("when a step or the store fails", () => {
   });
 
   it("fails when the Tailoring can't be saved", async () => {
-    const deps = { jobs: memoryJobs(tailoringJob()), store: memoryTailoringStore({ failSave: true }), steps: scriptedSteps(), careerStory: memoryCareerStory() };
+    const deps = { jobs: memoryJobs(tailoringJob()), store: memoryTailoringStore({ failSave: true }), steps: scriptedSteps(), careerStory: memoryCareerStory(), exampleWorks: memoryExampleWorks() };
     expect(await startTailoring(deps, "job-1")).toMatchObject({ ok: false, kind: "save_failed" });
   });
 
   it("fails when the Tailoring can't be loaded", async () => {
-    const deps = { jobs: memoryJobs(tailoringJob()), store: memoryTailoringStore({ failFind: true }), steps: scriptedSteps(), careerStory: memoryCareerStory() };
+    const deps = { jobs: memoryJobs(tailoringJob()), store: memoryTailoringStore({ failFind: true }), steps: scriptedSteps(), careerStory: memoryCareerStory(), exampleWorks: memoryExampleWorks() };
     expect(await getTailoring(deps, "job-1")).toMatchObject({ ok: false, kind: "save_failed" });
     expect(await startTailoring(deps, "job-1")).toMatchObject({ ok: false, kind: "save_failed" });
   });
 
   it("fails when the Job can't be loaded", async () => {
     const jobs = { find: async () => Promise.reject(new Error("db down")) };
-    const deps = { jobs, store: memoryTailoringStore(), steps: scriptedSteps(), careerStory: memoryCareerStory() };
+    const deps = { jobs, store: memoryTailoringStore(), steps: scriptedSteps(), careerStory: memoryCareerStory(), exampleWorks: memoryExampleWorks() };
     expect(await getTailoring(deps, "job-1")).toMatchObject({ ok: false, kind: "save_failed" });
   });
 });
