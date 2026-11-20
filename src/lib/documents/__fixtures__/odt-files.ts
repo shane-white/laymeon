@@ -32,6 +32,19 @@ export function odtTextBox(lines: string[]): string {
   return `<text:p text:style-name="Standard"><draw:frame draw:style-name="fr1" draw:name="Frame1" text:anchor-type="paragraph" svg:width="5cm" draw:z-index="0"><draw:text-box fo:min-height="2cm">${lines.map(odtPara).join("")}</draw:text-box></draw:frame></text:p>`;
 }
 
+/** A section of the body, styled by an automatic style such as `odtColumnsStyle`'s. */
+export function odtSection(styleName: string, lines: string[]): string {
+  return `<text:section text:style-name="${styleName}" text:name="Section1">${lines.map(odtPara).join("")}</text:section>`;
+}
+
+/**
+ * An automatic style with text columns, for content.xml: "section" for a
+ * section, "graphic" for a frame such as a text box (`odtTextBox` uses "fr1").
+ */
+export function odtColumnsStyle(name: string, family: "section" | "graphic", columns: number): string {
+  return `<style:style style:name="${name}" style:family="${family}"><style:${family}-properties><style:columns fo:column-count="${columns}" fo:column-gap="0.5cm"/></style:${family}-properties></style:style>`;
+}
+
 /** An image anchored to a paragraph, sized the way LibreOffice writes it ("3cm", "1.5in"). */
 export function odtImage(width: string, height: string): string {
   return `<text:p text:style-name="Standard"><draw:frame draw:style-name="fr2" draw:name="Image1" text:anchor-type="paragraph" svg:width="${width}" svg:height="${height}" draw:z-index="1"><draw:image xlink:href="Pictures/photo.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" draw:mime-type="image/png"/></draw:frame></text:p>`;
@@ -46,6 +59,8 @@ interface OdtOptions {
   pages?: number;
   /** Text columns, set in the page style. */
   columns?: number;
+  /** Automatic styles in content.xml, such as `odtColumnsStyle`'s. */
+  styles?: string[];
 }
 
 /** An .odt file laid out the way LibreOffice Writer saves one. */
@@ -59,7 +74,7 @@ export async function makeOdt(options: OdtOptions): Promise<Buffer> {
   );
   zip.file(
     "content.xml",
-    `<?xml version="1.0" encoding="UTF-8"?><office:document-content ${ODF_NS}><office:scripts/><office:automatic-styles/><office:body><office:text><text:sequence-decls><text:sequence-decl text:display-outline-level="0" text:name="Illustration"/><text:sequence-decl text:display-outline-level="0" text:name="Table"/></text:sequence-decls>${options.body}</office:text></office:body></office:document-content>`,
+    `<?xml version="1.0" encoding="UTF-8"?><office:document-content ${ODF_NS}><office:scripts/><office:automatic-styles>${options.styles?.join("") ?? ""}</office:automatic-styles><office:body><office:text><text:sequence-decls><text:sequence-decl text:display-outline-level="0" text:name="Illustration"/><text:sequence-decl text:display-outline-level="0" text:name="Table"/></text:sequence-decls>${options.body}</office:text></office:body></office:document-content>`,
   );
   const header = options.header?.length ? `<style:header>${options.header.map(odtPara).join("")}</style:header>` : "";
   const footer = options.footer?.length ? `<style:footer>${options.footer.map(odtPara).join("")}</style:footer>` : "";

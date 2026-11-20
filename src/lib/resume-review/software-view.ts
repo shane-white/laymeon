@@ -113,6 +113,34 @@ function odfPixels(length: string | undefined): number {
   return m && m[2] in PIXELS_PER_UNIT ? Math.round(Number(m[1]) * PIXELS_PER_UNIT[m[2]]) : 0;
 }
 
+// A named style or page layout, up to its closing tag. Neither nests.
+const ODF_STYLE = /<(style:style|style:page-layout)\b([^>]*?)(?<!\/)>([\s\S]*?)<\/\1>/g;
+
+/**
+ * The most text columns the pages or a section of the body use, and at least
+ * one. Page layouts count when a master page uses them, section styles when a
+ * section in the body does. Frames such as text boxes can set columns too,
+ * but those aren't the page's.
+ */
+function odtColumns(contentXml: string, stylesXml: string): number {
+  const used = new Set([
+    ...[...stylesXml.matchAll(/<style:master-page\b[^>]*\bstyle:page-layout-name="([^"]*)"/g)].map((m) => `page:${m[1]}`),
+    ...[...contentXml.matchAll(/<text:section\b[^>]*\btext:style-name="([^"]*)"/g)].map((m) => `section:${m[1]}`),
+  ]);
+  const counts = [...(stylesXml + contentXml).matchAll(ODF_STYLE)].flatMap(([, element, attributes, inner]) => {
+    const name = /\bstyle:name="([^"]*)"/.exec(attributes)?.[1];
+    const key =
+      element === "style:page-layout"
+        ? `page:${name}`
+        : /\bstyle:family="section"/.test(attributes)
+          ? `section:${name}`
+          : null;
+    const count = /\bfo:column-count="(\d+)"/.exec(inner)?.[1];
+    return key && used.has(key) && count ? [Number(count)] : [];
+  });
+  return Math.max(1, ...counts);
+}
+
 async function readOdt(buffer: Buffer): Promise<SoftwareView> {
   const { contentXml, headers, footers, stylesXml, metaXml } = await readOdtParts(buffer);
   const headerFooterText = distinctTexts([...headers, ...footers].map(textOfOdtXml)).join("\n");
@@ -137,8 +165,7 @@ async function readOdt(buffer: Buffer): Promise<SoftwareView> {
     layout: {
       tables: contentXml.match(/<table:table[\s>]/g)?.length ?? 0,
       textBoxes: contentXml.match(/<draw:text-box\b/g)?.length ?? 0,
-      // Page styles (styles.xml) and sections (content.xml) can both set columns.
-      columns: mostColumns((contentXml + stylesXml).matchAll(/\bfo:column-count="(\d+)"/g)),
+      columns: odtColumns(contentXml, stylesXml),
       headerFooterText,
     },
   };

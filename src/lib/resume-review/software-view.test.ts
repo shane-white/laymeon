@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { makeRtf, rtfFrame, rtfPicture, rtfTableRow, rtfTextBox } from "@/lib/documents/__fixtures__/rtf-files";
-import { makeOdt, odtImage, odtPara, odtTable, odtTextBox } from "@/lib/documents/__fixtures__/odt-files";
+import {
+  makeOdt,
+  odtColumnsStyle,
+  odtImage,
+  odtPara,
+  odtSection,
+  odtTable,
+  odtTextBox,
+} from "@/lib/documents/__fixtures__/odt-files";
 import { ODT_MIME, RTF_MIME } from "@/lib/documents/file-format";
 import { makeDocx, makePdf, para, table, textBox } from "./__fixtures__/files";
 import { DOCX, PDF } from "./__fixtures__/helpers";
@@ -88,6 +96,26 @@ describe("readAsSoftware: ODT", () => {
     expect(view?.images).toEqual([]);
     // The body only: software that skips headers and footers reads just this.
     expect(view?.text).toBe("Jane Doe\nSidebar\nSkills\nPython");
+  });
+
+  it("finds columns in a section of the body", async () => {
+    const view = await readAsSoftware(
+      await makeOdt({
+        body: odtPara("Jane Doe") + odtSection("Sect1", ["Python", "Figma"]),
+        styles: [odtColumnsStyle("Sect1", "section", 2), odtColumnsStyle("Sect2", "section", 3)],
+      }),
+      ODT_MIME,
+    );
+    // Sect2 isn't used.
+    expect(view?.layout?.columns).toBe(2);
+  });
+
+  it("doesn't count columns inside a text box as the page's columns", async () => {
+    const view = await readAsSoftware(
+      await makeOdt({ body: odtPara("Jane Doe") + odtTextBox(["Python", "Figma"]), styles: [odtColumnsStyle("fr1", "graphic", 2)] }),
+      ODT_MIME,
+    );
+    expect(view?.layout).toMatchObject({ textBoxes: 1, columns: 1 });
   });
 
   it("finds images bigger than an icon, in pixels", async () => {
