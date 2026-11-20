@@ -22,6 +22,8 @@ export interface JobListing {
 export interface AnalysisDocumentsEntry {
   resume_id: string;
   resume_name: string;
+  /** `resumeContentHash` of the Resume then. Missing on analyses saved before LAY-99. */
+  resume_content_hash?: string;
   cover_letter_id: string | null;
   cover_letter_name: string | null;
   generated_at: string;

@@ -9,6 +9,8 @@ export interface JobDocument {
   target_role: string | null;
   is_default: boolean;
   parsed_markdown: string | null;
+  /** Where its file is kept. Part of its Source material's identity (`resumeContentHash`). */
+  storage_path: string | null;
 }
 
 export interface JobDocuments {
@@ -26,11 +28,11 @@ export interface JobDocumentSelection {
  * documents, falling back to the default when nothing is selected or the
  * selection is gone (deleted, or the wrong type).
  */
-export function pickDocument(
+export function pickDocument<T extends JobDocument>(
   selectedId: string | null,
-  docs: JobDocument[],
+  docs: T[],
   type: DocumentType,
-): JobDocument | null {
+): T | null {
   const ofType = docs.filter((d) => d.document_type === type);
   if (selectedId) {
     const selected = ofType.find((d) => d.id === selectedId);
@@ -47,7 +49,7 @@ export async function resolveJobDocuments(
 ): Promise<JobDocuments> {
   const { data, error } = await supabase
     .from("documents")
-    .select("id, document_type, display_name, target_role, is_default, parsed_markdown")
+    .select("id, document_type, display_name, target_role, is_default, parsed_markdown, storage_path")
     .eq("user_id", userId)
     .eq("source", "uploaded")
     .is("deleted_at", null);

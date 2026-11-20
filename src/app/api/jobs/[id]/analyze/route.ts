@@ -3,6 +3,7 @@ import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client
 import { generateMatchReport } from "@/lib/match-report/generate";
 import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
 import { loadProfile } from "@/lib/profile/rebuild";
+import { resumeContentHash } from "@/lib/resume-review/content-hash";
 import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
@@ -114,6 +115,9 @@ export async function POST(
     [analysisType]: {
       resume_id: resume.id,
       resume_name: resume.display_name,
+      // The Resume's Source material, so a Tailoring can tell whether the
+      // Match Report is an Earlier version.
+      resume_content_hash: resumeContentHash(resume.storage_path, resume.target_role, resume.parsed_markdown),
       cover_letter_id: coverLetter?.id ?? null,
       cover_letter_name: coverLetter?.display_name ?? null,
       generated_at: new Date().toISOString(),
