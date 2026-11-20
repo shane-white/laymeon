@@ -45,7 +45,7 @@ export function readabilityChecks(ctx: CheckContext): CheckResult[] {
     results.push(textLayer);
     // With no text to read, the other comparisons say nothing new.
     if (textLayer.label === "good") {
-      // A .docx was parsed from the same plain text, so comparing the two finds nothing.
+      // A .docx, .odt or .rtf was parsed from the same plain text, so comparing the two finds nothing.
       // Its layout problems show in the file's structure instead.
       if (software.format === "pdf") {
         results.push(
@@ -74,6 +74,13 @@ function fileType(ctx: CheckContext): CheckResult {
       "readability.file_type",
       "could_improve",
       "This is the old Word format (.doc). Some systems read it poorly. Save it as .docx or PDF.",
+    );
+  }
+  if (kind === "rtf" || kind === "odt") {
+    return check(
+      "readability.file_type",
+      "could_improve",
+      `This is ${kind === "rtf" ? "an RTF" : "an ODT"} file. LayMeOn can read it, but many resume-reading systems can't. Save it as PDF or .docx before you send it to employers.`,
     );
   }
   return check("readability.file_type", "fix", "Upload the resume as a PDF or Word (.docx) file.");
@@ -295,7 +302,7 @@ function hiddenText(ctx: CheckContext, software: SoftwareView): CheckResult {
 }
 
 function layoutElements(software: SoftwareView): CheckResult {
-  const { tables, textBoxes, columns } = software.docx!;
+  const { tables, textBoxes, columns } = software.layout!;
   const found = [
     textBoxes ? plural(textBoxes, "text box", "text boxes") : null,
     tables ? plural(tables, "table") : null,
@@ -325,7 +332,7 @@ function layoutElements(software: SoftwareView): CheckResult {
 }
 
 function headerFooter(software: SoftwareView): CheckResult {
-  const text = software.docx!.headerFooterText.trim();
+  const text = software.layout!.headerFooterText.trim();
   if (!text) return check("readability.header_footer", "good", "Nothing important is in the header or footer.");
   const hasContact = findEmails(text).length > 0 || findPhones(text).length > 0;
   return check(

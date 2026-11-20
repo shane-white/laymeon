@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { makeOdt, odtPara, odtTextBox } from "@/lib/documents/__fixtures__/odt-files";
+import { makeRtf, rtfTableRow } from "@/lib/documents/__fixtures__/rtf-files";
+import { ODT_MIME, RTF_MIME } from "@/lib/documents/file-format";
 import { makeDocx, makePdf, para } from "./__fixtures__/files";
-import { DOCX, PDF } from "./__fixtures__/helpers";
+import { DOCX, PDF, result } from "./__fixtures__/helpers";
 import { GOOD_RESUME_LINES, input } from "./__fixtures__/resumes";
 import { runCodeChecks } from "./run-checks";
 import { readAsSoftware } from "./software-view";
@@ -49,4 +52,57 @@ it("check IDs are grouped by section name", () => {
   for (const [id, section] of Object.entries(CODE_CHECKS)) {
     expect(id.startsWith(`${section}.`)).toBe(true);
   }
+});
+
+describe("runCodeChecks on an .odt", () => {
+  const body = GOOD_RESUME_LINES.map(odtPara).join("");
+  const checksFor = async (options: Parameters<typeof makeOdt>[0]) => {
+    const software = await readAsSoftware(await makeOdt(options), ODT_MIME);
+    return runCodeChecks(input({ software, mimeType: ODT_MIME, filename: "Jane-Doe-Resume.odt" }));
+  };
+
+  it("passes a plain one-page resume, apart from suggesting PDF or .docx for employers", async () => {
+    const results = await checksFor({ body, pages: 1 });
+    expect(results.filter((r) => r.label !== "good").map((r) => r.id)).toEqual(["readability.file_type"]);
+    expect(results.map((r) => r.id)).toEqual(
+      expect.arrayContaining(["readability.layout_elements", "readability.header_footer", "length.pages"]),
+    );
+  });
+
+  it("flags a text box, contact details in the header and a four-page length", async () => {
+    const results = await checksFor({
+      body: odtTextBox(["Skills"]) + body,
+      header: ["jane.doe@example.com | (512) 555-0147"],
+      pages: 4,
+    });
+    expect(result(results, "readability.layout_elements").label).toBe("fix");
+    expect(result(results, "readability.header_footer").label).toBe("fix");
+    expect(result(results, "length.pages").label).toBe("fix");
+  });
+});
+
+describe("runCodeChecks on an .rtf", () => {
+  const checksFor = async (options: Omit<Parameters<typeof makeRtf>[0], "app" | "paragraphs">, before: string[] = []) => {
+    const file = makeRtf({ app: "word", paragraphs: [...before, ...GOOD_RESUME_LINES], ...options });
+    const software = await readAsSoftware(file, RTF_MIME);
+    return runCodeChecks(input({ software, mimeType: RTF_MIME, filename: "Jane-Doe-Resume.rtf" }));
+  };
+
+  it("passes a plain one-page resume, apart from suggesting PDF or .docx for employers", async () => {
+    const results = await checksFor({ pages: 1 });
+    expect(results.filter((r) => r.label !== "good").map((r) => r.id)).toEqual(["readability.file_type"]);
+    expect(results.map((r) => r.id)).toEqual(
+      expect.arrayContaining(["readability.layout_elements", "readability.header_footer", "length.pages"]),
+    );
+  });
+
+  it("flags a table, contact details in the footer and a four-page length", async () => {
+    const results = await checksFor(
+      { footer: "jane.doe@example.com | (512) 555-0147", pages: 4 },
+      [rtfTableRow(["Skills", "Python"])],
+    );
+    expect(result(results, "readability.layout_elements").label).toBe("could_improve");
+    expect(result(results, "readability.header_footer").label).toBe("fix");
+    expect(result(results, "length.pages").label).toBe("fix");
+  });
 });

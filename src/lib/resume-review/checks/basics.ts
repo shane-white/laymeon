@@ -10,12 +10,12 @@ export function basicsChecks(ctx: CheckContext): CheckResult[] {
   return [contact(ctx), email(ctx), personalDetails(ctx), outdatedLines(ctx)];
 }
 
-/** The name and contact block, plus header and footer text from a .docx. */
+/** The name and contact block, plus header and footer text from a .docx, .odt or .rtf. */
 function headerText(ctx: CheckContext): string {
   const lines = ctx.resume.sections.length
     ? ctx.resume.header
     : ctx.input.markdown.split("\n").filter((l) => l.trim()).slice(0, HEADER_FALLBACK_LINES);
-  return [...lines.map(stripMarkdown), ctx.input.software?.docx?.headerFooterText ?? ""].join("\n");
+  return [...lines.map(stripMarkdown), ctx.input.software?.layout?.headerFooterText ?? ""].join("\n");
 }
 
 function contact(ctx: CheckContext): CheckResult {

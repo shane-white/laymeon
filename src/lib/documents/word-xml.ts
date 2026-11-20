@@ -4,21 +4,12 @@
  * lines together ("4 Newton StPortland, ME"); this keeps them.
  */
 import JSZip from "jszip";
+import { joinDocumentText } from "./document-text";
+import { decodeXml } from "./xml";
 
 // Text, line breaks and tabs, in document order. A bare <w:tab/> is a tab in
 // the text; <w:tab w:pos=…/> inside <w:tabs> is a tab stop setting.
 const WORD_TEXT = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:(?:br|cr)\b[^>]*\/>|<w:tab\/>/g;
-
-function decodeXml(text: string): string {
-  return text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&amp;/g, "&");
-}
 
 /** The text in a piece of WordprocessingML, one line per paragraph or line break. */
 export function textOfWordXml(xml: string): string {
@@ -68,6 +59,9 @@ export async function readWordParts(buffer: Buffer): Promise<WordParts> {
  */
 export async function readWordXmlText(buffer: Buffer): Promise<string> {
   const { documentXml, headers, footers } = await readWordParts(buffer);
-  const unique = (parts: string[]) => [...new Set(parts.map(textOfWordXml).filter((t) => t.trim()))];
-  return [...unique(headers), textOfWordXml(documentXml), ...unique(footers)].filter(Boolean).join("\n\n");
+  return joinDocumentText({
+    headers: headers.map(textOfWordXml),
+    body: textOfWordXml(documentXml),
+    footers: footers.map(textOfWordXml),
+  });
 }

@@ -65,7 +65,7 @@ describe("AI words", () => {
 
 it("counts em dashes in the file's own text, not ones Claude added to the markdown", () => {
   const markdown = withBullets(["Built a tool — fast", "Ran a team — well", "Cut costs — 20%"]);
-  const software = { format: "docx" as const, text: "Built a tool, fast", pages: null, pageCount: null, images: [], docx: null };
+  const software = { format: "docx" as const, text: "Built a tool, fast", pages: null, pageCount: null, images: [], layout: null };
   expect(result(checks({ markdown, software }), "writing.em_dashes").label).toBe("good");
 });
 

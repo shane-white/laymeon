@@ -29,7 +29,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     items: [
       {
         title: "File type and name",
-        text: "PDF and Word (.docx) files work best. The old .doc format is read poorly by some systems. Recruiters see the file name too, so use your name: \"Jane-Doe-Resume.pdf\" rather than \"resume_final_v3.pdf\".",
+        text: "PDF and Word (.docx) files work best. We can read the old .doc format, RTF and ODT files too, but many systems read them poorly, so save them as PDF or .docx before you send them to employers. Recruiters see the file name too, so use your name: \"Jane-Doe-Resume.pdf\" rather than \"resume_final_v3.pdf\".",
         checks: ["readability.file_type", "readability.file_name"],
       },
       {

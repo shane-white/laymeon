@@ -6,7 +6,7 @@ import { lengthChecks } from "./length";
 
 function pdfView(pageLengths: number[]): SoftwareView {
   const pages = pageLengths.map((n) => "x".repeat(n));
-  return { format: "pdf", text: pages.join("\n"), pages, pageCount: pages.length, images: [], docx: null };
+  return { format: "pdf", text: pages.join("\n"), pages, pageCount: pages.length, images: [], layout: null };
 }
 
 function checks(p: Partial<CodeCheckInput> = {}) {

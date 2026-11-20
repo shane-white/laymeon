@@ -4,7 +4,7 @@ import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { kindOf, PDF_MIME, UNSUPPORTED_FILE_MESSAGE } from "@/lib/documents/file-format";
 import { UnreadableFileError } from "@/lib/documents/document";
-import { readWordText } from "@/lib/documents/word-text";
+import { readText } from "@/lib/documents/read-text";
 import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
 
 const splitProjectsSchema = z.object({
@@ -34,7 +34,7 @@ A project is one distinct piece of work: a product, feature, initiative, engagem
 
 Use only what the document says.`;
 
-/** Splits an uploaded PDF or Word document into the projects it describes. */
+/** Splits an uploaded PDF, Word, RTF or ODT document into the projects it describes. */
 export async function splitProjects(
   buffer: Buffer,
   mimeType: string,
@@ -44,7 +44,6 @@ export async function splitProjects(
   if (kind === "unsupported") {
     throw new Error(UNSUPPORTED_FILE_MESSAGE);
   }
-
   let content: Anthropic.ContentBlockParam[];
   if (kind === "pdf") {
     content = [
@@ -59,10 +58,7 @@ export async function splitProjects(
       { type: "text", text: `Filename: ${filename}` },
     ];
   } else {
-    const text = await readWordText(buffer);
-    if (!text.trim()) {
-      throw new UnreadableFileError("Could not extract any text from the document");
-    }
+    const text = await readText(buffer, kind);
     content = [{ type: "text", text: `Filename: ${filename}\n\n${text}` }];
   }
 
