@@ -1,15 +1,21 @@
 /**
- * Test adapters for the Tailoring module's seams: in-memory Jobs and store,
- * and scripted Claude steps. No Supabase or Claude.
+ * Test adapters for the Tailoring module's seams: in-memory Jobs, store and
+ * Career Story, and scripted Claude steps. No Supabase or Claude.
  */
-import type { MatchReport } from "@/lib/match-report/schema";
+import type { CareerStoryRef, MatchReport, Requirement } from "@/lib/match-report/schema";
+import { buildProfile } from "@/lib/profile/build";
+import type { CareerProfile } from "@/lib/profile/schema";
 import type {
   NewTailoring,
+  SuggestionRequest,
   Tailoring,
+  TailoringCareerStory,
+  TailoringItem,
   TailoringJob,
   TailoringJobs,
   TailoringSteps,
   TailoringStore,
+  WrittenSuggestion,
 } from "./tailoring";
 
 /** A Match Report with nothing in it, to build on. */
@@ -24,6 +30,25 @@ export function emptyMatchReport(overrides: Partial<MatchReport> = {}): MatchRep
     nextSteps: [],
     ...overrides,
   };
+}
+
+/** A Match Report Requirement: must-have and missing unless overridden. */
+export function requirement(text: string, overrides: Partial<Requirement> = {}): Requirement {
+  return {
+    text,
+    importance: "must_have",
+    category: "experience",
+    match: "missing",
+    evidence: null,
+    action: null,
+    careerStory: [],
+    ...overrides,
+  };
+}
+
+/** A Match Report Screener: not shown unless overridden. */
+export function screener(item: string, overrides: Partial<MatchReport["screeners"][number]> = {}) {
+  return { item, shown: false, evidence: null, careerStory: [], ...overrides };
 }
 
 /**
@@ -52,6 +77,11 @@ export function tailoringJob(overrides: Partial<TailoringJob> = {}): TailoringJo
   };
 }
 
+/** The same Job with a different Match Report in it. */
+export function withReport(job: TailoringJob, report: Partial<MatchReport>): TailoringJob {
+  return { ...job, matchReport: { ...job.matchReport!, report: emptyMatchReport(report) } };
+}
+
 export interface MemoryJobs extends TailoringJobs {
   /** Replaces a Job, or adds it. */
   set(job: TailoringJob): void;
@@ -75,6 +105,8 @@ export interface MemoryTailoringStoreOptions {
   failFind?: boolean;
   /** Make `save` fail. */
   failSave?: boolean;
+  /** Make `saveItems` fail. */
+  failSaveItems?: boolean;
 }
 
 export interface MemoryTailoringStore extends TailoringStore {
@@ -88,11 +120,14 @@ export function memoryTailoringStore(options: MemoryTailoringStoreOptions = {}):
   let nextId = 1;
   const findPair = (jobId: string, resumeId: string) =>
     saved.find((t) => t.jobId === jobId && t.resumeId === resumeId) ?? null;
+  // Saved rows go through JSON like the jsonb column, so nothing shares objects with the caller.
+  const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
   return {
     async find(jobId, resumeId) {
       if (options.failFind) throw new Error("find failed");
-      return findPair(jobId, resumeId);
+      const found = findPair(jobId, resumeId);
+      return found && copy(found);
     },
     async save(tailoring: NewTailoring) {
       if (options.failSave) throw new Error("save failed");
@@ -100,28 +135,149 @@ export function memoryTailoringStore(options: MemoryTailoringStoreOptions = {}):
       const existing = findPair(tailoring.jobId, tailoring.resumeId);
       // Like the upsert on (user_job_id, resume_document_id): the row is replaced in place.
       const row: Tailoring = existing
-        ? { ...tailoring, id: existing.id, createdAt: existing.createdAt, updatedAt: now }
-        : { ...tailoring, id: `tailoring-${nextId++}`, createdAt: now, updatedAt: now };
+        ? { ...copy(tailoring), id: existing.id, createdAt: existing.createdAt, updatedAt: now }
+        : { ...copy(tailoring), id: `tailoring-${nextId++}`, createdAt: now, updatedAt: now };
       if (existing) saved[saved.indexOf(existing)] = row;
       else saved.push(row);
-      return row;
+      return copy(row);
     },
-    tailorings: () => [...saved],
+    async saveItems(tailoringId: string, items: TailoringItem[]) {
+      if (options.failSaveItems) throw new Error("saveItems failed");
+      const index = saved.findIndex((t) => t.id === tailoringId);
+      if (index === -1) throw new Error("no such Tailoring");
+      saved[index] = { ...saved[index], items: copy(items), updatedAt: new Date().toISOString() };
+      return copy(saved[index]);
+    },
+    tailorings: () => copy(saved),
   };
 }
 
-/** Claude steps that return what they're given, or throw it if it's an error. */
-export function scriptedSteps(script: { markdown?: string | Error } = {}): TailoringSteps & {
+/** A Career Story held in memory, or a failing one. */
+export function memoryCareerStory(profile: CareerProfile | null | Error = null): TailoringCareerStory {
+  return {
+    async load() {
+      if (profile instanceof Error) throw profile;
+      return profile;
+    },
+  };
+}
+
+/**
+ * A Career Story built from one Resume ("Résumé", ID `doc-1`): a Product
+ * Manager job at Ledgerly, an accomplishment, and the skills SQL and Payments.
+ * `ref(section, name)` gives a Match Report link to one of its items.
+ */
+export function careerStory(): { profile: CareerProfile; ref(section: "skill" | "accomplishment" | "position", name: string): CareerStoryRef } {
+  const markdown = `**Product Manager** — Ledgerly (2021-01 – present)
+- Built ACH payouts for invoice payments
+Skills: SQL, Payments`;
+  const profile = buildProfile(
+    [
+      {
+        document: { id: "doc-1", name: "Résumé", type: "resume", markdown, asOf: "2026-11-01T00:00:00Z", targetRole: null },
+        extraction: {
+          headline: "",
+          seniority: "experienced",
+          positions: [
+            {
+              employer: "Ledgerly",
+              title: "Product Manager",
+              titleFamily: "Product Manager",
+              location: "",
+              employmentType: "unknown",
+              start: "2021-01",
+              end: "present",
+              peopleManaged: 0,
+              achievements: [
+                { text: "Built ACH payouts for invoice payments", metric: "", evidence: "Built ACH payouts for invoice payments" },
+              ],
+              skills: ["Payments"],
+              evidence: "Product Manager** — Ledgerly",
+            },
+          ],
+          skills: [
+            { name: "SQL", canonicalName: "SQL", category: "hard_skill", evidence: "SQL" },
+            { name: "Payments", canonicalName: "Payments", category: "domain", evidence: "Payments" },
+          ],
+          education: [],
+          certifications: [],
+          languages: [],
+        },
+      },
+    ],
+    "2026-11-13T00:00:00Z",
+  );
+  return {
+    profile,
+    ref(section, name) {
+      const item =
+        section === "skill"
+          ? profile.skills.find((s) => s.name === name)
+          : section === "accomplishment"
+            ? profile.accomplishments.find((a) => a.text === name)
+            : profile.positions.find((p) => p.title === name);
+      if (!item) throw new Error(`No ${section} ${name} in the test Career Story`);
+      return { section, key: item.key, label: name, byUser: false };
+    },
+  };
+}
+
+type SuggestionScript =
+  | WrittenSuggestion[]
+  | Error
+  | ((requests: SuggestionRequest[]) => WrittenSuggestion[]);
+
+/**
+ * Claude steps that return what they're given, or throw it if it's an error.
+ * A scripted Suggestion's `itemId` can be its item's text.
+ */
+export function scriptedSteps(script: { markdown?: string | Error; suggestions?: SuggestionScript } = {}): TailoringSteps & {
   /** The Resume texts given to `structureResume`, in order. */
   structured: string[];
+  /** The Suggestion requests given to `writeSuggestions`, one list per call. */
+  requested: SuggestionRequest[][];
 } {
   const steps = {
     structured: [] as string[],
+    requested: [] as SuggestionRequest[][],
     async structureResume(resumeText: string) {
       steps.structured.push(resumeText);
       if (script.markdown instanceof Error) throw script.markdown;
       return script.markdown ?? "# Structured resume";
     },
+    async writeSuggestions(_markdown: string, requests: SuggestionRequest[]) {
+      steps.requested.push(requests);
+      const { suggestions } = script;
+      if (suggestions instanceof Error) throw suggestions;
+      const written = typeof suggestions === "function" ? suggestions(requests) : (suggestions ?? []);
+      // A scripted Suggestion can name its item by the item's text, as IDs are made at start.
+      return written.map((w) => ({ ...w, itemId: requests.find((r) => r.target.text === w.itemId)?.itemId ?? w.itemId }));
+    },
   };
   return steps;
 }
+
+/** A written Rewrite. `itemId` can be the item's text. */
+export const rewrite = (itemId: string, quote: string, text: string, why = "Shows the item"): WrittenSuggestion => ({
+  itemId,
+  kind: "rewrite",
+  quote,
+  section: "",
+  text,
+  why,
+});
+
+/** A written Add, after a quoted line or in a section. `itemId` can be the item's text. */
+export const add = (
+  itemId: string,
+  anchor: { after: string } | { section: string },
+  text: string,
+  why = "Shows the item",
+): WrittenSuggestion => ({
+  itemId,
+  kind: "add",
+  quote: "after" in anchor ? anchor.after : "",
+  section: "section" in anchor ? anchor.section : "",
+  text,
+  why,
+});

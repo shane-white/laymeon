@@ -69,5 +69,17 @@ export function supabaseTailoringStore(supabase: SupabaseClient, userId: string)
       if (error) throw new Error(`Couldn't save the Tailoring: ${error.message}`);
       return fromRow(data);
     },
+
+    async saveItems(tailoringId, items) {
+      const { data, error } = await supabase
+        .from("tailorings")
+        .update({ items, updated_at: new Date().toISOString() })
+        .eq("id", tailoringId)
+        .eq("user_id", userId)
+        .select(COLUMNS)
+        .single<TailoringRow>();
+      if (error) throw new Error(`Couldn't save the Tailoring's decisions: ${error.message}`);
+      return fromRow(data);
+    },
   };
 }

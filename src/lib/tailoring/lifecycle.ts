@@ -3,13 +3,17 @@
  * throw: every seam call is wrapped and turned into a `Failure`. Routes only
  * check who's signed in and send back the result (see `http.ts`).
  */
+import { newItems, suggestionRequests, withSuggestions } from "./items";
 import {
   failure,
+  MAX_DECISION_TEXT_LENGTH,
   TAILORING_VERSION,
+  type Decision,
   type Failure,
   type StartBlocker,
   type Tailoring,
   type TailoringDeps,
+  type TailoringItem,
   type TailoringJob,
   type TailoringResult,
   type TailoringState,
@@ -23,6 +27,7 @@ const BLOCKER_MESSAGES: Record<StartBlocker, string> = {
 };
 
 const STEP_FAILED_MESSAGE = "Couldn't prepare your Resume for tailoring. Please try again.";
+const SUGGESTIONS_FAILED_MESSAGE = "Couldn't write Suggestions for your Resume. Please try again.";
 
 /**
  * Whether the Match Report was made from the Job's Resume as it is now. A
@@ -111,13 +116,28 @@ async function makeTailoring(deps: TailoringDeps, job: TailoringJob): Promise<Ta
   }
   if (!markdown) return failure("step_failed", STEP_FAILED_MESSAGE);
 
+  let items = newItems(matchReport.report, () => crypto.randomUUID());
+  const covered = items.some((i) => i.careerStory.length > 0);
+  // Without the Career Story, Suggestions are still written from the linked items' labels.
+  const profile = covered ? await deps.careerStory.load().catch(() => null) : null;
+  const requests = suggestionRequests(items, profile);
+  if (requests.length > 0) {
+    try {
+      const written = await deps.steps.writeSuggestions(markdown, requests);
+      items = withSuggestions(items, requests, written, markdown, profile);
+    } catch (err) {
+      console.error("Couldn't write Suggestions for a Tailoring", err);
+      return failure("step_failed", SUGGESTIONS_FAILED_MESSAGE);
+    }
+  }
+
   try {
     const tailoring = await deps.store.save({
       jobId: job.id,
       resumeId: resume.id,
       version: TAILORING_VERSION,
       markdown,
-      items: [],
+      items,
       matchReportGeneratedAt: matchReport.generatedAt,
       resumeContentHash: resume.contentHash,
     });
@@ -151,4 +171,58 @@ export async function startOver(deps: TailoringDeps, jobId: string): Promise<Tai
   const job = await findJob(deps, jobId);
   if (isFailure(job)) return job;
   return makeTailoring(deps, job);
+}
+
+/** The decision as it's saved, or why it can't be made on the item. */
+function checkedDecision(item: TailoringItem, decision: Decision): Decision | string {
+  switch (decision.status) {
+    case "undecided":
+      return decision;
+    case "skipped":
+      return item.gap ? decision : "Only a gap can be skipped.";
+    case "accepted":
+    case "rejected":
+      return item.suggestion ? { status: decision.status } : "This item has no Suggestion to decide on.";
+    case "edited":
+    case "own_text": {
+      if (!item.suggestion) return "This item has no Suggestion to decide on.";
+      const text = decision.text.trim();
+      if (!text) return "Write the text to use.";
+      if (text.length > MAX_DECISION_TEXT_LENGTH) {
+        return `Keep the text to ${MAX_DECISION_TEXT_LENGTH.toLocaleString("en-US")} characters.`;
+      }
+      return { status: decision.status, text };
+    }
+  }
+}
+
+/**
+ * Records the user's decision on one item of the Job's Tailoring for its
+ * current Resume, replacing any decision it had. Works on a Tailoring that's
+ * an Earlier version too. A gap can only be skipped (or undecided); only an
+ * item with a Suggestion can be accepted, edited, given own text or rejected.
+ */
+export async function decide(
+  deps: TailoringDeps,
+  jobId: string,
+  itemId: string,
+  decision: Decision,
+): Promise<TailoringResult> {
+  const job = await findJob(deps, jobId);
+  if (isFailure(job)) return job;
+  const tailoring = await findTailoring(deps, job);
+  if (isFailure(tailoring)) return tailoring;
+  const item = tailoring?.items.find((i) => i.id === itemId);
+  if (!tailoring || !item) return failure("not_found", "This Suggestion is no longer in your Tailoring. Reload the page.");
+
+  const saved = checkedDecision(item, decision);
+  if (typeof saved === "string") return failure("invalid_decision", saved);
+
+  try {
+    const items = tailoring.items.map((i) => (i.id === itemId ? { ...i, decision: saved } : i));
+    return state(job, await deps.store.saveItems(tailoring.id, items));
+  } catch (err) {
+    console.error("Couldn't save a Tailoring decision", err);
+    return failure("save_failed", "Couldn't save your decision. Please try again.");
+  }
 }

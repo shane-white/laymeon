@@ -1,12 +1,23 @@
-/** Sends a Tailoring operation's result from a route. */
+/** Sends a Tailoring operation's result from a route, and reads what routes are sent. */
 import { NextResponse } from "next/server";
-import type { FailureKind, TailoringResult } from "./tailoring";
+import { z } from "zod";
+import type { Decision, FailureKind, TailoringResult } from "./tailoring";
+
+/** The body of a request to save a decision: `{ itemId, decision }`. */
+export const decisionRequestSchema = z.object({
+  itemId: z.string().min(1),
+  decision: z.discriminatedUnion("status", [
+    z.object({ status: z.enum(["undecided", "accepted", "rejected", "skipped"]) }),
+    z.object({ status: z.enum(["edited", "own_text"]), text: z.string() }),
+  ]),
+}) satisfies z.ZodType<{ itemId: string; decision: Decision }>;
 
 const STATUS: Record<FailureKind, number> = {
   not_found: 404,
   no_resume: 409,
   no_match_report: 409,
   match_report_earlier_version: 409,
+  invalid_decision: 400,
   step_failed: 502,
   save_failed: 500,
 };

@@ -1,20 +1,106 @@
 /**
  * The Tailoring module's types and the seams it works through. The operations
- * are in `lifecycle.ts`; the production adapters are in `supabase-store.ts`,
+ * are in `lifecycle.ts` (items and Suggestions are made in `items.ts`; quotes
+ * are found in the Markdown by `quotes.ts`); the production adapters are in `supabase-store.ts`,
  * `supabase-jobs.ts`, `claude-steps.ts` and `deps.ts`, and the test adapters
  * in `testing.ts`.
  */
-import type { MatchReport } from "@/lib/match-report/schema";
+import type { CareerStoryRef, MatchReport, Requirement } from "@/lib/match-report/schema";
+import type { CareerProfile } from "@/lib/profile/schema";
 
 /** Bump when the stored shape of a Tailoring changes. */
 export const TAILORING_VERSION = 1;
 
+/** The Match Report item an item of the Tailoring is aimed at, copied in so a rerun doesn't change it. */
+export type TailoringTarget =
+  | {
+      kind: "requirement";
+      text: string;
+      importance: Requirement["importance"];
+      category: Requirement["category"];
+      match: "missing" | "partial";
+    }
+  | { kind: "screener"; text: string };
+
+/** One word-for-word quote from a Document, with the Document's name to show. */
+export interface EvidenceQuote {
+  documentId: string;
+  /** The Document's name when the Career Story was built, or null if it's unknown. */
+  documentName: string | null;
+  quote: string;
+}
+
 /**
- * One Match Report item the Tailoring covers, with its Suggestion (or none,
- * for a gap) and the user's decision. Stored as jsonb; LAY-100 defines its
- * fields.
+ * What a Suggestion is based on, to show the user so they can trust it:
+ * - `career_story`: a Career Story item the Match Report linked to the item,
+ *   with its Evidence quotes (none for time in a role, or for an item the user
+ *   added themselves).
+ * - `resume`: the Resume's own text, for a rewording Suggestion.
+ * - `example_work`: an Example Work the user wrote for a gap (LAY-102).
  */
-export type TailoringItem = Record<string, unknown>;
+export type SuggestionEvidence =
+  | ({ source: "career_story"; quotes: EvidenceQuote[] } & CareerStoryRef)
+  | { source: "resume"; quote: string }
+  | { source: "example_work"; documentId: string; title: string };
+
+/**
+ * Where an Add's new text goes: after the line holding `quote`, or at the end
+ * of the section whose heading is `heading`.
+ */
+export type AddAnchor = { type: "after"; quote: string } | { type: "section"; heading: string };
+
+/**
+ * A proposed edit to the Resume, aimed at one item. Every quote and heading in
+ * it is exactly as it is in the Tailoring's Markdown, so `markdown.indexOf`
+ * finds it.
+ * - `rewrite`: replace `quote` with `text`.
+ * - `add`: insert `text` at `anchor`.
+ */
+export type Suggestion = (
+  | { kind: "rewrite"; quote: string; text: string }
+  | { kind: "add"; anchor: AddAnchor; text: string }
+) & {
+  /** Why this helps with the item, in plain words. */
+  why: string;
+  evidence: SuggestionEvidence[];
+};
+
+/**
+ * The user's decision on an item:
+ * - `accepted`: the Suggestion's text as it is.
+ * - `edited`: the Suggestion, with the user's changes to its text.
+ * - `own_text`: the user's own text in the Suggestion's place.
+ * - `rejected`: nothing goes on the Resume.
+ * - `skipped`: a gap the user chose not to fill.
+ * Only accepted, edited and own text change the Resume.
+ */
+export type Decision =
+  | { status: "undecided" }
+  | { status: "accepted" }
+  | { status: "edited"; text: string }
+  | { status: "own_text"; text: string }
+  | { status: "rejected" }
+  | { status: "skipped" };
+
+/** The most text an edited or own-text decision can hold. */
+export const MAX_DECISION_TEXT_LENGTH = 2000;
+
+/** One Match Report item the Tailoring covers, with its Suggestion (if any) and the user's decision. */
+export interface TailoringItem {
+  /** Unique across Tailorings, so a decision can't land on one that was started over. */
+  id: string;
+  target: TailoringTarget;
+  /** The Career Story items the Match Report linked to it. */
+  careerStory: CareerStoryRef[];
+  /** At most one. Null for a gap, or when the written one was dropped. */
+  suggestion: Suggestion | null;
+  /**
+   * Offer to describe an Example Work for it: the Career Story doesn't cover
+   * it, or no Suggestion could be written from it.
+   */
+  gap: boolean;
+  decision: Decision;
+}
 
 /** A saved Tailoring: one per Job and Resume pair. */
 export interface Tailoring {
@@ -80,24 +166,60 @@ export interface TailoringStore {
   find(jobId: string, resumeId: string): Promise<Tailoring | null>;
   /** Saves the Tailoring, replacing any for the same Job and Resume pair. */
   save(tailoring: NewTailoring): Promise<Tailoring>;
+  /** Replaces a saved Tailoring's items. Throws if there's no Tailoring with that ID. */
+  saveItems(tailoringId: string, items: TailoringItem[]): Promise<Tailoring>;
+}
+
+/** The signed-in user's Career Story. */
+export interface TailoringCareerStory {
+  /** The Career Story, or null if it hasn't been built. */
+  load(): Promise<CareerProfile | null>;
+}
+
+/** An item to write a Suggestion for, with what it may be based on. */
+export interface SuggestionRequest {
+  itemId: string;
+  target: TailoringTarget;
+  /**
+   * `career_story`: write from `sources`, as a Rewrite or an Add.
+   * `resume`: only reword what the Resume already says, as a Rewrite.
+   */
+  basis: "career_story" | "resume";
+  /** What the Suggestion may draw on: each source's label and its Evidence quotes. */
+  sources: { label: string; quotes: string[] }[];
+}
+
+/** A Suggestion as Claude wrote it, before its quotes are checked. */
+export interface WrittenSuggestion {
+  itemId: string;
+  kind: "rewrite" | "add";
+  /** Rewrite: the text to replace. Add: the line it goes after, or empty for an Add in a section. */
+  quote: string;
+  /** An Add in a section: the section's title. Otherwise empty. */
+  section: string;
+  text: string;
+  why: string;
 }
 
 /** The Claude steps a Tailoring runs. */
 export interface TailoringSteps {
   /** The Resume's text as structured Markdown (headings, roles, dates, bullets), its wording kept. */
   structureResume(resumeText: string): Promise<string>;
+  /** At most one Suggestion per requested item, quoting the structured Markdown. */
+  writeSuggestions(markdown: string, requests: SuggestionRequest[]): Promise<WrittenSuggestion[]>;
 }
 
 export interface TailoringDeps {
   jobs: TailoringJobs;
   store: TailoringStore;
   steps: TailoringSteps;
+  careerStory: TailoringCareerStory;
 }
 
 /** Why a Tailoring can't be started. */
 export type StartBlocker = "no_resume" | "no_match_report" | "match_report_earlier_version";
 
-export type FailureKind = "not_found" | StartBlocker | "step_failed" | "save_failed";
+export type FailureKind = "not_found" | StartBlocker | "invalid_decision" | "step_failed" | "save_failed";
 
 export interface Failure {
   ok: false;
