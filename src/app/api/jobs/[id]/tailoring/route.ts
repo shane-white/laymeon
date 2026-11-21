@@ -1,24 +1,12 @@
-import { createClient } from "@/lib/supabase/server";
 import { tailoringDeps } from "@/lib/tailoring/deps";
-import { decisionRequestSchema, tailoringResponse } from "@/lib/tailoring/http";
+import { decisionRequestSchema, requestBody, signedInUser, tailoringResponse, unauthorized } from "@/lib/tailoring/http";
 import { decide, getTailoring, startOver, startTailoring } from "@/lib/tailoring/lifecycle";
 import { NextResponse, type NextRequest } from "next/server";
-import { z } from "zod";
 
 // Starting a Tailoring runs Claude steps in a row, each of which can take a while.
 export const maxDuration = 300;
 
 type Params = { params: Promise<{ id: string }> };
-
-async function signedInUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { supabase, user };
-}
-
-const unauthorized = () => NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 /** The Job's Tailoring for its current Resume, whether it's an Earlier version, and whether one can start. */
 export async function GET(_request: NextRequest, { params }: Params) {
@@ -61,15 +49,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (!user) return unauthorized();
   const { id } = await params;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
-  const parsed = decisionRequestSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: z.prettifyError(parsed.error) }, { status: 400 });
+  const parsed = await requestBody(request, decisionRequestSchema);
+  if (!parsed.ok) return parsed.response;
 
-  const { itemId, decision } = parsed.data;
+  const { itemId, decision } = parsed.body;
   return tailoringResponse(await decide(tailoringDeps(supabase, user.id), id, itemId, decision));
 }

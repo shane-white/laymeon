@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MatchReport } from "@/lib/match-report/schema";
+import type { AnalysisDocumentsEntry } from "@/lib/jobs/analysis-documents";
 import { compareSortOrder } from "@/lib/jobs/sort-order";
 
 export interface JobListing {
@@ -16,17 +17,6 @@ export interface JobListing {
   /** intern … executive. See src/lib/jobs/details.ts. */
   seniority_level: string | null;
   description: string | null;
-}
-
-/** Which documents an analysis was generated with (names are snapshots). */
-export interface AnalysisDocumentsEntry {
-  resume_id: string;
-  resume_name: string;
-  /** `resumeContentHash` of the Resume then. Missing on analyses saved before LAY-99. */
-  resume_content_hash?: string;
-  cover_letter_id: string | null;
-  cover_letter_name: string | null;
-  generated_at: string;
 }
 
 export interface UserJob {

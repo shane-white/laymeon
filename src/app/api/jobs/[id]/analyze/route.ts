@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { generateMatchReport } from "@/lib/match-report/generate";
 import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
+import type { AnalysisDocumentsEntry } from "@/lib/jobs/analysis-documents";
 import { loadProfile } from "@/lib/profile/rebuild";
 import { resumeContentHash } from "@/lib/resume-review/content-hash";
 import { NextResponse, type NextRequest } from "next/server";
@@ -112,7 +113,7 @@ export async function POST(
       cover_letter_id: coverLetter?.id ?? null,
       cover_letter_name: coverLetter?.display_name ?? null,
       generated_at: new Date().toISOString(),
-    },
+    } satisfies AnalysisDocumentsEntry,
   };
 
   const listing = userJob.job_listing as unknown as {

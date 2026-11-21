@@ -1,6 +1,7 @@
 /** The signed-in user's Jobs in production, as a Tailoring needs them. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pickDocument, type JobDocument } from "@/lib/documents/resolve-job-documents";
+import type { AnalysisDocumentsEntry } from "@/lib/jobs/analysis-documents";
 import { matchReportSchema } from "@/lib/match-report/schema";
 import { resumeContentHash } from "@/lib/resume-review/content-hash";
 import type { JobMatchReport, TailoringJob, TailoringJobs } from "./tailoring";
@@ -11,15 +12,9 @@ interface JobRow {
   custom_job_company: string | null;
   resume_document_id: string | null;
   match_report: unknown;
-  analysis_documents: { match_analysis?: MatchAnalysisEntry } | null;
+  /** Saved by the analyze route; fields can be missing on old rows. */
+  analysis_documents: { match_analysis?: Partial<AnalysisDocumentsEntry> } | null;
   job_listing: { extracted_job_title: string | null; extracted_company_name: string | null } | null;
-}
-
-/** What the analyze route records about the Resume a Match Report compared. */
-interface MatchAnalysisEntry {
-  resume_id?: string;
-  generated_at?: string;
-  resume_content_hash?: string;
 }
 
 type ResumeRow = JobDocument & { updated_at: string };
