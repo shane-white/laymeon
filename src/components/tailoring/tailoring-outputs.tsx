@@ -26,8 +26,9 @@ function saveFile(name: string, text: string, type: string) {
 }
 
 /**
- * The tailored Resume, using only accepted Suggestions: a prompt for another
- * AI to make the edits to the original file, or the Markdown to download.
+ * What the user takes away from the Tailoring, using only accepted
+ * Suggestions: a prompt for another AI to make the edits to the original
+ * file, or the Resume with the edits made, as Markdown to download.
  */
 export function TailoringOutputs({ tailoring, resumeName, company }: TailoringOutputsProps) {
   const { accepted } = acceptedCount(tailoring.items);

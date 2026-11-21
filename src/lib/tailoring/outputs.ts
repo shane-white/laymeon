@@ -1,8 +1,8 @@
 /**
- * What the user takes away from a Tailoring: the tailored Resume as Markdown,
- * and a prompt telling another AI to make the same edits to their original
- * file. Both use only the items the user accepted (as they are, edited, or in
- * their own words).
+ * What the user takes away from a Tailoring: its Resume with the accepted
+ * Suggestions, as Markdown, and a prompt telling another AI to make the same
+ * edits to their original file. Both use only the items the user accepted (as
+ * they are, edited, or in their own words).
  */
 import { findQuote } from "./quotes";
 import { acceptedText, addLineIndex, LIST_MARK, markdownLines, plainText, type MarkdownLine } from "./resume-markdown";
@@ -126,7 +126,7 @@ function fileNamePart(text: string | null): string {
   return (text ?? "").replace(NOT_IN_FILE_NAMES, " ").replace(/\s+/g, " ").trim();
 }
 
-/** The tailored Resume's download name: `<Resume name> – <Company>.md`. */
+/** The download name of the Resume with the accepted Suggestions: `<Resume name> – <Company>.md`. */
 export function downloadName(resumeName: string | null, company: string | null): string {
   const resume = fileNamePart(resumeName?.replace(/\.(pdf|docx?|odt|rtf|txt|md)$/i, "") ?? null) || "Resume";
   const companyPart = fileNamePart(company);

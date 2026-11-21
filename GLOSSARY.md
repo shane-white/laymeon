@@ -97,7 +97,7 @@ A proposed edit to one Resume for one Job, aimed at one Requirement or Screener:
 _Avoid_: Recommendation, fix, change
 
 **Analyses**:
-The older free-text suggestions on a Job for the resume, the cover letter and the interview.
+The older free-text suggestions on a Job for the cover letter and the interview. Its free-text suggestions for the resume were retired: the Tailoring replaces them.
 
 ### Resume Review
 

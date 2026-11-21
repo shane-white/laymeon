@@ -1,7 +1,8 @@
 /**
  * Reading a Tailoring's structured Markdown line by line, and where its
  * items' text goes. Shared by the Tailoring view and the outputs, so the
- * tailored Resume the user downloads matches the one they see.
+ * Resume with the accepted Suggestions that the user downloads matches the
+ * one they see.
  */
 import { normalizeText } from "@/lib/match-report/evidence";
 import { findQuote } from "./quotes";

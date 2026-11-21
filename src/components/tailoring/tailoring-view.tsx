@@ -140,7 +140,7 @@ interface TailoringViewProps {
   tailoring: Tailoring;
   /** Shown above the Resume, such as the Earlier-version notice. */
   notice?: ReactNode;
-  /** Shown in the header, such as the buttons to copy or download the tailored Resume. */
+  /** Shown in the header, such as the buttons to copy the prompt or download the Resume with the accepted Suggestions. */
   actions?: ReactNode;
   onDecide: (itemId: string, decision: Decision) => void;
   gapPrompt: (props: GapPromptProps) => ReactNode;

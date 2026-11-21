@@ -51,11 +51,11 @@ export function ExampleWorkPrompt({ jobId, itemId, itemText, onDone }: ExampleWo
         setError(message || "Couldn't save your project. Please try again.");
         if (kind === "step_failed") {
           setSavedWithoutSuggestion(true);
-          void refreshCareerStory();
+          void refetchDocumentsAndCareerStory();
         }
         return;
       }
-      void refreshCareerStory();
+      void refetchDocumentsAndCareerStory();
       onDone(data as TailoringResponse);
     } catch {
       setError("Couldn't save your project. Please try again.");
@@ -64,7 +64,7 @@ export function ExampleWorkPrompt({ jobId, itemId, itemText, onDone }: ExampleWo
     }
   }
 
-  function refreshCareerStory() {
+  function refetchDocumentsAndCareerStory() {
     return Promise.all([queryClient.invalidateQueries({ queryKey: ["documents"] }), invalidateProfile(queryClient)]);
   }
 
