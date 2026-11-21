@@ -32,6 +32,7 @@ import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
 import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
 import { JobDocumentSelect } from "@/components/jobs/job-document-select";
+import { TailoringTab } from "@/components/tailoring/tailoring-tab";
 import { toast } from "sonner";
 
 interface JobDetailProps {
@@ -206,10 +207,13 @@ function JobDetailContent({ job }: { job: UserJob }) {
           <JobDescriptionTab description={listing.description} />
         </TabsContent>
 
+        <TabsContent value="resume_suggestions" className="flex min-h-0 flex-1 flex-col">
+          <TailoringTab job={job} />
+        </TabsContent>
+
         {(
           [
             "match_analysis",
-            "resume_suggestions",
             "cover_letter_suggestions",
             "interview_suggestions",
           ] as const

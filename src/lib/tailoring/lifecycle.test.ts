@@ -17,7 +17,14 @@ describe("getTailoring", () => {
       tailoring: null,
       earlierVersion: false,
       startBlocker: null,
+      resumeName: "PM Resume",
+      company: "Acme",
     });
+  });
+
+  it("has no Resume name when the Job has no Resume", async () => {
+    const { deps } = setup(tailoringJob({ resume: null }));
+    expect(await getTailoring(deps, "job-1")).toMatchObject({ ok: true, resumeName: null, company: "Acme" });
   });
 
   it("says why a Tailoring can't be started", async () => {

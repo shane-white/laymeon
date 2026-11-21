@@ -68,6 +68,8 @@ function state(job: TailoringJob, tailoring: Tailoring | null): TailoringState {
     tailoring,
     earlierVersion: tailoring ? isEarlierVersion(tailoring, job) : false,
     startBlocker: startBlocker(job),
+    resumeName: job.resume?.name ?? null,
+    company: job.company,
   };
 }
 

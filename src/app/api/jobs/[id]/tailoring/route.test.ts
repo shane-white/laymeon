@@ -56,7 +56,13 @@ describe("/api/jobs/[id]/tailoring", () => {
   it("gets no Tailoring before one is started", async () => {
     const response = await GET(new NextRequest("http://localhost"), params());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ tailoring: null, earlierVersion: false, startBlocker: null });
+    expect(await response.json()).toEqual({
+      tailoring: null,
+      earlierVersion: false,
+      startBlocker: null,
+      resumeName: "PM Resume",
+      company: "Acme",
+    });
   });
 
   it("starts a Tailoring, then gets it", async () => {

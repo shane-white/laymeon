@@ -7,10 +7,8 @@ import { ProjectFields } from "@/components/documents/project-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { invalidateProfile } from "@/hooks/use-profile";
-import type { FailureKind, TailoringState } from "@/lib/tailoring/tailoring";
-
-/** What the Tailoring routes send back on success. */
-export type TailoringResponse = Omit<TailoringState, "ok">;
+import type { TailoringResponse } from "@/lib/tailoring/http";
+import type { FailureKind } from "@/lib/tailoring/tailoring";
 
 interface ExampleWorkPromptProps {
   /** The Job (`user_job_listings.id`). */

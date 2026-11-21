@@ -1,7 +1,10 @@
 /** Sends a Tailoring operation's result from a route, and reads what routes are sent. */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { Decision, ExampleWorkInput, FailureKind, TailoringResult } from "./tailoring";
+import type { Decision, ExampleWorkInput, FailureKind, TailoringResult, TailoringState } from "./tailoring";
+
+/** What a successful Tailoring request sends back. */
+export type TailoringResponse = Omit<TailoringState, "ok">;
 
 /** The body of a request to save a decision: `{ itemId, decision }`. */
 export const decisionRequestSchema = z.object({
@@ -31,13 +34,13 @@ const STATUS: Record<FailureKind, number> = {
 };
 
 /**
- * A success is sent as `{ tailoring, earlierVersion, startBlocker }`; a
+ * A success is sent as a `TailoringResponse`; a
  * failure as `{ error, kind }` with the status for its kind.
  */
 export function tailoringResponse(result: TailoringResult): NextResponse {
   if (!result.ok) {
     return NextResponse.json({ error: result.message, kind: result.kind }, { status: STATUS[result.kind] });
   }
-  const { tailoring, earlierVersion, startBlocker } = result;
-  return NextResponse.json({ tailoring, earlierVersion, startBlocker });
+  const { tailoring, earlierVersion, startBlocker, resumeName, company } = result;
+  return NextResponse.json({ tailoring, earlierVersion, startBlocker, resumeName, company } satisfies TailoringResponse);
 }

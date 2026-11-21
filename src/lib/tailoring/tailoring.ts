@@ -263,6 +263,10 @@ export interface TailoringState {
   earlierVersion: boolean;
   /** Why starting (or starting over) would fail, or null if it can start. */
   startBlocker: StartBlocker | null;
+  /** The Job's current Resume's name, or null if it has none. For naming the download. */
+  resumeName: string | null;
+  /** The Job's company, or null if it's unknown. */
+  company: string | null;
 }
 
 export type TailoringResult = TailoringState | Failure;
