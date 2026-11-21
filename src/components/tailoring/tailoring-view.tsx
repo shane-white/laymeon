@@ -140,6 +140,8 @@ interface TailoringViewProps {
   tailoring: Tailoring;
   /** Shown above the Resume, such as the Earlier-version notice. */
   notice?: ReactNode;
+  /** Shown in the header, such as the buttons to copy or download the tailored Resume. */
+  actions?: ReactNode;
   onDecide: (itemId: string, decision: Decision) => void;
   gapPrompt: (props: GapPromptProps) => ReactNode;
 }
@@ -148,7 +150,7 @@ interface TailoringViewProps {
  * The Resume with every item marked in place, and the details panel for the
  * selected one: beside the Resume when there's room, below it when there isn't.
  */
-export function TailoringView({ tailoring, notice, onDecide, gapPrompt }: TailoringViewProps) {
+export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt }: TailoringViewProps) {
   const view = useMemo(() => resumeView(tailoring), [tailoring]);
   const { items } = tailoring;
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -190,13 +192,14 @@ export function TailoringView({ tailoring, notice, onDecide, gapPrompt }: Tailor
 
   return (
     <div className="@container flex h-full flex-col">
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-2 sm:px-6">
         <span className="text-sm" aria-live="polite">
           <span className="font-medium">
             {accepted} of {total}
           </span>{" "}
           accepted
         </span>
+        {actions}
         <div className="flex items-center gap-1">
           <Button
             variant="outline"

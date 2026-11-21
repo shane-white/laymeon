@@ -3,9 +3,19 @@
  * Resume blocks, with each item's Suggestion or gap marked where it applies.
  * Pure, so the view only renders what this returns.
  */
-import { normalizeText } from "@/lib/match-report/evidence";
 import { findQuote } from "@/lib/tailoring/quotes";
-import type { AddAnchor, Decision, Tailoring, TailoringItem } from "@/lib/tailoring/tailoring";
+import {
+  acceptedText,
+  addLineIndex,
+  LIST_MARK,
+  markdownLines,
+  plainText,
+  type LineKind,
+  type MarkdownLine,
+} from "@/lib/tailoring/resume-markdown";
+import type { Decision, Tailoring, TailoringItem } from "@/lib/tailoring/tailoring";
+
+export { acceptedText, plainText };
 
 /**
  * A run of text inside a block:
@@ -17,8 +27,6 @@ import type { AddAnchor, Decision, Tailoring, TailoringItem } from "@/lib/tailor
 export type ViewInline =
   | { kind: "text"; text: string }
   | { kind: "rewrite"; itemId: string; number: number; text: string; status: Decision["status"] };
-
-type LineKind = { kind: "heading"; level: number } | { kind: "bullet" } | { kind: "paragraph" };
 
 /** One line of the Resume's own text. */
 export type TextBlock = LineKind & { inlines: ViewInline[] };
@@ -54,45 +62,6 @@ export interface ResumeView {
   markers: ViewMarker[];
 }
 
-interface Line {
-  /** Where the line starts in the Markdown. */
-  lineStart: number;
-  /** Where the line's text starts in the Markdown, after any heading or bullet mark. */
-  start: number;
-  end: number;
-  block: LineKind;
-}
-
-/** The Markdown's non-blank lines, with what kind of block each is. */
-function lines(markdown: string): Line[] {
-  const result: Line[] = [];
-  let offset = 0;
-  for (const raw of markdown.split("\n")) {
-    const lineStart = offset;
-    const lineEnd = offset + raw.length;
-    offset = lineEnd + 1;
-    if (!raw.trim()) continue;
-    const heading = raw.match(/^(#{1,6})\s+/);
-    const bullet = raw.match(/^\s*(?:[-*+•]|\d+[.)])\s+/);
-    if (heading) {
-      result.push({ lineStart, start: lineStart + heading[0].length, end: lineEnd, block: { kind: "heading", level: heading[1].length } });
-    } else if (bullet) {
-      result.push({ lineStart, start: lineStart + bullet[0].length, end: lineEnd, block: { kind: "bullet" } });
-    } else {
-      result.push({ lineStart, start: lineStart + (raw.length - raw.trimStart().length), end: lineEnd, block: { kind: "paragraph" } });
-    }
-  }
-  return result;
-}
-
-/** Markdown text as it's read: without emphasis and code marks, escapes or a heading's closing `#`s. */
-export function plainText(markdown: string): string {
-  return markdown
-    .replace(/\\([\\`*_{}[\]()#+\-.!|>])/g, "$1")
-    .replace(/\*\*|__|`/g, "")
-    .replace(/\s+#+\s*$/, "");
-}
-
 interface RewriteSpan {
   start: number;
   end: number;
@@ -101,18 +70,6 @@ interface RewriteSpan {
   status: Decision["status"];
   /** The accepted text that replaces the quote, or null while it isn't accepted. */
   replacement: string | null;
-}
-
-/**
- * The text an item puts on the Resume: its Suggestion's text when accepted,
- * the user's text when edited or their own, otherwise null.
- */
-export function acceptedText(item: TailoringItem): string | null {
-  if (!item.suggestion) return null;
-  const { decision } = item;
-  if (decision.status === "accepted") return item.suggestion.text;
-  if (decision.status === "edited" || decision.status === "own_text") return decision.text;
-  return null;
 }
 
 /**
@@ -134,7 +91,7 @@ function rewriteSpans(tailoring: Tailoring): RewriteSpan[] {
  * A line's text, split where Rewrites start and end. An accepted Rewrite's
  * text is shown once, on the line its quote starts on.
  */
-function lineInlines(markdown: string, line: Line, spans: RewriteSpan[]): ViewInline[] {
+function lineInlines(markdown: string, line: MarkdownLine, spans: RewriteSpan[]): ViewInline[] {
   const inlines: ViewInline[] = [];
   const pushText = (from: number, to: number) => {
     const text = plainText(markdown.slice(from, to));
@@ -156,42 +113,21 @@ function lineInlines(markdown: string, line: Line, spans: RewriteSpan[]): ViewIn
   return inlines;
 }
 
-/**
- * The index of the line an Add goes after: the line holding the end of its
- * quote, or the last line of its section. Null if it isn't found.
- */
-function addLine(markdown: string, all: Line[], anchor: AddAnchor): number | null {
-  if (anchor.type === "after") {
-    const span = findQuote(markdown, anchor.quote);
-    if (!span) return null;
-    return all.findLastIndex((line) => line.lineStart < span.end);
-  }
-  const wanted = normalizeText(anchor.heading);
-  const heading = all.findIndex(
-    (line) => line.block.kind === "heading" && normalizeText(plainText(markdown.slice(line.start, line.end))) === wanted,
-  );
-  if (heading === -1) return null;
-  const { block } = all[heading];
-  const level = block.kind === "heading" ? block.level : 0;
-  const next = all.findIndex((line, i) => i > heading && line.block.kind === "heading" && line.block.level <= level);
-  return (next === -1 ? all.length : next) - 1;
-}
-
 /** An Add's text as shown: plain, without a leading list mark. */
 function addText(text: string): string {
-  return plainText(text.trim().replace(/^(?:[-*+•]|\d+[.)])\s+/, ""));
+  return plainText(text.trim().replace(LIST_MARK, ""));
 }
 
 /** The Tailoring's Resume as blocks of plain text, with its items marked. */
 export function resumeView(tailoring: Tailoring): ResumeView {
   const { markdown } = tailoring;
-  const all = lines(markdown);
+  const all = markdownLines(markdown);
   const spans = rewriteSpans(tailoring);
 
   const addsAfter = new Map<number, AddBlock[]>();
   tailoring.items.forEach((item, index) => {
     if (item.suggestion?.kind !== "add") return;
-    const at = addLine(markdown, all, item.suggestion.anchor);
+    const at = addLineIndex(markdown, all, item.suggestion.anchor);
     if (at === null) return;
     const text = acceptedText(item);
     addsAfter.set(at, [

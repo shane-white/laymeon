@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { UserJob } from "@/hooks/use-jobs";
 import type { StartBlocker } from "@/lib/tailoring/tailoring";
 import { ExampleWorkPrompt } from "./example-work-prompt";
+import { TailoringOutputs } from "./tailoring-outputs";
 import { TailoringView } from "./tailoring-view";
 import {
   tailoringKey,
@@ -173,7 +174,7 @@ export function TailoringTab({ job }: { job: UserJob }) {
     );
   }
 
-  const { tailoring, earlierVersion, startBlocker } = query.data;
+  const { tailoring, earlierVersion, startBlocker, resumeName, company } = query.data;
   const onStart = (variables: StartVariables) => start.mutate(variables);
 
   if (!tailoring) return <StartState blocker={startBlocker} onStart={onStart} />;
@@ -182,6 +183,7 @@ export function TailoringTab({ job }: { job: UserJob }) {
     <TailoringView
       tailoring={tailoring}
       notice={earlierVersion ? <EarlierVersionNotice blocker={startBlocker} onStart={onStart} /> : null}
+      actions={<TailoringOutputs tailoring={tailoring} resumeName={resumeName} company={company} />}
       onDecide={decide}
       gapPrompt={({ item }) => (
         <ExampleWorkPrompt
