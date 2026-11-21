@@ -8,7 +8,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
   "match_analysis",
-  "resume_suggestions",
   "cover_letter_suggestions",
   "interview_suggestions",
 ] as const;
@@ -21,14 +20,6 @@ export const maxDuration = 300;
 
 // match_analysis returns a structured report instead (see generateMatchReport).
 const PROMPTS: Record<Exclude<AnalysisType, "match_analysis">, string> = {
-  resume_suggestions: `Based on the job description below, suggest specific improvements to the candidate's resume to better match this role. Include:
-- Keywords to add
-- Experience to highlight or reframe
-- Skills to emphasize
-- Sections to add or reorganize
-
-Be specific and actionable. Format your response in markdown.`,
-
   cover_letter_suggestions: `Based on the resume and job description below, provide suggestions for writing a compelling cover letter for this role. Include:
 - Key points to address
 - How to frame relevant experience

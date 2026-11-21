@@ -36,7 +36,6 @@ export interface UserJob {
   custom_job_company: string | null;
   match_analysis: string | null;
   match_report: MatchReport | null;
-  resume_suggestions: string | null;
   cover_letter_suggestions: string | null;
   interview_suggestions: string | null;
   notes: string | null;
@@ -201,7 +200,6 @@ export function useUpdateJob() {
 
 export type AnalysisType =
   | "match_analysis"
-  | "resume_suggestions"
   | "cover_letter_suggestions"
   | "interview_suggestions";
 
