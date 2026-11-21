@@ -78,7 +78,7 @@ async function findJob(deps: TailoringDeps, jobId: string): Promise<TailoringJob
     return (await deps.jobs.find(jobId)) ?? failure("not_found", "Job not found");
   } catch (err) {
     console.error("Couldn't load a Job for a Tailoring", err);
-    return failure("save_failed", "Couldn't load this Job. Please try again.");
+    return failure("load_failed", "Couldn't load this Job. Please try again.");
   }
 }
 
@@ -88,12 +88,71 @@ async function findTailoring(deps: TailoringDeps, job: TailoringJob): Promise<Ta
     return await deps.store.find(job.id, job.resume.id);
   } catch (err) {
     console.error("Couldn't load a Tailoring", err);
-    return failure("save_failed", "Couldn't load this Job's Tailoring. Please try again.");
+    return failure("load_failed", "Couldn't load this Job's Tailoring. Please try again.");
   }
 }
 
 const isFailure = (value: unknown): value is Failure =>
   typeof value === "object" && value !== null && (value as { ok?: unknown }).ok === false;
+
+/** One item of the Job's Tailoring for its current Resume, as it was read. */
+interface FoundItem {
+  job: TailoringJob;
+  tailoring: Tailoring;
+  item: TailoringItem;
+}
+
+/** The item in the Job's Tailoring for its current Resume, or `notFound` if it isn't there. */
+async function findItemIn(deps: TailoringDeps, job: TailoringJob, itemId: string, notFound: string): Promise<FoundItem | Failure> {
+  const tailoring = await findTailoring(deps, job);
+  if (isFailure(tailoring)) return tailoring;
+  const item = tailoring?.items.find((i) => i.id === itemId);
+  if (!tailoring || !item) return failure("not_found", notFound);
+  return { job, tailoring, item };
+}
+
+async function findItem(deps: TailoringDeps, jobId: string, itemId: string, notFound: string): Promise<FoundItem | Failure> {
+  const job = await findJob(deps, jobId);
+  if (isFailure(job)) return job;
+  return findItemIn(deps, job, itemId, notFound);
+}
+
+/** How many times a change is tried again when the Tailoring changed after it was read. */
+const CHANGE_RETRIES = 3;
+
+/**
+ * Saves a change to one item. If the Tailoring changed after it was read
+ * (another decision was saved, or it was started over), the item is read
+ * again and `change` applied to it again, so no other save is lost and a
+ * change never lands on a Tailoring that was started over.
+ */
+async function changeItem(
+  deps: TailoringDeps,
+  found: FoundItem,
+  change: (item: TailoringItem, tailoring: Tailoring) => TailoringItem | Failure,
+  messages: { notFound: string; saveFailed: string },
+): Promise<TailoringResult> {
+  let current: FoundItem | Failure = found;
+  for (let attempt = 0; ; attempt++) {
+    if (isFailure(current)) return current;
+    const { tailoring, item } = current;
+    const changed = change(item, tailoring);
+    if (isFailure(changed)) return changed;
+    let saved: Tailoring | null;
+    try {
+      const items = tailoring.items.map((i) => (i.id === item.id ? changed : i));
+      saved = await deps.store.saveItems(tailoring.id, items, tailoring.updatedAt);
+    } catch (err) {
+      console.error("Couldn't save a change to a Tailoring", err);
+      return failure("save_failed", messages.saveFailed);
+    }
+    if (saved) return state(found.job, saved);
+    if (attempt >= CHANGE_RETRIES) {
+      return failure("conflict", "Your Tailoring kept changing while this was saved. Reload the page and try again.");
+    }
+    current = await findItemIn(deps, found.job, item.id, messages.notFound);
+  }
+}
 
 /** The Job's Tailoring for its current Resume, if there is one, and whether one can be started. */
 export async function getTailoring(deps: TailoringDeps, jobId: string): Promise<TailoringResult> {
@@ -212,23 +271,20 @@ export async function decide(
   itemId: string,
   decision: Decision,
 ): Promise<TailoringResult> {
-  const job = await findJob(deps, jobId);
-  if (isFailure(job)) return job;
-  const tailoring = await findTailoring(deps, job);
-  if (isFailure(tailoring)) return tailoring;
-  const item = tailoring?.items.find((i) => i.id === itemId);
-  if (!tailoring || !item) return failure("not_found", "This Suggestion is no longer in your Tailoring. Reload the page.");
-
-  const saved = checkedDecision(item, decision);
-  if (typeof saved === "string") return failure("invalid_decision", saved);
-
-  try {
-    const items = tailoring.items.map((i) => (i.id === itemId ? { ...i, decision: saved } : i));
-    return state(job, await deps.store.saveItems(tailoring.id, items));
-  } catch (err) {
-    console.error("Couldn't save a Tailoring decision", err);
-    return failure("save_failed", "Couldn't save your decision. Please try again.");
-  }
+  const found = await findItem(deps, jobId, itemId, "This Suggestion is no longer in your Tailoring. Reload the page.");
+  if (isFailure(found)) return found;
+  return changeItem(
+    deps,
+    found,
+    (item) => {
+      const saved = checkedDecision(item, decision);
+      return typeof saved === "string" ? failure("invalid_decision", saved) : { ...item, decision: saved };
+    },
+    {
+      notFound: "This Suggestion is no longer in your Tailoring. Reload the page.",
+      saveFailed: "Couldn't save your decision. Please try again.",
+    },
+  );
 }
 
 /** Why the Example Work can't be added as it is, or null if it can. */
@@ -241,6 +297,8 @@ function exampleWorkProblem({ title, description }: ExampleWorkInput): string | 
   }
   return null;
 }
+
+const ITEM_GONE_MESSAGE = "This item is no longer in your Tailoring. Reload the page.";
 
 const NO_GAP_SUGGESTION_MESSAGE =
   "Your project is saved in your Example Works, but we couldn't write a Suggestion from it. It will show in your next Match Report.";
@@ -259,12 +317,9 @@ export async function fillGap(
   itemId: string,
   input: ExampleWorkInput,
 ): Promise<TailoringResult> {
-  const job = await findJob(deps, jobId);
-  if (isFailure(job)) return job;
-  const tailoring = await findTailoring(deps, job);
-  if (isFailure(tailoring)) return tailoring;
-  const item = tailoring?.items.find((i) => i.id === itemId);
-  if (!tailoring || !item) return failure("not_found", "This item is no longer in your Tailoring. Reload the page.");
+  const found = await findItem(deps, jobId, itemId, ITEM_GONE_MESSAGE);
+  if (isFailure(found)) return found;
+  const { job, tailoring, item } = found;
   if (!item.gap) return failure("invalid_example_work", "This item already has a Suggestion.");
 
   const exampleWork = { title: input.title.trim(), description: input.description.trim() };
@@ -291,18 +346,10 @@ export async function fillGap(
   if (!suggestion) return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
 
   // Read again: decisions may have been saved while Claude wrote.
-  const current = await findTailoring(deps, job);
+  const current = await findItemIn(deps, job, itemId, ITEM_GONE_MESSAGE);
   if (isFailure(current)) return current;
-  if (current?.id !== tailoring.id || !current.items.some((i) => i.id === itemId)) {
-    return failure("not_found", "This item is no longer in your Tailoring. Reload the page.");
-  }
-  try {
-    const items = current.items.map((i) =>
-      i.id === itemId ? { ...i, suggestion, gap: false, decision: { status: "undecided" as const } } : i,
-    );
-    return state(job, await deps.store.saveItems(current.id, items));
-  } catch (err) {
-    console.error("Couldn't save a Tailoring gap's Suggestion", err);
-    return failure("save_failed", "Your project is saved in your Example Works, but we couldn't save its Suggestion. Please reload the page.");
-  }
+  return changeItem(deps, current, (i) => ({ ...i, suggestion, gap: false, decision: { status: "undecided" } }), {
+    notFound: ITEM_GONE_MESSAGE,
+    saveFailed: "Your project is saved in your Example Works, but we couldn't save its Suggestion. Please reload the page.",
+  });
 }

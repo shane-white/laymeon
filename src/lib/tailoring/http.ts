@@ -30,7 +30,9 @@ const STATUS: Record<FailureKind, number> = {
   invalid_decision: 400,
   invalid_example_work: 400,
   step_failed: 502,
+  load_failed: 500,
   save_failed: 500,
+  conflict: 409,
 };
 
 /**

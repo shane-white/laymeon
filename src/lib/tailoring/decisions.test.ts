@@ -12,12 +12,13 @@ import {
   tailoringJob,
   withReport,
 } from "./testing";
+import type { MemoryTailoringStoreOptions } from "./testing";
 import type { Decision, TailoringDeps } from "./tailoring";
 
 const MARKDOWN = "## Experience\n\n- Shipped billing\n- Ran weekly planning";
 const story = careerStory();
 
-async function setup(options: { failSaveItems?: boolean } = {}) {
+async function setup(options: MemoryTailoringStoreOptions = {}) {
   const job = withReport(tailoringJob(), {
     requirements: [
       requirement("Payments experience", { careerStory: [story.ref("skill", "Payments")] }),
@@ -123,6 +124,35 @@ describe("deciding on a gap", () => {
   it("can't skip an item that isn't a gap", async () => {
     const { deps, payments } = await setup();
     expect(await decide(deps, "job-1", payments, { status: "skipped" })).toMatchObject({ ok: false, kind: "invalid_decision" });
+  });
+});
+
+describe("deciding while the Tailoring changes", () => {
+  it("keeps both of two decisions saved at once, as from two tabs", async () => {
+    const { deps, payments, roadmapping } = await setup();
+
+    const results = await Promise.all([
+      decide(deps, "job-1", payments, { status: "accepted" }),
+      decide(deps, "job-1", roadmapping, { status: "rejected" }),
+    ]);
+
+    expect(results).toMatchObject([{ ok: true }, { ok: true }]);
+    expect(await decisionOf(deps, payments)).toEqual({ status: "accepted" });
+    expect(await decisionOf(deps, roadmapping)).toEqual({ status: "rejected" });
+  });
+
+  it("doesn't bring back the old items when the Tailoring is started over while the decision is saved", async () => {
+    let deps: TailoringDeps | undefined;
+    const started = await setup({ beforeSaveItems: () => startOver(deps!, "job-1").then(() => undefined) });
+    deps = started.deps;
+
+    const result = await decide(deps, "job-1", started.payments, { status: "accepted" });
+
+    expect(result).toMatchObject({ ok: false, kind: "not_found" });
+    const now = await getTailoring(deps, "job-1");
+    const ids = now.ok ? now.tailoring?.items.map((i) => i.id) : [];
+    expect(ids).not.toContain(started.payments);
+    expect(now.ok && now.tailoring?.items.every((i) => i.decision.status === "undecided")).toBe(true);
   });
 });
 

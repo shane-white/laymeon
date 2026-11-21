@@ -166,8 +166,13 @@ export interface TailoringStore {
   find(jobId: string, resumeId: string): Promise<Tailoring | null>;
   /** Saves the Tailoring, replacing any for the same Job and Resume pair. */
   save(tailoring: NewTailoring): Promise<Tailoring>;
-  /** Replaces a saved Tailoring's items. Throws if there's no Tailoring with that ID. */
-  saveItems(tailoringId: string, items: TailoringItem[]): Promise<Tailoring>;
+  /**
+   * Replaces a saved Tailoring's items, if it hasn't changed since it was read:
+   * `readAt` is the `updatedAt` it had then. Every save (and starting over)
+   * changes `updatedAt`. Null if it has changed, or there's no Tailoring with
+   * that ID.
+   */
+  saveItems(tailoringId: string, items: TailoringItem[], readAt: string): Promise<Tailoring | null>;
 }
 
 /** The signed-in user's Career Story. */
@@ -245,7 +250,10 @@ export type FailureKind =
   | "invalid_decision"
   | "invalid_example_work"
   | "step_failed"
-  | "save_failed";
+  | "load_failed"
+  | "save_failed"
+  /** The Tailoring kept changing while a change to it was saved. */
+  | "conflict";
 
 export interface Failure {
   ok: false;

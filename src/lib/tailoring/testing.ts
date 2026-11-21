@@ -110,6 +110,11 @@ export interface MemoryTailoringStoreOptions {
   failSave?: boolean;
   /** Make `saveItems` fail. */
   failSaveItems?: boolean;
+  /**
+   * Runs before the first `saveItems` call is applied, as if another request
+   * changed the Tailoring between that call's read and its write.
+   */
+  beforeSaveItems?: () => Promise<void>;
 }
 
 export interface MemoryTailoringStore extends TailoringStore {
@@ -125,6 +130,9 @@ export function memoryTailoringStore(options: MemoryTailoringStoreOptions = {}):
     saved.find((t) => t.jobId === jobId && t.resumeId === resumeId) ?? null;
   // Saved rows go through JSON like the jsonb column, so nothing shares objects with the caller.
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+  // Every write gets a later updatedAt, like the production store, even within a millisecond.
+  let lastWrite = 0;
+  const writeTime = () => new Date((lastWrite = Math.max(Date.now(), lastWrite + 1))).toISOString();
 
   return {
     async find(jobId, resumeId) {
@@ -134,7 +142,7 @@ export function memoryTailoringStore(options: MemoryTailoringStoreOptions = {}):
     },
     async save(tailoring: NewTailoring) {
       if (options.failSave) throw new Error("save failed");
-      const now = new Date().toISOString();
+      const now = writeTime();
       const existing = findPair(tailoring.jobId, tailoring.resumeId);
       // Like the upsert on (user_job_id, resume_document_id): the row is replaced in place.
       const row: Tailoring = existing
@@ -144,11 +152,15 @@ export function memoryTailoringStore(options: MemoryTailoringStoreOptions = {}):
       else saved.push(row);
       return copy(row);
     },
-    async saveItems(tailoringId: string, items: TailoringItem[]) {
+    async saveItems(tailoringId: string, items: TailoringItem[], readAt: string) {
       if (options.failSaveItems) throw new Error("saveItems failed");
+      const before = options.beforeSaveItems;
+      options = { ...options, beforeSaveItems: undefined };
+      await before?.();
       const index = saved.findIndex((t) => t.id === tailoringId);
-      if (index === -1) throw new Error("no such Tailoring");
-      saved[index] = { ...saved[index], items: copy(items), updatedAt: new Date().toISOString() };
+      // Like the update conditional on updated_at: nothing is saved if it changed since it was read.
+      if (index === -1 || saved[index].updatedAt !== readAt) return null;
+      saved[index] = { ...saved[index], items: copy(items), updatedAt: writeTime() };
       return copy(saved[index]);
     },
     tailorings: () => copy(saved),

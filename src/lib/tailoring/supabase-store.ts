@@ -33,6 +33,15 @@ function fromRow(row: TailoringRow): Tailoring {
   };
 }
 
+/**
+ * Now, or just after `readAt` if that's not earlier, so a save always changes
+ * `updated_at`, even two in the same millisecond.
+ */
+function laterThan(readAt: string): string {
+  const read = Date.parse(readAt);
+  return new Date(Number.isNaN(read) ? Date.now() : Math.max(Date.now(), read + 1)).toISOString();
+}
+
 export function supabaseTailoringStore(supabase: SupabaseClient, userId: string): TailoringStore {
   return {
     async find(jobId, resumeId) {
@@ -70,16 +79,18 @@ export function supabaseTailoringStore(supabase: SupabaseClient, userId: string)
       return fromRow(data);
     },
 
-    async saveItems(tailoringId, items) {
+    async saveItems(tailoringId, items, readAt) {
+      // Only if no other save (or start over) has changed it since it was read.
       const { data, error } = await supabase
         .from("tailorings")
-        .update({ items, updated_at: new Date().toISOString() })
+        .update({ items, updated_at: laterThan(readAt) })
         .eq("id", tailoringId)
         .eq("user_id", userId)
+        .eq("updated_at", readAt)
         .select(COLUMNS)
-        .single<TailoringRow>();
+        .maybeSingle<TailoringRow>();
       if (error) throw new Error(`Couldn't save the Tailoring's decisions: ${error.message}`);
-      return fromRow(data);
+      return data ? fromRow(data) : null;
     },
   };
 }
