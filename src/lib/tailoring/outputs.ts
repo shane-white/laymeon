@@ -57,6 +57,7 @@ export function tailoredMarkdown(tailoring: Tailoring): string {
     if (!text || !item.suggestion) continue;
     if (item.suggestion.kind === "rewrite") {
       const span = findQuote(markdown, item.suggestion.quote);
+      // Rewrites are written so they never overlap; should two, the first is kept, as in the view.
       if (span && !rewrites.some((other) => span.start < other.end && other.start < span.end)) rewrites.push({ ...span, text });
     } else {
       const at = addLineIndex(markdown, lines, item.suggestion.anchor);

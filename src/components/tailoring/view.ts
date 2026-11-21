@@ -47,7 +47,7 @@ export interface AddBlock {
 /** One block of the Resume as shown. */
 export type ViewBlock = TextBlock | AddBlock;
 
-/** An item with no place in the Resume: a gap, or a Suggestion whose text another one already highlights. */
+/** An item with no place in the Resume: a gap, or a Suggestion whose quote or anchor isn't found. */
 export interface ViewMarker {
   itemId: string;
   number: number;
@@ -73,8 +73,9 @@ interface RewriteSpan {
 }
 
 /**
- * Where each Rewrite's quote is in the Markdown, in Markdown order. A Rewrite
- * whose text overlaps an earlier item's is left out.
+ * Where each Rewrite's quote is in the Markdown, in Markdown order. Rewrites
+ * never overlap (one that overlaps an earlier item's is dropped when it's
+ * written); should one, it's left out here as it is from the download.
  */
 function rewriteSpans(tailoring: Tailoring): RewriteSpan[] {
   const spans: RewriteSpan[] = [];

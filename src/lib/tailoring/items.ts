@@ -7,7 +7,7 @@ import { normalizeText } from "@/lib/match-report/evidence";
 import type { CareerStoryRef, MatchReport } from "@/lib/match-report/schema";
 import { findItem, type ListSection } from "@/lib/profile/changes";
 import type { CareerProfile, Evidence } from "@/lib/profile/schema";
-import { findQuote, findSection } from "./quotes";
+import { findQuote, findSection, type QuoteSpan } from "./quotes";
 import type {
   AddAnchor,
   EvidenceQuote,
@@ -96,15 +96,26 @@ export function suggestionRequests(items: TailoringItem[], profile: CareerProfil
   });
 }
 
+/** Where in the Markdown the text each of the items' Rewrites replaces is. */
+function rewriteSpans(items: TailoringItem[], markdown: string): QuoteSpan[] {
+  return items.flatMap((item) => {
+    const span = item.suggestion?.kind === "rewrite" ? findQuote(markdown, item.suggestion.quote) : null;
+    return span ? [span] : [];
+  });
+}
+
 /**
  * The Suggestion Claude wrote, with its quotes and heading exactly as they are
- * in the Markdown, or null if any of them isn't there or it's otherwise
- * unusable. `evidence` gives its Evidence, given a Rewrite's quote.
+ * in the Markdown, or null if any of them isn't there (or is there more than
+ * once), it's a Rewrite whose text overlaps one of `taken` (other items'
+ * Rewrites), or it's otherwise unusable. `evidence` gives its Evidence, given
+ * a Rewrite's quote.
  */
 function checked(
   written: WrittenSuggestion,
   basis: SuggestionRequest["basis"],
   markdown: string,
+  taken: QuoteSpan[],
   evidence: (rewriteQuote: string | null) => SuggestionEvidence[],
 ): Suggestion | null {
   const text = written.text.trim();
@@ -116,8 +127,10 @@ function checked(
   };
 
   if (written.kind === "rewrite") {
-    const quote = quoted(written.quote);
-    if (!quote || normalizeText(quote) === normalizeText(text)) return null;
+    const span = findQuote(markdown, written.quote);
+    if (!span || taken.some((other) => span.start < other.end && other.start < span.end)) return null;
+    const quote = markdown.slice(span.start, span.end);
+    if (normalizeText(quote) === normalizeText(text)) return null;
     return { kind: "rewrite", quote, text, why, evidence: evidence(quote) };
   }
 
@@ -141,10 +154,11 @@ function firstUsable(
   written: WrittenSuggestion[],
   basis: SuggestionRequest["basis"],
   markdown: string,
+  taken: QuoteSpan[],
   evidence: (rewriteQuote: string | null) => SuggestionEvidence[],
 ): Suggestion | null {
   for (const w of written.filter((w) => w.itemId === item.id)) {
-    const suggestion = checked(w, basis, markdown, evidence);
+    const suggestion = checked(w, basis, markdown, taken, evidence);
     if (suggestion) return suggestion;
   }
   return null;
@@ -152,8 +166,10 @@ function firstUsable(
 
 /**
  * The items with the Suggestions Claude wrote for them: at most one each, the
- * first usable one. Suggestions for items that weren't asked for, and ones
- * whose quote or section isn't in the Markdown, are dropped. An item left
+ * first usable one. Suggestions for items that weren't asked for, ones whose
+ * quote or section isn't in the Markdown (or whose quote is in it more than
+ * once), and Rewrites whose text overlaps an earlier item's Rewrite, are
+ * dropped, so every Rewrite has text of its own to replace. An item left
  * without a Suggestion is a gap; so is a partial Requirement the Career Story
  * doesn't cover, even with its rewording Suggestion.
  */
@@ -164,13 +180,15 @@ export function withSuggestions(
   markdown: string,
   profile: CareerProfile | null,
 ): TailoringItem[] {
+  const taken: QuoteSpan[] = [];
   return items.map((item) => {
     const request = requests.find((r) => r.itemId === item.id);
     const evidence = (rewriteQuote: string | null): SuggestionEvidence[] =>
       request?.basis === "resume" && rewriteQuote
         ? [{ source: "resume", quote: rewriteQuote }]
         : item.careerStory.map((ref) => ({ source: "career_story", ...ref, quotes: quotesOf(ref, profile) }));
-    const suggestion = request ? firstUsable(item, written, request.basis, markdown, evidence) : null;
+    const suggestion = request ? firstUsable(item, written, request.basis, markdown, taken, evidence) : null;
+    taken.push(...rewriteSpans([{ ...item, suggestion }], markdown));
     return { ...item, suggestion, gap: request?.basis !== "career_story" || suggestion === null };
   });
 }
@@ -187,13 +205,16 @@ export function exampleWorkRequest(item: TailoringItem, exampleWork: { title: st
 
 /**
  * The gap's Suggestion from the ones Claude wrote for its Example Work, with
- * the Example Work as its Evidence, or null if none is usable.
+ * the Example Work as its Evidence, or null if none is usable. A Rewrite whose
+ * text overlaps one of the Tailoring's other `items`' Rewrites isn't usable.
  */
 export function exampleWorkSuggestion(
   item: TailoringItem,
+  items: TailoringItem[],
   written: WrittenSuggestion[],
   markdown: string,
   exampleWork: { documentId: string; title: string },
 ): Suggestion | null {
-  return firstUsable(item, written, "example_work", markdown, () => [{ source: "example_work", ...exampleWork }]);
+  const taken = rewriteSpans(items.filter((other) => other.id !== item.id), markdown);
+  return firstUsable(item, written, "example_work", markdown, taken, () => [{ source: "example_work", ...exampleWork }]);
 }

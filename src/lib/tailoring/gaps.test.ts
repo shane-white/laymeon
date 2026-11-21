@@ -160,6 +160,15 @@ describe("when a gap can't be filled", () => {
     expect(exampleWorks.added()).toEqual([]);
   });
 
+  it("keeps the Example Work and the gap when its Rewrite overlaps another item's Rewrite", async () => {
+    const { deps, exampleWorks, kubernetes } = await setup([rewrite("Kubernetes", "Ran weekly planning", "Ran weekly Kubernetes planning")]);
+
+    expect(await fillGap(deps, "job-1", kubernetes, PROJECT)).toMatchObject({ ok: false, kind: "step_failed" });
+
+    expect(exampleWorks.added()).toHaveLength(1);
+    expect(await itemOf(deps, kubernetes)).toMatchObject({ gap: true, suggestion: null });
+  });
+
   it("only fills a gap", async () => {
     const { deps, exampleWorks, kubernetes } = await setup();
     await fillGap(deps, "job-1", kubernetes, PROJECT);

@@ -335,20 +335,25 @@ export async function fillGap(
   }
   if (!added.ok) return failure(added.invalid ? "invalid_example_work" : "save_failed", added.message);
 
-  let suggestion;
+  let written;
   try {
-    const written = await deps.steps.writeSuggestions(tailoring.markdown, [exampleWorkRequest(item, exampleWork)]);
-    suggestion = exampleWorkSuggestion(item, written, tailoring.markdown, { documentId: added.documentId, title: added.title });
+    written = await deps.steps.writeSuggestions(tailoring.markdown, [exampleWorkRequest(item, exampleWork)]);
   } catch (err) {
     console.error("Couldn't write a Suggestion from an Example Work", err);
     return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
   }
-  if (!suggestion) return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
 
   // Read again: decisions may have been saved while Claude wrote.
   const current = await findItemIn(deps, job, itemId, ITEM_GONE_MESSAGE);
   if (isFailure(current)) return current;
-  return changeItem(deps, current, (i) => ({ ...i, suggestion, gap: false, decision: { status: "undecided" } }), {
+  const evidence = { documentId: added.documentId, title: added.title };
+  const withSuggestion = (i: TailoringItem, { items, markdown }: Tailoring): TailoringItem | Failure => {
+    if (!i.gap) return failure("invalid_example_work", "This item already has a Suggestion.");
+    const suggestion = exampleWorkSuggestion(i, items, written, markdown, evidence);
+    if (!suggestion) return failure("step_failed", NO_GAP_SUGGESTION_MESSAGE);
+    return { ...i, suggestion, gap: false, decision: { status: "undecided" } };
+  };
+  return changeItem(deps, current, withSuggestion, {
     notFound: ITEM_GONE_MESSAGE,
     saveFailed: "Your project is saved in your Example Works, but we couldn't save its Suggestion. Please reload the page.",
   });

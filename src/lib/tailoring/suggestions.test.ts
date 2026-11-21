@@ -32,8 +32,8 @@ const MARKDOWN = `# Jane Doe
 
 const story = careerStory();
 
-function setup(job: TailoringJob, suggestions: NonNullable<Parameters<typeof scriptedSteps>[0]>["suggestions"] = []) {
-  const steps = scriptedSteps({ markdown: MARKDOWN, suggestions });
+function setup(job: TailoringJob, suggestions: NonNullable<Parameters<typeof scriptedSteps>[0]>["suggestions"] = [], markdown = MARKDOWN) {
+  const steps = scriptedSteps({ markdown, suggestions });
   const store = memoryTailoringStore();
   const deps: TailoringDeps = { jobs: memoryJobs(job), store, steps, careerStory: memoryCareerStory(story.profile), exampleWorks: memoryExampleWorks() };
   return { deps, steps, store };
@@ -202,6 +202,36 @@ describe("the Suggestions written", () => {
     ]);
     const tailoring = await started(deps);
     expect(tailoring.items.map((i) => i.suggestion)).toEqual([null, null, null]);
+  });
+
+  it("are dropped when the text a Rewrite replaces, or the line an Add follows, is in the Markdown more than once", async () => {
+    const markdown = `${MARKDOWN}\n\n## Projects\n\n- Ran weekly planning`;
+    const { deps } = setup(
+      job(),
+      [
+        rewrite("Roadmapping", "Ran weekly planning", "Ran weekly roadmap planning"),
+        add("Payments experience", { after: "Ran weekly planning" }, "- Built ACH payouts"),
+      ],
+      markdown,
+    );
+    const tailoring = await started(deps);
+    expect(tailoring.items.map((i) => i.suggestion)).toEqual([null, null, null]);
+  });
+
+  it("drop a Rewrite whose text overlaps an earlier item's Rewrite, using the item's next usable one", async () => {
+    const { deps } = setup(job(), [
+      rewrite("Payments experience", "Shipped billing for 3,000 customers", "Shipped card payments for 3,000 customers"),
+      rewrite("SQL", "billing for 3,000", "SQL reporting for 3,000"),
+      rewrite("Roadmapping", "for 3,000 customers Ran weekly", "for 3,000 customers. Ran roadmap"),
+      rewrite("Roadmapping", "Ran weekly planning", "Ran weekly roadmap planning"),
+    ]);
+    const tailoring = await started(deps);
+    expect(tailoring.items.map((i) => i.suggestion && i.suggestion.kind === "rewrite" && i.suggestion.quote)).toEqual([
+      "Shipped **billing** for 3,000 customers",
+      null,
+      "Ran weekly planning",
+    ]);
+    expect(tailoring.items[1].gap).toBe(true);
   });
 
   it("are at most one per item, and only for items that were asked for", async () => {
