@@ -2,12 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
 import { generateMatchReport } from "@/lib/match-report/generate";
 import { resolveJobDocuments } from "@/lib/documents/resolve-job-documents";
+import type { AnalysisDocumentsEntry } from "@/lib/jobs/analysis-documents";
 import { loadProfile } from "@/lib/profile/rebuild";
+import { resumeContentHash } from "@/lib/resume-review/content-hash";
 import { NextResponse, type NextRequest } from "next/server";
 
 const VALID_TYPES = [
   "match_analysis",
-  "resume_suggestions",
   "cover_letter_suggestions",
   "interview_suggestions",
 ] as const;
@@ -20,14 +21,6 @@ export const maxDuration = 300;
 
 // match_analysis returns a structured report instead (see generateMatchReport).
 const PROMPTS: Record<Exclude<AnalysisType, "match_analysis">, string> = {
-  resume_suggestions: `Based on the job description below, suggest specific improvements to the candidate's resume to better match this role. Include:
-- Keywords to add
-- Experience to highlight or reframe
-- Skills to emphasize
-- Sections to add or reorganize
-
-Be specific and actionable. Format your response in markdown.`,
-
   cover_letter_suggestions: `Based on the resume and job description below, provide suggestions for writing a compelling cover letter for this role. Include:
 - Key points to address
 - How to frame relevant experience
@@ -114,10 +107,13 @@ export async function POST(
     [analysisType]: {
       resume_id: resume.id,
       resume_name: resume.display_name,
+      // The Resume's Source material, so a Tailoring can tell whether the
+      // Match Report is an Earlier version.
+      resume_content_hash: resumeContentHash(resume.storage_path, resume.target_role, resume.parsed_markdown),
       cover_letter_id: coverLetter?.id ?? null,
       cover_letter_name: coverLetter?.display_name ?? null,
       generated_at: new Date().toISOString(),
-    },
+    } satisfies AnalysisDocumentsEntry,
   };
 
   const listing = userJob.job_listing as unknown as {

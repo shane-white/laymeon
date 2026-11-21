@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     .select(
       `
       id, status, custom_job_title, custom_job_company,
-      match_analysis, match_report, resume_suggestions, cover_letter_suggestions,
+      match_analysis, match_report, cover_letter_suggestions,
       interview_suggestions, notes, resume_document_id, cover_letter_document_id,
       job_listing:job_listings (
         id, url, extracted_job_title, extracted_company_name, description
@@ -106,9 +106,6 @@ ${listing.description || "No description available."}`;
     systemPrompt += `\n\n## Existing Match Report\n${formatMatchReportForPrompt(userJob.match_report as MatchReport)}`;
   } else if (userJob.match_analysis) {
     systemPrompt += `\n\n## Existing Match Analysis\n${userJob.match_analysis}`;
-  }
-  if (userJob.resume_suggestions) {
-    systemPrompt += `\n\n## Existing Resume Suggestions\n${userJob.resume_suggestions}`;
   }
   if (userJob.cover_letter_suggestions) {
     systemPrompt += `\n\n## Existing Cover Letter Suggestions\n${userJob.cover_letter_suggestions}`;
@@ -173,11 +170,10 @@ ${listing.description || "No description available."}`;
 
     update_analysis: tool({
       description:
-        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify resume suggestions, cover letter suggestions, or interview suggestions. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Resume Match Analysis tab.",
+        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify cover letter suggestions or interview suggestions. Resume changes for this job are made one suggestion at a time in the Resume Suggestions tab, not here. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Resume Match Analysis tab.",
       inputSchema: z.object({
         type: z
           .enum([
-            "resume_suggestions",
             "cover_letter_suggestions",
             "interview_suggestions",
           ])

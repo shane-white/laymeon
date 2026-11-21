@@ -5,7 +5,6 @@ import type { MatchReport } from "@/lib/match-report/schema";
 const emptyJob = {
   match_analysis: null,
   match_report: null,
-  resume_suggestions: null,
   cover_letter_suggestions: null,
   interview_suggestions: null,
   notes: null,
@@ -17,7 +16,7 @@ describe("getTabsWithContent", () => {
   });
 
   it("ignores empty and whitespace-only text", () => {
-    expect(getTabsWithContent({ ...emptyJob, notes: "   ", resume_suggestions: "" })).toEqual([]);
+    expect(getTabsWithContent({ ...emptyJob, notes: "   ", interview_suggestions: "" })).toEqual([]);
   });
 
   it("shows the match tab for a structured report without legacy text", () => {
@@ -31,14 +30,12 @@ describe("getTabsWithContent", () => {
       getTabsWithContent({
         match_analysis: "a",
         match_report: null,
-        resume_suggestions: "r",
         cover_letter_suggestions: "c",
         interview_suggestions: "i",
         notes: "n",
       }),
     ).toEqual([
       "match_analysis",
-      "resume_suggestions",
       "cover_letter_suggestions",
       "interview_suggestions",
       "notes",
@@ -67,6 +64,13 @@ describe("getInitialTabs", () => {
         "interview_suggestions",
       ]),
     ).toEqual(["description", "notes", "interview_suggestions", "match_analysis"]);
+  });
+
+  it("keeps a stored Resume Suggestions tab", () => {
+    expect(getInitialTabs(emptyJob, ["description", "resume_suggestions"])).toEqual([
+      "description",
+      "resume_suggestions",
+    ]);
   });
 
   it("always puts Description first and drops duplicates", () => {

@@ -42,7 +42,7 @@ Swapping an uploaded Document's file for a new one while it keeps its name, Targ
 _Avoid_: Re-upload, update
 
 **Earlier version**:
-A saved result (a Resume Review or Match Report) made from a Document's Source material before it last changed.
+A saved result (a Resume Review, Match Report or Tailoring) made from a Document's Source material before it last changed, or a Tailoring made from a Match Report that has since been rerun.
 _Avoid_: Stale, outdated
 
 ### Career Story
@@ -88,8 +88,16 @@ _Avoid_: Keywords
 **Evidence**:
 A word-for-word quote from a Document that backs up a claim in a Match Report or the Career Story.
 
+**Tailoring**:
+Working one Resume against one Job's Match Report, one Suggestion at a time, to make a version of the Resume for that Job. Each Job and Resume pair has at most one.
+_Avoid_: Revision, tailored resume
+
+**Suggestion**:
+A proposed edit to one Resume for one Job, aimed at one Requirement or Screener: either rewriting text already on the Resume or adding new text, backed by Evidence. The user accepts, edits or rejects each one.
+_Avoid_: Recommendation, fix, change
+
 **Analyses**:
-The older free-text suggestions on a Job for the resume, the cover letter and the interview.
+The older free-text suggestions on a Job for the cover letter and the interview. Its free-text suggestions for the resume were retired: the Tailoring replaces them.
 
 ### Resume Review
 

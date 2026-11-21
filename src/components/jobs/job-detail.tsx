@@ -32,6 +32,7 @@ import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
 import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
 import { JobDocumentSelect } from "@/components/jobs/job-document-select";
+import { TailoringTab } from "@/components/tailoring/tailoring-tab";
 import { toast } from "sonner";
 
 interface JobDetailProps {
@@ -40,7 +41,7 @@ interface JobDetailProps {
 
 const TAB_OPTIONS = [
   { key: "match_analysis" as const, label: "Resume Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to see how well your resume matches this job: must-have requirements, search words recruiters use, and what to fix first. Requires an uploaded resume." },
-  { key: "resume_suggestions" as const, label: "Resume Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get resume improvement suggestions for this job. Requires an uploaded resume." },
+  { key: "resume_suggestions" as const, label: "Resume Suggestions" },
   { key: "cover_letter_suggestions" as const, label: "Cover Letter Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get cover letter suggestions for this job. Requires an uploaded resume." },
   { key: "interview_suggestions" as const, label: "Interview Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get interview preparation suggestions for this job. Requires an uploaded resume." },
   { key: "notes" as const, label: "Notes" },
@@ -206,10 +207,13 @@ function JobDetailContent({ job }: { job: UserJob }) {
           <JobDescriptionTab description={listing.description} />
         </TabsContent>
 
+        <TabsContent value="resume_suggestions" className="flex min-h-0 flex-1 flex-col">
+          <TailoringTab job={job} />
+        </TabsContent>
+
         {(
           [
             "match_analysis",
-            "resume_suggestions",
             "cover_letter_suggestions",
             "interview_suggestions",
           ] as const

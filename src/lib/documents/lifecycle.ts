@@ -21,7 +21,7 @@ import {
 } from "./document";
 import { FILE_TOO_LARGE_MESSAGE, resolveType, uploadProblem } from "./file-format";
 import { storagePathFor, UPLOAD_BUCKET } from "./files";
-import { MAX_PROJECTS, MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
+import { MAX_PROJECTS, MAX_PROJECT_DESCRIPTION_LENGTH, writtenExampleWorkProblem } from "@/lib/projects";
 
 const MAX_UPLOADS_PER_TYPE = 20;
 const MAX_LABEL_LENGTH = 200;
@@ -204,17 +204,8 @@ export async function addWrittenExampleWork(
 ): Promise<DocumentResult> {
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const description = typeof input.description === "string" ? input.description.trim() : "";
-  if (!title) return failure("invalid", "Give the project a title");
-  if (!description) return failure("invalid", "Describe the project");
-  if (title.length > MAX_PROJECT_TITLE_LENGTH) {
-    return failure("invalid", `Titles can be up to ${MAX_PROJECT_TITLE_LENGTH} characters`);
-  }
-  if (description.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
-    return failure(
-      "invalid",
-      `Descriptions can be up to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString("en-US")} characters`,
-    );
-  }
+  const problem = writtenExampleWorkProblem({ title, description });
+  if (problem) return failure("invalid", problem);
 
   const room = await exampleWorkRoom(deps);
   if (isFailure(room)) return room;

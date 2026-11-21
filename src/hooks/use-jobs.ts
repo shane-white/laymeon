@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { MatchReport } from "@/lib/match-report/schema";
+import type { AnalysisDocumentsEntry } from "@/lib/jobs/analysis-documents";
 import { compareSortOrder } from "@/lib/jobs/sort-order";
 
 export interface JobListing {
@@ -18,15 +19,6 @@ export interface JobListing {
   description: string | null;
 }
 
-/** Which documents an analysis was generated with (names are snapshots). */
-export interface AnalysisDocumentsEntry {
-  resume_id: string;
-  resume_name: string;
-  cover_letter_id: string | null;
-  cover_letter_name: string | null;
-  generated_at: string;
-}
-
 export interface UserJob {
   id: string;
   status: string;
@@ -34,7 +26,6 @@ export interface UserJob {
   custom_job_company: string | null;
   match_analysis: string | null;
   match_report: MatchReport | null;
-  resume_suggestions: string | null;
   cover_letter_suggestions: string | null;
   interview_suggestions: string | null;
   notes: string | null;
@@ -199,7 +190,6 @@ export function useUpdateJob() {
 
 export type AnalysisType =
   | "match_analysis"
-  | "resume_suggestions"
   | "cover_letter_suggestions"
   | "interview_suggestions";
 

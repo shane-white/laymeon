@@ -9,6 +9,7 @@ function doc(overrides: Partial<JobDocument>): JobDocument {
     target_role: null,
     is_default: false,
     parsed_markdown: "text",
+    storage_path: null,
     ...overrides,
   };
 }
