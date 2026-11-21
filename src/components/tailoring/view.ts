@@ -174,9 +174,15 @@ export function stepItem(items: TailoringItem[], selectedId: string | null, dire
   return items[direction === "next" ? index + 1 : index - 1]?.id ?? null;
 }
 
-/** How many items put text on the Resume (accepted, edited or own text), out of all of them. */
+/**
+ * How many Suggestions put text on the Resume (accepted, edited or own text),
+ * out of the items that have one. Gaps without a Suggestion don't count.
+ */
 export function acceptedCount(items: TailoringItem[]): { accepted: number; total: number } {
-  return { accepted: items.filter((item) => acceptedText(item) !== null).length, total: items.length };
+  return {
+    accepted: items.filter((item) => acceptedText(item) !== null).length,
+    total: items.filter((item) => item.suggestion !== null).length,
+  };
 }
 
 /** The Tailoring with the decision recorded on one item, as the server will save it. */

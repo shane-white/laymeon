@@ -208,7 +208,7 @@ describe("stepItem", () => {
 });
 
 describe("acceptedCount", () => {
-  it("counts accepted, edited and own text out of every item", () => {
+  it("counts accepted, edited and own text out of the items with a Suggestion", () => {
     const suggestion = rewrite("SQL", "PostgreSQL");
     expect(
       acceptedCount([
@@ -218,6 +218,7 @@ describe("acceptedCount", () => {
         item("d", { suggestion, ...decided({ status: "rejected" }) }),
         item("e", { gap: true, ...decided({ status: "skipped" }) }),
         item("f", { suggestion }),
+        item("g", { gap: true, suggestion }),
       ]),
     ).toEqual({ accepted: 3, total: 6 });
   });
