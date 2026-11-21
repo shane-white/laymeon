@@ -104,6 +104,15 @@ describe("writeSuggestions", () => {
     expect(retry).toContain("more than one Suggestion");
   });
 
+  it("asks once more when a quote is in the Markdown more than once", async () => {
+    answer(json([entry(1, { quote: "S" })]));
+    answer(json([entry(1, { quote: "Shipped billing" })]));
+
+    await claudeSteps.writeSuggestions(MARKDOWN, requests);
+
+    expect(JSON.stringify(create.mock.calls[1][0].messages)).toContain("more than once");
+  });
+
   it("keeps a second answer that still has problems, without unknown or repeated items", async () => {
     answer(json([entry(1, { quote: "Shipped invoicing" })]));
     answer(json([entry(1, { quote: "Shipped invoicing" }), entry(1, { quote: "SQL" }), entry(7, { quote: "SQL" })]));

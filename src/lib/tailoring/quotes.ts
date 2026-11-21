@@ -75,17 +75,26 @@ function searchText(quote: string): string {
 }
 
 /**
- * Where the quote first appears in the Markdown, or null if it doesn't. A
- * quote with an ellipsis is never found: a Suggestion must quote the whole
- * text it changes or follows.
+ * Where the quote appears in the Markdown, or null if it doesn't, or appears
+ * more than once (it would be ambiguous which one a Suggestion means). A quote
+ * with an ellipsis is never found: a Suggestion must quote the whole text it
+ * changes or follows.
  */
 export function findQuote(markdown: string, quote: string): QuoteSpan | null {
+  const found = quoteMatches(markdown, quote);
+  return found.length === 1 ? found[0] : null;
+}
+
+/** Where the quote appears in the Markdown: none, one, or the first two of several. */
+export function quoteMatches(markdown: string, quote: string): QuoteSpan[] {
   const text = searchText(quote);
-  if (!text || text.includes("...")) return null;
+  if (!text || text.includes("...")) return [];
   const { folded, from, to } = fold(markdown);
-  const index = folded.indexOf(text);
-  if (index === -1) return null;
-  return { start: from[index], end: to[index + text.length - 1] };
+  const spans: QuoteSpan[] = [];
+  for (let index = folded.indexOf(text); index !== -1 && spans.length < 2; index = folded.indexOf(text, index + 1)) {
+    spans.push({ start: from[index], end: to[index + text.length - 1] });
+  }
+  return spans;
 }
 
 /**

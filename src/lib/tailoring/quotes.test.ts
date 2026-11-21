@@ -45,6 +45,12 @@ describe("findQuote", () => {
     expect(findQuote(MARKDOWN, "Shipped ... customers")).toBeNull();
     expect(findQuote(MARKDOWN, "Shipped … customers")).toBeNull();
   });
+
+  it("finds nothing for a quote that's in the Markdown more than once, so it can't land in the wrong place", () => {
+    const twice = "## Experience\n\n- Ran weekly planning\n\n## Projects\n\n- Ran Weekly planning";
+    expect(findQuote(twice, "Ran weekly planning")).toBeNull();
+    expect(findQuote(twice, "Experience")).toEqual({ start: 3, end: 13 });
+  });
 });
 
 describe("findSection", () => {

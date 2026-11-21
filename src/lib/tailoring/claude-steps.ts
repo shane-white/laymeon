@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
-import { findQuote, findSection } from "./quotes";
+import { findSection, quoteMatches } from "./quotes";
 import type { SuggestionRequest, TailoringSteps, WrittenSuggestion } from "./tailoring";
 
 // Suggestions quote this Markdown word for word, and the copy prompt quotes
@@ -96,7 +96,10 @@ function itemsForPrompt(requests: SuggestionRequest[]): string {
     .join("\n\n");
 }
 
-/** Problems the schema can't catch: unknown or repeated items, and quotes or sections that aren't in the Markdown. */
+/**
+ * Problems the schema can't catch: unknown or repeated items, quotes that
+ * aren't in the Markdown or are in it more than once, and sections it lacks.
+ */
 function suggestionProblems(answer: SuggestionsAnswer, markdown: string, count: number): string[] {
   const problems: string[] = [];
   const seen = new Set<number>();
@@ -105,7 +108,11 @@ function suggestionProblems(answer: SuggestionsAnswer, markdown: string, count: 
     else if (seen.has(s.item)) problems.push(`Item ${s.item} has more than one Suggestion. Give it at most one.`);
     seen.add(s.item);
     if (s.kind === "rewrite" || s.quote.trim()) {
-      if (!findQuote(markdown, s.quote)) problems.push(`Item ${s.item}: "${s.quote}" isn't in the resume word for word.`);
+      const found = quoteMatches(markdown, s.quote).length;
+      if (found === 0) problems.push(`Item ${s.item}: "${s.quote}" isn't in the resume word for word.`);
+      else if (found > 1) {
+        problems.push(`Item ${s.item}: "${s.quote}" is in the resume more than once. Quote enough to pick out one place.`);
+      }
     } else if (!findSection(markdown, s.section)) {
       problems.push(`Item ${s.item}: the resume has no section headed "${s.section}".`);
     }
