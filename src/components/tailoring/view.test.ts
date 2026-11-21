@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Decision, Suggestion, Tailoring, TailoringItem } from "@/lib/tailoring/tailoring";
-import { acceptedCount, allowedDecisions, resumeView, stepItem, withDecision, type ViewBlock, type ViewInline } from "./view";
+import { allowedDecisions } from "@/lib/tailoring/decisions";
+import { acceptedCount, resumeView, stepItem, withDecision, type ViewBlock, type ViewInline } from "./view";
 
 const MARKDOWN = [
   "# Jane Doe",

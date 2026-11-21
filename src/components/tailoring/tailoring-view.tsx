@@ -4,17 +4,16 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, CircleDashed, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { putsTextOnResume } from "@/lib/tailoring/decisions";
 import type { Decision, Tailoring } from "@/lib/tailoring/tailoring";
 import { SuggestionDetails, type GapPromptProps } from "./suggestion-details";
 import { acceptedCount, resumeView, stepItem, type AddBlock, type ViewBlock, type ViewInline, type ViewMarker } from "./view";
-
-const ACCEPTED = new Set<Decision["status"]>(["accepted", "edited", "own_text"]);
 
 /** The highlight's colours for its decision, and a ring when it's selected. */
 function markClass(status: Decision["status"], selected: boolean) {
   return cn(
     "cursor-pointer rounded-sm text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring",
-    ACCEPTED.has(status)
+    putsTextOnResume(status)
       ? "bg-green-500/15 hover:bg-green-500/25"
       : status === "rejected" || status === "skipped"
         ? "bg-muted underline decoration-muted-foreground/50 decoration-dotted hover:bg-muted/70"

@@ -3,7 +3,8 @@
  * throw: every seam call is wrapped and turned into a `Failure`. Routes only
  * check who's signed in and send back the result (see `http.ts`).
  */
-import { MAX_PROJECT_DESCRIPTION_LENGTH, MAX_PROJECT_TITLE_LENGTH } from "@/lib/projects";
+import { writtenExampleWorkProblem } from "@/lib/projects";
+import { allowedDecisions } from "./decisions";
 import { exampleWorkRequest, exampleWorkSuggestion, newItems, suggestionRequests, withSuggestions } from "./items";
 import {
   failure,
@@ -238,17 +239,17 @@ export async function startOver(deps: TailoringDeps, jobId: string): Promise<Tai
 
 /** The decision as it's saved, or why it can't be made on the item. */
 function checkedDecision(item: TailoringItem, decision: Decision): Decision | string {
+  if (decision.status !== "undecided" && !allowedDecisions(item).includes(decision.status)) {
+    return decision.status === "skipped" ? "Only a gap can be skipped." : "This item has no Suggestion to decide on.";
+  }
   switch (decision.status) {
     case "undecided":
-      return decision;
     case "skipped":
-      return item.gap ? decision : "Only a gap can be skipped.";
     case "accepted":
     case "rejected":
-      return item.suggestion ? { status: decision.status } : "This item has no Suggestion to decide on.";
+      return { status: decision.status };
     case "edited":
     case "own_text": {
-      if (!item.suggestion) return "This item has no Suggestion to decide on.";
       const text = decision.text.trim();
       if (!text) return "Write the text to use.";
       if (text.length > MAX_DECISION_TEXT_LENGTH) {
@@ -287,17 +288,6 @@ export async function decide(
   );
 }
 
-/** Why the Example Work can't be added as it is, or null if it can. */
-function exampleWorkProblem({ title, description }: ExampleWorkInput): string | null {
-  if (!title) return "Give the project a title.";
-  if (!description) return "Describe the project.";
-  if (title.length > MAX_PROJECT_TITLE_LENGTH) return `Keep the title to ${MAX_PROJECT_TITLE_LENGTH} characters.`;
-  if (description.length > MAX_PROJECT_DESCRIPTION_LENGTH) {
-    return `Keep the description to ${MAX_PROJECT_DESCRIPTION_LENGTH.toLocaleString("en-US")} characters.`;
-  }
-  return null;
-}
-
 const ITEM_GONE_MESSAGE = "This item is no longer in your Tailoring. Reload the page.";
 
 const NO_GAP_SUGGESTION_MESSAGE =
@@ -323,7 +313,7 @@ export async function fillGap(
   if (!item.gap) return failure("invalid_example_work", "This item already has a Suggestion.");
 
   const exampleWork = { title: input.title.trim(), description: input.description.trim() };
-  const problem = exampleWorkProblem(exampleWork);
+  const problem = writtenExampleWorkProblem(exampleWork);
   if (problem) return failure("invalid_example_work", problem);
 
   let added;

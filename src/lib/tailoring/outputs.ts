@@ -5,7 +5,8 @@
  * they are, edited, or in their own words).
  */
 import { findQuote } from "./quotes";
-import { acceptedText, addLineIndex, LIST_MARK, markdownLines, plainText, type MarkdownLine } from "./resume-markdown";
+import { acceptedText } from "./decisions";
+import { addLineIndex, LIST_MARK, markdownLines, plainText, type MarkdownLine } from "./resume-markdown";
 import type { Tailoring, TailoringItem } from "./tailoring";
 
 /** One change to the Markdown: `markdown.slice(start, end)` becomes `text`. */

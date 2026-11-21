@@ -142,9 +142,10 @@ describe("deciding while the Tailoring changes", () => {
   });
 
   it("doesn't bring back the old items when the Tailoring is started over while the decision is saved", async () => {
-    let deps: TailoringDeps | undefined;
-    const started = await setup({ beforeSaveItems: () => startOver(deps!, "job-1").then(() => undefined) });
-    deps = started.deps;
+    // Another tab starts over after the decision's read, before its write.
+    const later: { deps?: TailoringDeps } = {};
+    const started = await setup({ beforeSaveItems: () => startOver(later.deps!, "job-1").then(() => undefined) });
+    const deps = (later.deps = started.deps);
 
     const result = await decide(deps, "job-1", started.payments, { status: "accepted" });
 

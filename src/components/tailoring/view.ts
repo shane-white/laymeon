@@ -3,9 +3,9 @@
  * Resume blocks, with each item's Suggestion or gap marked where it applies.
  * Pure, so the view only renders what this returns.
  */
+import { acceptedText } from "@/lib/tailoring/decisions";
 import { findQuote } from "@/lib/tailoring/quotes";
 import {
-  acceptedText,
   addLineIndex,
   LIST_MARK,
   markdownLines,
@@ -14,8 +14,6 @@ import {
   type MarkdownLine,
 } from "@/lib/tailoring/resume-markdown";
 import type { Decision, Tailoring, TailoringItem } from "@/lib/tailoring/tailoring";
-
-export { acceptedText, plainText };
 
 /**
  * A run of text inside a block:
@@ -188,13 +186,4 @@ export function acceptedCount(items: TailoringItem[]): { accepted: number; total
 /** The Tailoring with the decision recorded on one item, as the server will save it. */
 export function withDecision(tailoring: Tailoring, itemId: string, decision: Decision): Tailoring {
   return { ...tailoring, items: tailoring.items.map((item) => (item.id === itemId ? { ...item, decision } : item)) };
-}
-
-/**
- * The decisions the user can make on an item, besides undoing one: an item
- * with a Suggestion can be accepted, edited, given own text or rejected; a gap
- * can be skipped. The server allows the same.
- */
-export function allowedDecisions(item: TailoringItem): Exclude<Decision["status"], "undecided">[] {
-  return [...(item.suggestion ? (["accepted", "edited", "own_text", "rejected"] as const) : []), ...(item.gap ? (["skipped"] as const) : [])];
 }

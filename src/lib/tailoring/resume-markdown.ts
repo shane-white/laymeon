@@ -6,7 +6,7 @@
  */
 import { normalizeText } from "@/lib/match-report/evidence";
 import { findQuote } from "./quotes";
-import type { AddAnchor, TailoringItem } from "./tailoring";
+import type { AddAnchor } from "./tailoring";
 
 export type LineKind = { kind: "heading"; level: number } | { kind: "bullet" } | { kind: "paragraph" };
 
@@ -52,18 +52,6 @@ export function plainText(markdown: string): string {
     .replace(/\\([\\`*_{}[\]()#+\-.!|>])/g, "$1")
     .replace(/\*\*|__|`/g, "")
     .replace(/\s+#+\s*$/, "");
-}
-
-/**
- * The text an item puts on the Resume: its Suggestion's text when accepted,
- * the user's text when edited or their own, otherwise null.
- */
-export function acceptedText(item: TailoringItem): string | null {
-  if (!item.suggestion) return null;
-  const { decision } = item;
-  if (decision.status === "accepted") return item.suggestion.text;
-  if (decision.status === "edited" || decision.status === "own_text") return decision.text;
-  return null;
 }
 
 /**

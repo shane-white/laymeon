@@ -14,7 +14,8 @@ import {
   type TailoringItem,
   type TailoringTarget,
 } from "@/lib/tailoring/tailoring";
-import { allowedDecisions, plainText } from "./view";
+import { allowedDecisions, userText } from "@/lib/tailoring/decisions";
+import { plainText } from "@/lib/tailoring/resume-markdown";
 
 const STATUS_LABEL: Record<Decision["status"], string> = {
   undecided: "Not decided yet",
@@ -189,7 +190,7 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
   const [editing, setEditing] = useState<"edited" | "own_text" | null>(null);
   const { suggestion, decision } = item;
   const allowed = allowedDecisions(item);
-  const decidedText = decision.status === "edited" || decision.status === "own_text" ? decision.text : null;
+  const decidedText = userText(decision);
 
   return (
     <div className="flex flex-col gap-4">
