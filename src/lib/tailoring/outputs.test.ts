@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copyPrompt, downloadName, tailoredMarkdown } from "./outputs";
+import { copyPrompt, downloadName, outputEditCounts, tailoredMarkdown } from "./outputs";
 import type { Decision, Suggestion, Tailoring, TailoringItem } from "./tailoring";
 
 const MARKDOWN = [
@@ -236,5 +236,22 @@ describe("downloadName", () => {
     expect(downloadName(null, null)).toBe("Resume.md");
     expect(downloadName("PM Resume", null)).toBe("PM Resume.md");
     expect(downloadName(null, "Acme")).toBe("Resume – Acme.md");
+  });
+});
+
+describe("outputEditCounts", () => {
+  it("counts the accepted edits each output carries", () => {
+    const items = [
+      item(rewrite("Ran weekly user interviews", "Ran 60 interviews")),
+      item(addIn("Skills", "Python"), { status: "own_text", text: "Python, dbt" }),
+      item(rewrite("SQL, Figma", "SQL"), { status: "rejected" }),
+      item(null, { status: "undecided" }),
+    ];
+    expect(outputEditCounts(tailoring(items))).toEqual({ prompt: 2, markdown: 2 });
+  });
+
+  it("leaves an edit whose text isn't in the Markdown out of the download's count but not the prompt's", () => {
+    const items = [item(rewrite("Not on this Resume", "New text")), item(addAfter("Nor is this", "More text"))];
+    expect(outputEditCounts(tailoring(items))).toEqual({ prompt: 2, markdown: 0 });
   });
 });

@@ -46,10 +46,12 @@ function addsAfter(markdown: string, line: MarkdownLine | undefined, texts: stri
   return `\n\n${texts.join("\n\n")}${breakAfter}`;
 }
 
-/** The Tailoring's structured Markdown with its accepted edits made. */
-export function tailoredMarkdown(tailoring: Tailoring): string {
+/**
+ * The accepted edits that have a place in the Markdown: each Rewrite whose
+ * quote is found, and each Add's text by the index of the line it goes after.
+ */
+function placedEdits(tailoring: Tailoring, lines: MarkdownLine[]): { rewrites: Splice[]; adds: Map<number, string[]> } {
   const { markdown } = tailoring;
-  const lines = markdownLines(markdown);
   const rewrites: Splice[] = [];
   /** Each accepted Add's text, by the index of the line it goes after. */
   const adds = new Map<number, string[]>();
@@ -65,6 +67,14 @@ export function tailoredMarkdown(tailoring: Tailoring): string {
       if (at !== null) adds.set(at, [...(adds.get(at) ?? []), text]);
     }
   }
+  return { rewrites, adds };
+}
+
+/** The Tailoring's structured Markdown with its accepted edits made. */
+export function tailoredMarkdown(tailoring: Tailoring): string {
+  const { markdown } = tailoring;
+  const lines = markdownLines(markdown);
+  const { rewrites, adds } = placedEdits(tailoring, lines);
 
   const splices = [...rewrites];
   for (const [at, texts] of adds) {
@@ -96,6 +106,21 @@ function editInstruction(item: TailoringItem): string | null {
   return `Add "${asWritten(text)}" in the "${asWritten(suggestion.anchor.heading)}" section.`;
 }
 
+function promptEdits(tailoring: Tailoring): string[] {
+  return tailoring.items.map(editInstruction).filter((edit) => edit !== null);
+}
+
+/**
+ * How many accepted edits each output carries. The download can carry fewer
+ * than the prompt: an edit whose text isn't found in the Markdown is left out
+ * of it, while the prompt still lists it for the other AI to find.
+ */
+export function outputEditCounts(tailoring: Tailoring): { prompt: number; markdown: number } {
+  const { rewrites, adds } = placedEdits(tailoring, markdownLines(tailoring.markdown));
+  const added = [...adds.values()].reduce((sum, texts) => sum + texts.length, 0);
+  return { prompt: promptEdits(tailoring).length, markdown: rewrites.length + added };
+}
+
 /**
  * A prompt for another AI, pasted alongside the user's original Resume file:
  * make only the accepted edits, in the Tailoring's order, and change nothing
@@ -103,7 +128,7 @@ function editInstruction(item: TailoringItem): string | null {
  * the other AI has nothing to make changes of its own from.
  */
 export function copyPrompt(tailoring: Tailoring): string {
-  const edits = tailoring.items.map(editInstruction).filter((edit) => edit !== null);
+  const edits = promptEdits(tailoring);
   const lines = [
     "I've attached my resume. Please make only the edits listed below to it.",
     "",
