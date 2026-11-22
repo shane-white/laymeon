@@ -56,7 +56,7 @@ describe("the items a Tailoring covers", () => {
         requirement("Nice missing", { importance: "nice_to_have" }),
         requirement("Must missing", { category: "tool" }),
       ],
-      screeners: [screener("Work authorization"), screener("Shown screener", { shown: true })],
+      screeners: [screener("Bachelor's degree"), screener("Shown screener", { shown: true })],
       searchWords: [{ word: "payments", inResume: false }] as never,
     });
     const { deps } = setup(job);
@@ -64,7 +64,7 @@ describe("the items a Tailoring covers", () => {
     const tailoring = await started(deps);
 
     expect(tailoring.items.map((i) => i.target)).toEqual([
-      { kind: "screener", text: "Work authorization" },
+      { kind: "screener", text: "Bachelor's degree" },
       { kind: "requirement", text: "Must missing", importance: "must_have", category: "tool", match: "missing" },
       { kind: "requirement", text: "Must partial", importance: "must_have", category: "experience", match: "partial" },
       { kind: "requirement", text: "Nice missing", importance: "nice_to_have", category: "experience", match: "missing" },
@@ -72,6 +72,29 @@ describe("the items a Tailoring covers", () => {
     ]);
     expect(new Set(tailoring.items.map((i) => i.id)).size).toBe(5);
     expect(tailoring.items.every((i) => i.decision.status === "undecided")).toBe(true);
+  });
+  it("leave out location Screeners, and keep skill-based ones and older ones with no kind", async () => {
+    const job = withReport(tailoringJob(), {
+      screeners: [
+        screener("On-site in Austin, TX", { kind: "location" }),
+        screener("5+ years of product management", { kind: "years" }),
+        screener("Bachelor's degree", { kind: "degree" }),
+        screener("PMP certification", { kind: "credential" }),
+        screener("Secret clearance", { kind: "clearance" }),
+        screener("Must live in the EU"),
+      ],
+    });
+    const { deps } = setup(job);
+
+    const tailoring = await started(deps);
+
+    expect(tailoring.items.map((i) => i.target.text)).toEqual([
+      "5+ years of product management",
+      "Bachelor's degree",
+      "PMP certification",
+      "Secret clearance",
+      "Must live in the EU",
+    ]);
   });
 });
 
@@ -83,7 +106,7 @@ describe("sorting items by coverage", () => {
         requirement("Kubernetes"),
         requirement("Roadmapping", { match: "partial" }),
       ],
-      screeners: [screener("US work authorization")],
+      screeners: [screener("Security clearance")],
     });
 
   it("asks for a Suggestion from the linked Career Story items, and a rewording one for a partial Requirement with none", async () => {
@@ -108,7 +131,7 @@ describe("sorting items by coverage", () => {
     expect(byText("Payments experience")).toMatchObject({ gap: false, suggestion: { kind: "rewrite" } });
     expect(byText("Roadmapping")).toMatchObject({ gap: true, suggestion: { kind: "rewrite" } });
     expect(byText("Kubernetes")).toMatchObject({ gap: true, suggestion: null });
-    expect(byText("US work authorization")).toMatchObject({ gap: true, suggestion: null });
+    expect(byText("Security clearance")).toMatchObject({ gap: true, suggestion: null });
   });
 
   it("doesn't call Claude when nothing can have a Suggestion", async () => {

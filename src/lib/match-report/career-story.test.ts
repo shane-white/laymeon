@@ -85,8 +85,8 @@ describe("buildMatchReport with a Career Story", () => {
   const model: ModelReport = {
     overall: { reason: "", topFixes: [] },
     screeners: [
-      { item: "5+ years of product management", shown: false, evidence: null, careerStoryIds: ["R1"] },
-      { item: "SQL", shown: true, evidence: "SQL", careerStoryIds: ["S1"] },
+      { item: "5+ years of product management", kind: "years", shown: false, evidence: null, careerStoryIds: ["R1"] },
+      { item: "SQL", kind: "credential", shown: true, evidence: "SQL", careerStoryIds: ["S1"] },
     ],
     requirements: [
       requirement("Payments products", "missing", null, ["A1", "S2"]),

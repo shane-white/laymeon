@@ -112,15 +112,15 @@ describe("verifyEvidence", () => {
       {
         ...base,
         screeners: [
-          { item: "US work authorization", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
-          { item: "Bachelor's degree", shown: true, evidence: "BS in Computer Science", careerStoryIds: [] },
+          { item: "Based in the US", kind: "location", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
+          { item: "Bachelor's degree", kind: "degree", shown: true, evidence: "BS in Computer Science", careerStoryIds: [] },
         ],
       },
       RESUME,
     );
     expect(screeners).toEqual([
-      { item: "US work authorization", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
-      { item: "Bachelor's degree", shown: false, evidence: null, careerStoryIds: [] },
+      { item: "Based in the US", kind: "location", shown: true, evidence: "Authorized to work in the US", careerStoryIds: [] },
+      { item: "Bachelor's degree", kind: "degree", shown: false, evidence: null, careerStoryIds: [] },
     ]);
   });
 });
