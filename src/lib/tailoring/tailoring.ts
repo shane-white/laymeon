@@ -69,7 +69,8 @@ export type Suggestion = (
  * The user's decision on an item:
  * - `accepted`: the Suggestion's text as it is.
  * - `edited`: the Suggestion, with the user's changes to its text.
- * - `own_text`: the user's own text in the Suggestion's place.
+ * - `own_text`: the user's own text in the Suggestion's place. No longer made (Edit
+ *   covers it), but saved Tailorings may still hold it.
  * - `rejected`: nothing goes on the Resume.
  * - `skipped`: a gap the user chose not to fill.
  * Only accepted, edited and own text change the Resume.

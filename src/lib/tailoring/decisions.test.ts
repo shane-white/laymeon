@@ -51,7 +51,6 @@ describe("deciding on a Suggestion", () => {
   const decisions: Decision[] = [
     { status: "accepted" },
     { status: "edited", text: "Shipped card and ACH payments" },
-    { status: "own_text", text: "Built payments end to end" },
     { status: "rejected" },
   ];
   for (const decision of decisions) {
@@ -82,20 +81,43 @@ describe("deciding on a Suggestion", () => {
     expect(await decisionOf(deps, payments)).toEqual({ status: "accepted" });
   });
 
-  it("trims edited and own text, and needs some", async () => {
+  it("trims edited text, and needs some", async () => {
     const { deps, payments } = await setup();
-    await decide(deps, "job-1", payments, { status: "own_text", text: "  Built payments  " });
-    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments" });
+    await decide(deps, "job-1", payments, { status: "edited", text: "  Built payments  " });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built payments" });
 
     expect(await decide(deps, "job-1", payments, { status: "edited", text: "  " })).toMatchObject({
       ok: false,
       kind: "invalid_decision",
     });
-    expect(await decide(deps, "job-1", payments, { status: "own_text", text: "x".repeat(2001) })).toMatchObject({
+    expect(await decide(deps, "job-1", payments, { status: "edited", text: "x".repeat(2001) })).toMatchObject({
       ok: false,
       kind: "invalid_decision",
     });
-    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments" });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built payments" });
+  });
+
+  it("no longer takes new own text", async () => {
+    const { deps, payments } = await setup();
+    expect(await decide(deps, "job-1", payments, { status: "own_text", text: "Built payments" })).toMatchObject({
+      ok: false,
+      kind: "invalid_decision",
+      message: "Edit the proposed text instead.",
+    });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "undecided" });
+  });
+
+  it("still loads a saved own-text decision, and saves a change to it as edited", async () => {
+    const { deps, store, payments } = await setup();
+    const [saved] = store.tailorings();
+    const items = saved.items.map((i) =>
+      i.id === payments ? { ...i, decision: { status: "own_text" as const, text: "Built payments end to end" } } : i,
+    );
+    await store.saveItems(saved.id, items, saved.updatedAt);
+    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments end to end" });
+
+    await decide(deps, "job-1", payments, { status: "edited", text: "Built card payments end to end" });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built card payments end to end" });
   });
 });
 

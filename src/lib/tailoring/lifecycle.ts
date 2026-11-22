@@ -240,7 +240,10 @@ export async function startOver(deps: TailoringDeps, jobId: string): Promise<Tai
 /** The decision as it's saved, or why it can't be made on the item. */
 function checkedDecision(item: TailoringItem, decision: Decision): Decision | string {
   if (decision.status !== "undecided" && !allowedDecisions(item).includes(decision.status)) {
-    return decision.status === "skipped" ? "Only a gap can be skipped." : "This item has no Suggestion to decide on.";
+    if (decision.status === "skipped") return "Only a gap can be skipped.";
+    // Own text is no longer offered for new decisions; saved ones still load.
+    if (decision.status === "own_text" && item.suggestion) return "Edit the proposed text instead.";
+    return "This item has no Suggestion to decide on.";
   }
   switch (decision.status) {
     case "undecided":
@@ -264,7 +267,7 @@ function checkedDecision(item: TailoringItem, decision: Decision): Decision | st
  * Records the user's decision on one item of the Job's Tailoring for its
  * current Resume, replacing any decision it had. Works on a Tailoring that's
  * an Earlier version too. A gap can only be skipped (or undecided); only an
- * item with a Suggestion can be accepted, edited, given own text or rejected.
+ * item with a Suggestion can be accepted, edited or rejected.
  */
 export async function decide(
   deps: TailoringDeps,
