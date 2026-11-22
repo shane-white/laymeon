@@ -112,10 +112,7 @@ export function check(
   };
 }
 
-/** "1 bullet" / "3 bullets". */
-export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
+export { plural } from "@/lib/utils";
 
 export function share(part: number, whole: number): number {
   return whole === 0 ? 0 : part / whole;

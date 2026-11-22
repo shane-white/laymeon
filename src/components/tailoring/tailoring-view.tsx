@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { closesWithoutText, putsTextOnResume } from "@/lib/tailoring/decisions";
 import type { Decision, Tailoring } from "@/lib/tailoring/tailoring";
 import { SuggestionDetails, type GapPromptProps } from "./suggestion-details";
+import type { OutputsMenuProps } from "./tailoring-outputs";
 import { acceptedCount, resumeView, stepItem, type AddBlock, type ViewBlock, type ViewInline, type ViewMarker } from "./view";
 
 /** The highlight's colours for its decision, and a ring when it's selected. */
@@ -133,12 +134,6 @@ function Markers({ markers, ...selectable }: { markers: ViewMarker[] } & Selecta
       </ul>
     </section>
   );
-}
-
-/** What the view gives the outputs menu: the button that opens it, and the side it opens on. */
-export interface OutputsMenuProps {
-  side: "top" | "bottom";
-  children: ReactNode;
 }
 
 interface StepFooterProps {

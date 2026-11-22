@@ -12,8 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { copyPrompt, downloadName, outputEditCounts, tailoredMarkdown } from "@/lib/tailoring/outputs";
 import type { Tailoring } from "@/lib/tailoring/tailoring";
-import type { OutputsMenuProps } from "./tailoring-view";
+import { plural } from "@/lib/utils";
 import { acceptedCount } from "./view";
+
+/** What the view gives the outputs menu: the button that opens it, and the side it opens on. */
+export interface OutputsMenuProps {
+  side: "top" | "bottom";
+  children: ReactNode;
+}
 
 interface TailoringOutputsProps extends OutputsMenuProps {
   tailoring: Tailoring;
@@ -32,8 +38,6 @@ function saveFile(name: string, text: string, type: string) {
   link.remove();
   URL.revokeObjectURL(url);
 }
-
-const editCount = (count: number) => `${count} edit${count === 1 ? "" : "s"}`;
 
 interface OutputProps {
   icon: ReactNode;
@@ -88,18 +92,18 @@ export function TailoringOutputs({ tailoring, resumeName, company, side, childre
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           {accepted === 0
             ? "You haven't accepted a Suggestion yet"
-            : `Uses your ${accepted} accepted Suggestion${accepted === 1 ? "" : "s"}`}
+            : `Uses your ${plural(accepted, "accepted Suggestion")}`}
         </DropdownMenuLabel>
         <Output
           icon={<Copy />}
           title="Copy prompt"
-          description={`For another AI to make these edits to your original file, keeping its formatting. ${editCount(promptEdits)}.`}
+          description={`For another AI to make these edits to your original file, keeping its formatting. ${plural(promptEdits, "edit")}.`}
           onSelect={() => void copy()}
         />
         <Output
           icon={<Download />}
           title="Download Markdown"
-          description={`Your Resume with the edits made, as a .md file. ${editCount(downloadEdits)}.`}
+          description={`Your Resume with the edits made, as a .md file. ${plural(downloadEdits, "edit")}.`}
           onSelect={download}
         />
       </DropdownMenuContent>
