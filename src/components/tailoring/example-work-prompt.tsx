@@ -88,7 +88,7 @@ export function ExampleWorkPrompt({ jobId, itemId, itemText, onDone }: ExampleWo
     >
       <p id={`${idPrefix}-prompt`} className="text-sm">
         Your Resume and Career Story don&rsquo;t show <em className="font-medium">{itemText}</em>. If
-        you&rsquo;ve done this, describe a project where you did.
+        you&rsquo;ve done this, or something close to it, describe a project that shows it.
       </p>
       <ProjectFields
         idPrefix={idPrefix}
