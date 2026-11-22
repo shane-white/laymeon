@@ -4,7 +4,7 @@
  * check who's signed in and send back the result (see `http.ts`).
  */
 import { writtenExampleWorkProblem } from "@/lib/projects";
-import { allowedDecisions } from "./decisions";
+import { allowedDecisions, hasText } from "./decisions";
 import { exampleWorkRequest, exampleWorkSuggestion, newItems, suggestionRequests, withSuggestions } from "./items";
 import {
   failure,
@@ -240,31 +240,26 @@ export async function startOver(deps: TailoringDeps, jobId: string): Promise<Tai
 /** The decision as it's saved, or why it can't be made on the item. */
 function checkedDecision(item: TailoringItem, decision: Decision): Decision | string {
   if (decision.status !== "undecided" && !allowedDecisions(item).includes(decision.status)) {
-    return decision.status === "skipped" ? "Only a gap can be skipped." : "This item has no Suggestion to decide on.";
+    if (decision.status === "skipped") return "Only a gap can be skipped.";
+    if (decision.status === "not_had") return "Only a missing Requirement or Screener can be marked Not had.";
+    if (decision.status === "own_text" && item.suggestion) return "Edit the proposed text instead.";
+    return "This item has no Suggestion to decide on.";
   }
-  switch (decision.status) {
-    case "undecided":
-    case "skipped":
-    case "accepted":
-    case "rejected":
-      return { status: decision.status };
-    case "edited":
-    case "own_text": {
-      const text = decision.text.trim();
-      if (!text) return "Write the text to use.";
-      if (text.length > MAX_DECISION_TEXT_LENGTH) {
-        return `Keep the text to ${MAX_DECISION_TEXT_LENGTH.toLocaleString("en-US")} characters.`;
-      }
-      return { status: decision.status, text };
-    }
+  if (!hasText(decision)) return { status: decision.status };
+  const text = decision.text.trim();
+  if (!text) return "Write the text to use.";
+  if (text.length > MAX_DECISION_TEXT_LENGTH) {
+    return `Keep the text to ${MAX_DECISION_TEXT_LENGTH.toLocaleString("en-US")} characters.`;
   }
+  return { status: decision.status, text };
 }
 
 /**
  * Records the user's decision on one item of the Job's Tailoring for its
  * current Resume, replacing any decision it had. Works on a Tailoring that's
- * an Earlier version too. A gap can only be skipped (or undecided); only an
- * item with a Suggestion can be accepted, edited, given own text or rejected.
+ * an Earlier version too. A gap can be skipped, and one with no Suggestion
+ * that's a missing Requirement or a Screener can be marked Not had; only an
+ * item with a Suggestion can be accepted, edited or rejected.
  */
 export async function decide(
   deps: TailoringDeps,

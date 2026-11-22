@@ -117,15 +117,29 @@ describe("/api/jobs/[id]/tailoring", () => {
 
     it("rejects a body that isn't a decision", async () => {
       const itemId = await startedItemId();
-      for (const body of ["not json", {}, { itemId, decision: { status: "maybe" } }, { itemId, decision: { status: "edited" } }]) {
+      for (const body of [
+        "not json",
+        {},
+        { itemId, decision: { status: "maybe" } },
+        { itemId, decision: { status: "edited" } },
+        { itemId, decision: { status: "own_text", text: "Ran roadmap planning" } },
+      ]) {
         expect((await PATCH(patch(body), params())).status).toBe(400);
       }
+    });
+
+    it("takes a Not had decision, and checks it against the item", async () => {
+      // The item is a partial Requirement, which can't be Not had.
+      const itemId = await startedItemId();
+      const response = await PATCH(patch({ itemId, decision: { status: "not_had" } }), params());
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ kind: "invalid_decision" });
     });
 
     it("says why a decision can't be made on the item", async () => {
       const itemId = await startedItemId();
       expect((await PATCH(patch({ itemId: "gone", decision: { status: "accepted" } }), params())).status).toBe(404);
-      const response = await PATCH(patch({ itemId, decision: { status: "own_text", text: " " } }), params());
+      const response = await PATCH(patch({ itemId, decision: { status: "edited", text: " " } }), params());
       expect(response.status).toBe(400);
       expect(await response.json()).toMatchObject({ kind: "invalid_decision" });
     });

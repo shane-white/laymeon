@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookUser, Check, FileText, Lightbulb, PenLine, Pencil, SkipForward, Undo2, X } from "lucide-react";
+import { Ban, BookUser, Check, FileText, Lightbulb, Pencil, SkipForward, Undo2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import {
   type TailoringItem,
   type TailoringTarget,
 } from "@/lib/tailoring/tailoring";
-import { allowedDecisions, userText } from "@/lib/tailoring/decisions";
+import { allowedDecisions, closesGap, userText } from "@/lib/tailoring/decisions";
 import { plainText } from "@/lib/tailoring/resume-markdown";
 
 const STATUS_LABEL: Record<Decision["status"], string> = {
@@ -24,6 +24,7 @@ const STATUS_LABEL: Record<Decision["status"], string> = {
   own_text: "Accepted with your own text",
   rejected: "Rejected",
   skipped: "Skipped",
+  not_had: "You don't have this",
 };
 
 const MISSING = "bg-red-500/15 text-red-700 dark:text-red-400";
@@ -126,7 +127,7 @@ function EvidenceList({ evidence }: { evidence: SuggestionEvidence[] }) {
   );
 }
 
-/** Writing the text for an edited or own-text decision. */
+/** Writing the text for an edited decision. */
 function TextEditor({
   initial,
   label,
@@ -174,8 +175,6 @@ export interface GapPromptProps {
 
 interface SuggestionDetailsProps {
   item: TailoringItem;
-  number: number;
-  total: number;
   onDecide: (decision: Decision) => void;
   /** The Example Work prompt for a gap. */
   gapPrompt: (props: GapPromptProps) => ReactNode;
@@ -186,8 +185,8 @@ interface SuggestionDetailsProps {
  * proposed text, why and Evidence) with the decisions it allows, and the
  * Example Work prompt for a gap. A decision can be changed or undone.
  */
-export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: SuggestionDetailsProps) {
-  const [editing, setEditing] = useState<"edited" | "own_text" | null>(null);
+export function SuggestionDetails({ item, onDecide, gapPrompt }: SuggestionDetailsProps) {
+  const [editing, setEditing] = useState(false);
   const { suggestion, decision } = item;
   const allowed = allowedDecisions(item);
   const decidedText = userText(decision);
@@ -196,9 +195,6 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {number} of {total}
-          </span>
           <TargetBadges target={item.target} />
         </div>
         <h3 className="text-sm font-semibold">{item.target.text}</h3>
@@ -225,14 +221,14 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
         </p>
         {editing ? (
           <TextEditor
-            key={editing}
-            label={editing === "edited" ? "Edit the proposed text" : "Write your own text"}
-            initial={editing === "edited" ? (decidedText ?? suggestion?.text ?? "") : decision.status === "own_text" ? decision.text : ""}
+            label="Edit the proposed text"
+            // The user's earlier text when there is one.
+            initial={decidedText ?? suggestion?.text ?? ""}
             onSave={(text) => {
-              onDecide({ status: editing, text });
-              setEditing(null);
+              onDecide({ status: "edited", text });
+              setEditing(false);
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => setEditing(false)}
           />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -242,13 +238,8 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
               </Button>
             )}
             {allowed.includes("edited") && (
-              <Button size="sm" variant="outline" onClick={() => setEditing("edited")}>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
-              </Button>
-            )}
-            {allowed.includes("own_text") && (
-              <Button size="sm" variant="outline" onClick={() => setEditing("own_text")}>
-                <PenLine /> Write my own
               </Button>
             )}
             {allowed.includes("rejected") && (
@@ -271,6 +262,16 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
                 <SkipForward /> Skip
               </Button>
             )}
+            {allowed.includes("not_had") && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={decision.status === "not_had"}
+                onClick={() => onDecide({ status: "not_had" })}
+              >
+                <Ban /> I don&apos;t have this
+              </Button>
+            )}
             {decision.status !== "undecided" && (
               <Button size="sm" variant="ghost" onClick={() => onDecide({ status: "undecided" })}>
                 <Undo2 /> Undo
@@ -280,7 +281,7 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
         )}
       </div>
 
-      {item.gap && decision.status !== "skipped" && (
+      {item.gap && !closesGap(decision.status) && (
         <div className="flex flex-col gap-2 border-t pt-3">
           {suggestion && (
             <p className="text-xs text-muted-foreground">Or, to show more than your Resume says:</p>

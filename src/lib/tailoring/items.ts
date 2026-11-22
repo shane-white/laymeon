@@ -26,13 +26,14 @@ interface Picked {
 
 /**
  * The items a Tailoring covers: missing and partial Requirements, and
- * Screeners not shown. Must-have before nice-to-have; within each, missing
+ * Screeners not shown, except location Screeners: changing the Resume can't
+ * meet them. Older Match Reports' Screeners have no kind and are kept. Must-have before nice-to-have; within each, missing
  * before partial. A Screener counts as must-have and missing, and comes before
  * the Requirements of its rank.
  */
 function pickItems(report: MatchReport): Picked[] {
   const screeners: Picked[] = report.screeners
-    .filter((s) => !s.shown)
+    .filter((s) => !s.shown && s.kind !== "location")
     .map((s) => ({ target: { kind: "screener", text: s.item }, careerStory: s.careerStory }));
   const requirements: Picked[] = report.requirements.flatMap((r) =>
     r.match === "strong"

@@ -13,6 +13,8 @@ export const requirementCategorySchema = z.enum([
   "certification",
   "other",
 ]);
+/** What a Screener asks for. A location Screener can't be met by changing the Resume. */
+export const screenerKindSchema = z.enum(["years", "degree", "credential", "clearance", "location"]);
 export const searchWordStatusSchema = z.enum(["found", "similar", "not_found"]);
 export const similaritySchema = z.enum(["same_meaning", "related"]);
 
@@ -45,6 +47,9 @@ const screenerFields = {
     .describe(
       "A hard requirement that a resume is expected to show and employers often check with a yes/no question: minimum years of experience, degree, license or certification, security clearance, or required location. Never work authorization, sponsorship, citizenship, criminal history, background checks or other eligibility questions the applicant answers themselves.",
     ),
+  kind: screenerKindSchema.describe(
+    "years: minimum years of experience. degree: a degree. credential: a license or certification. clearance: a security clearance. location: a required location, or on-site or in-office work.",
+  ),
   shown: z.boolean().describe("Whether the resume clearly shows this requirement is met."),
   evidence: z
     .string()
@@ -183,6 +188,8 @@ export const matchReportSchema = z.object({
   screeners: z.array(
     z.object({
       item: z.string(),
+      /** Missing from Match Reports made before Screeners had a kind. */
+      kind: screenerKindSchema.optional(),
       shown: z.boolean(),
       evidence: z.string().nullable(),
       /** Career Story items that show it when the resume doesn't. */
@@ -219,4 +226,5 @@ export type MatchReport = z.infer<typeof matchReportSchema>;
 export type OverallLabel = z.infer<typeof overallLabelSchema>;
 export type Requirement = MatchReport["requirements"][number];
 export type SearchWord = MatchReport["searchWords"][number];
+export type ScreenerKind = z.infer<typeof screenerKindSchema>;
 export type CareerStoryRef = z.infer<typeof careerStoryRefSchema>;

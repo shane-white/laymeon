@@ -3,7 +3,7 @@ import { assembleModelReport } from "./assemble";
 import type { ListedReport, WriteUp } from "./schema";
 
 const listed: ListedReport = {
-  screeners: [{ item: "Bachelor's degree", shown: false, evidence: null }],
+  screeners: [{ item: "Bachelor's degree", kind: "degree", shown: false, evidence: null }],
   requirements: [
     { text: "PostgreSQL", importance: "must_have", category: "tool" },
     { text: "Kubernetes", importance: "must_have", category: "tool" },
@@ -34,7 +34,7 @@ describe("assembleModelReport", () => {
       { text: "Kubernetes", importance: "must_have", category: "tool", match: "partial", evidence: "GKE", action: "If true, name Kubernetes", careerStoryIds: ["S1"] },
       { text: "Rust", importance: "nice_to_have", category: "skill", match: "missing", evidence: null, action: "If true, add Rust", careerStoryIds: [] },
     ]);
-    expect(report.screeners).toEqual([{ item: "Bachelor's degree", shown: false, evidence: null, careerStoryIds: ["E1"] }]);
+    expect(report.screeners).toEqual([{ item: "Bachelor's degree", kind: "degree", shown: false, evidence: null, careerStoryIds: ["E1"] }]);
     expect(report.overall).toEqual(writeUp.overall);
     expect(report.nextSteps).toEqual(writeUp.nextSteps);
     expect(report.searchWords).toEqual(listed.searchWords);

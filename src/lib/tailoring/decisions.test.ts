@@ -9,6 +9,7 @@ import {
   requirement,
   rewrite,
   scriptedSteps,
+  screener,
   tailoringJob,
   withReport,
 } from "./testing";
@@ -51,7 +52,6 @@ describe("deciding on a Suggestion", () => {
   const decisions: Decision[] = [
     { status: "accepted" },
     { status: "edited", text: "Shipped card and ACH payments" },
-    { status: "own_text", text: "Built payments end to end" },
     { status: "rejected" },
   ];
   for (const decision of decisions) {
@@ -82,20 +82,43 @@ describe("deciding on a Suggestion", () => {
     expect(await decisionOf(deps, payments)).toEqual({ status: "accepted" });
   });
 
-  it("trims edited and own text, and needs some", async () => {
+  it("trims edited text, and needs some", async () => {
     const { deps, payments } = await setup();
-    await decide(deps, "job-1", payments, { status: "own_text", text: "  Built payments  " });
-    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments" });
+    await decide(deps, "job-1", payments, { status: "edited", text: "  Built payments  " });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built payments" });
 
     expect(await decide(deps, "job-1", payments, { status: "edited", text: "  " })).toMatchObject({
       ok: false,
       kind: "invalid_decision",
     });
-    expect(await decide(deps, "job-1", payments, { status: "own_text", text: "x".repeat(2001) })).toMatchObject({
+    expect(await decide(deps, "job-1", payments, { status: "edited", text: "x".repeat(2001) })).toMatchObject({
       ok: false,
       kind: "invalid_decision",
     });
-    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments" });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built payments" });
+  });
+
+  it("no longer takes new own text", async () => {
+    const { deps, payments } = await setup();
+    expect(await decide(deps, "job-1", payments, { status: "own_text", text: "Built payments" })).toMatchObject({
+      ok: false,
+      kind: "invalid_decision",
+      message: "Edit the proposed text instead.",
+    });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "undecided" });
+  });
+
+  it("still loads a saved own-text decision, and saves a change to it as edited", async () => {
+    const { deps, store, payments } = await setup();
+    const [saved] = store.tailorings();
+    const items = saved.items.map((i) =>
+      i.id === payments ? { ...i, decision: { status: "own_text" as const, text: "Built payments end to end" } } : i,
+    );
+    await store.saveItems(saved.id, items, saved.updatedAt);
+    expect(await decisionOf(deps, payments)).toEqual({ status: "own_text", text: "Built payments end to end" });
+
+    await decide(deps, "job-1", payments, { status: "edited", text: "Built card payments end to end" });
+    expect(await decisionOf(deps, payments)).toEqual({ status: "edited", text: "Built card payments end to end" });
   });
 });
 
@@ -119,6 +142,37 @@ describe("deciding on a gap", () => {
     const { deps, roadmapping } = await setup();
     expect(await decide(deps, "job-1", roadmapping, { status: "skipped" })).toMatchObject({ ok: true });
     expect(await decide(deps, "job-1", roadmapping, { status: "accepted" })).toMatchObject({ ok: true });
+  });
+
+  it("can mark a missing Requirement as Not had, and undo that", async () => {
+    const { deps, kubernetes } = await setup();
+    expect(await decide(deps, "job-1", kubernetes, { status: "not_had" })).toMatchObject({ ok: true });
+    expect(await decisionOf(deps, kubernetes)).toEqual({ status: "not_had" });
+    await decide(deps, "job-1", kubernetes, { status: "undecided" });
+    expect(await decisionOf(deps, kubernetes)).toEqual({ status: "undecided" });
+  });
+
+  it("can mark a Screener the Resume doesn't show as Not had", async () => {
+    const job = withReport(tailoringJob(), { screeners: [screener("US work authorization")] });
+    const deps: TailoringDeps = {
+      jobs: memoryJobs(job),
+      store: memoryTailoringStore(),
+      steps: scriptedSteps({ markdown: MARKDOWN }),
+      careerStory: memoryCareerStory(story.profile),
+      exampleWorks: memoryExampleWorks(),
+    };
+    const started = await startTailoring(deps, "job-1");
+    const itemId = started.ok ? started.tailoring!.items[0].id : "";
+    expect(await decide(deps, "job-1", itemId, { status: "not_had" })).toMatchObject({ ok: true });
+    expect(await decisionOf(deps, itemId)).toEqual({ status: "not_had" });
+  });
+
+  it("can't mark a partial Requirement or an item with a Suggestion as Not had", async () => {
+    const { deps, payments, roadmapping } = await setup();
+    for (const itemId of [payments, roadmapping]) {
+      expect(await decide(deps, "job-1", itemId, { status: "not_had" })).toMatchObject({ ok: false, kind: "invalid_decision" });
+      expect(await decisionOf(deps, itemId)).toEqual({ status: "undecided" });
+    }
   });
 
   it("can't skip an item that isn't a gap", async () => {
