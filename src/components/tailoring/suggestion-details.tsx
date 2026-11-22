@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookUser, Check, FileText, Lightbulb, Pencil, SkipForward, Undo2, X } from "lucide-react";
+import { Ban, BookUser, Check, FileText, Lightbulb, Pencil, SkipForward, Undo2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,7 @@ const STATUS_LABEL: Record<Decision["status"], string> = {
   own_text: "Accepted with your own text",
   rejected: "Rejected",
   skipped: "Skipped",
+  not_had: "You don't have this",
 };
 
 const MISSING = "bg-red-500/15 text-red-700 dark:text-red-400";
@@ -266,6 +267,16 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
                 <SkipForward /> Skip
               </Button>
             )}
+            {allowed.includes("not_had") && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={decision.status === "not_had"}
+                onClick={() => onDecide({ status: "not_had" })}
+              >
+                <Ban /> I don&apos;t have this
+              </Button>
+            )}
             {decision.status !== "undecided" && (
               <Button size="sm" variant="ghost" onClick={() => onDecide({ status: "undecided" })}>
                 <Undo2 /> Undo
@@ -275,7 +286,7 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
         )}
       </div>
 
-      {item.gap && decision.status !== "skipped" && (
+      {item.gap && decision.status !== "skipped" && decision.status !== "not_had" && (
         <div className="flex flex-col gap-2 border-t pt-3">
           {suggestion && (
             <p className="text-xs text-muted-foreground">Or, to show more than your Resume says:</p>

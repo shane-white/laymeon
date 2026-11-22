@@ -15,7 +15,7 @@ function markClass(status: Decision["status"], selected: boolean) {
     "cursor-pointer rounded-sm text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring",
     putsTextOnResume(status)
       ? "bg-green-500/15 hover:bg-green-500/25"
-      : status === "rejected" || status === "skipped"
+      : status === "rejected" || status === "skipped" || status === "not_had"
         ? "bg-muted underline decoration-muted-foreground/50 decoration-dotted hover:bg-muted/70"
         : "bg-yellow-400/30 hover:bg-yellow-400/45",
     selected && "ring-2 ring-primary",
