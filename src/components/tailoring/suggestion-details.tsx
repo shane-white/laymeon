@@ -14,7 +14,7 @@ import {
   type TailoringItem,
   type TailoringTarget,
 } from "@/lib/tailoring/tailoring";
-import { allowedDecisions, userText } from "@/lib/tailoring/decisions";
+import { allowedDecisions, closesGap, userText } from "@/lib/tailoring/decisions";
 import { plainText } from "@/lib/tailoring/resume-markdown";
 
 const STATUS_LABEL: Record<Decision["status"], string> = {
@@ -222,7 +222,7 @@ export function SuggestionDetails({ item, onDecide, gapPrompt }: SuggestionDetai
         {editing ? (
           <TextEditor
             label="Edit the proposed text"
-            // The user's earlier text when there is one, including a saved own-text decision.
+            // The user's earlier text when there is one.
             initial={decidedText ?? suggestion?.text ?? ""}
             onSave={(text) => {
               onDecide({ status: "edited", text });
@@ -281,7 +281,7 @@ export function SuggestionDetails({ item, onDecide, gapPrompt }: SuggestionDetai
         )}
       </div>
 
-      {item.gap && decision.status !== "skipped" && decision.status !== "not_had" && (
+      {item.gap && !closesGap(decision.status) && (
         <div className="flex flex-col gap-2 border-t pt-3">
           {suggestion && (
             <p className="text-xs text-muted-foreground">Or, to show more than your Resume says:</p>

@@ -69,8 +69,9 @@ export type Suggestion = (
  * The user's decision on an item:
  * - `accepted`: the Suggestion's text as it is.
  * - `edited`: the Suggestion, with the user's changes to its text.
- * - `own_text`: the user's own text in the Suggestion's place. No longer made (Edit
- *   covers it), but saved Tailorings may still hold it.
+ * - `own_text`: the user's own text in the Suggestion's place. No longer made:
+ *   new ones are refused and editing covers it, but saved Tailorings may still
+ *   hold it, so it still loads and shows.
  * - `rejected`: nothing goes on the Resume.
  * - `skipped`: a gap the user chose not to fill for now.
  * - `not_had`: Not had: the user lacks a missing Requirement or a Screener the

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Decision, Suggestion, Tailoring, TailoringItem } from "@/lib/tailoring/tailoring";
-import { allowedDecisions } from "@/lib/tailoring/decisions";
+import { allowedDecisions, closesGap, closesWithoutText, hasText } from "@/lib/tailoring/decisions";
 import { acceptedCount, resumeView, stepItem, withDecision, type ViewBlock, type ViewInline } from "./view";
 
 const MARKDOWN = [
@@ -249,5 +249,34 @@ describe("allowedDecisions", () => {
       "rejected",
       "skipped",
     ]);
+  });
+});
+
+describe("closesWithoutText", () => {
+  it("is true for a Decision that closes the item and puts nothing on the Resume: rejected, skipped or Not had", () => {
+    const statuses: Decision["status"][] = ["undecided", "accepted", "edited", "own_text", "rejected", "skipped", "not_had"];
+    expect(statuses.filter(closesWithoutText)).toEqual(["rejected", "skipped", "not_had"]);
+  });
+});
+
+describe("closesGap", () => {
+  it("is true for a Decision on the gap itself, skipped or Not had, but not for rejecting its rewording Suggestion", () => {
+    const statuses: Decision["status"][] = ["undecided", "accepted", "edited", "own_text", "rejected", "skipped", "not_had"];
+    expect(statuses.filter(closesGap)).toEqual(["skipped", "not_had"]);
+  });
+});
+
+describe("hasText", () => {
+  it("is true for a Decision that carries the user's text: edited or own text", () => {
+    const decisions: Decision[] = [
+      { status: "undecided" },
+      { status: "accepted" },
+      { status: "edited", text: "a" },
+      { status: "own_text", text: "b" },
+      { status: "rejected" },
+      { status: "skipped" },
+      { status: "not_had" },
+    ];
+    expect(decisions.filter(hasText).map((d) => d.text)).toEqual(["a", "b"]);
   });
 });
