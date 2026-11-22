@@ -106,7 +106,7 @@ function editInstruction(item: TailoringItem): string | null {
   return `Add "${asWritten(text)}" in the "${asWritten(suggestion.anchor.heading)}" section.`;
 }
 
-function promptEdits(tailoring: Tailoring): string[] {
+function editInstructions(tailoring: Tailoring): string[] {
   return tailoring.items.map(editInstruction).filter((edit) => edit !== null);
 }
 
@@ -115,10 +115,10 @@ function promptEdits(tailoring: Tailoring): string[] {
  * than the prompt: an edit whose text isn't found in the Markdown is left out
  * of it, while the prompt still lists it for the other AI to find.
  */
-export function outputEditCounts(tailoring: Tailoring): { prompt: number; markdown: number } {
+export function outputEditCounts(tailoring: Tailoring): { promptEdits: number; downloadEdits: number } {
   const { rewrites, adds } = placedEdits(tailoring, markdownLines(tailoring.markdown));
   const added = [...adds.values()].reduce((sum, texts) => sum + texts.length, 0);
-  return { prompt: promptEdits(tailoring).length, markdown: rewrites.length + added };
+  return { promptEdits: editInstructions(tailoring).length, downloadEdits: rewrites.length + added };
 }
 
 /**
@@ -128,7 +128,7 @@ export function outputEditCounts(tailoring: Tailoring): { prompt: number; markdo
  * the other AI has nothing to make changes of its own from.
  */
 export function copyPrompt(tailoring: Tailoring): string {
-  const edits = promptEdits(tailoring);
+  const edits = editInstructions(tailoring);
   const lines = [
     "I've attached my resume. Please make only the edits listed below to it.",
     "",

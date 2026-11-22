@@ -62,13 +62,13 @@ function Output({ icon, title, description, onSelect }: OutputProps) {
  */
 export function TailoringOutputs({ tailoring, resumeName, company, side, children }: TailoringOutputsProps) {
   const { accepted } = acceptedCount(tailoring.items);
-  const counts = outputEditCounts(tailoring);
+  const { promptEdits, downloadEdits } = outputEditCounts(tailoring);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(copyPrompt(tailoring));
       toast.success(
-        counts.prompt === 0
+        promptEdits === 0
           ? "Prompt copied, but it has no edits yet. Accept a Suggestion to add one."
           : "Prompt copied. Paste it into an AI assistant along with your original resume file.",
       );
@@ -93,13 +93,13 @@ export function TailoringOutputs({ tailoring, resumeName, company, side, childre
         <Output
           icon={<Copy />}
           title="Copy prompt"
-          description={`For another AI to make these edits to your original file, keeping its formatting. ${editCount(counts.prompt)}.`}
+          description={`For another AI to make these edits to your original file, keeping its formatting. ${editCount(promptEdits)}.`}
           onSelect={() => void copy()}
         />
         <Output
           icon={<Download />}
           title="Download Markdown"
-          description={`Your Resume with the edits made, as a .md file. ${editCount(counts.markdown)}.`}
+          description={`Your Resume with the edits made, as a .md file. ${editCount(downloadEdits)}.`}
           onSelect={download}
         />
       </DropdownMenuContent>

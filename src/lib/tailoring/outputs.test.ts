@@ -247,11 +247,11 @@ describe("outputEditCounts", () => {
       item(rewrite("SQL, Figma", "SQL"), { status: "rejected" }),
       item(null, { status: "undecided" }),
     ];
-    expect(outputEditCounts(tailoring(items))).toEqual({ prompt: 2, markdown: 2 });
+    expect(outputEditCounts(tailoring(items))).toEqual({ promptEdits: 2, downloadEdits: 2 });
   });
 
   it("leaves an edit whose text isn't in the Markdown out of the download's count but not the prompt's", () => {
     const items = [item(rewrite("Not on this Resume", "New text")), item(addAfter("Nor is this", "More text"))];
-    expect(outputEditCounts(tailoring(items))).toEqual({ prompt: 2, markdown: 0 });
+    expect(outputEditCounts(tailoring(items))).toEqual({ promptEdits: 2, downloadEdits: 0 });
   });
 });
