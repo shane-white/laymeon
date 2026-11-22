@@ -91,6 +91,27 @@ describe("writeSuggestions", () => {
     expect(sent).not.toContain("Only reword");
   });
 
+  it("tells Claude an Example Work may show something related, and not to claim the exact item", async () => {
+    answer(json([]));
+
+    await claudeSteps.writeSuggestions(MARKDOWN, [
+      {
+        itemId: "item-k",
+        target: { kind: "requirement", text: "Kubernetes", importance: "must_have", category: "skill", match: "missing" },
+        basis: "example_work",
+        sources: [{ label: "Docker Swarm", quotes: ["I ran our services on Docker Swarm."] }],
+      },
+    ]);
+
+    const call = create.mock.calls[0][0];
+    expect(call.messages[0].content).toContain(
+      "Source: an Example Work the candidate just wrote about a project that shows this item or something related to it.",
+    );
+    expect(call.system).toContain(
+      "When the Example Work shows something related rather than the item itself, describe only what the candidate actually did. Don't claim they did the item exactly.",
+    );
+  });
+
   it("asks once more when a quote or section isn't in the Markdown, or an item is unknown or repeated", async () => {
     answer(json([entry(1, { quote: "Shipped invoicing" }), entry(1, { quote: "SQL" }), entry(3, { quote: "SQL" }), entry(2, { kind: "add", section: "Projects" })]));
     answer(json([entry(1, { quote: "Shipped billing" })]));

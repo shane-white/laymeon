@@ -46,7 +46,7 @@ A Suggestion is one of:
 
 Rules:
 - Base each Suggestion only on the item's sources. For an item marked "Only reword", only reword what the resume already says, as a rewrite: never add a claim the resume doesn't make.
-- For an item whose source is an Example Work, use only what the Example Work says, kept short enough to sit on the resume: either rewrite the line it best extends, or add it where it belongs (for example as a bullet under the role it happened in).
+- For an item whose source is an Example Work, use only what the Example Work says, kept short enough to sit on the resume: either rewrite the line it best extends, or add it where it belongs (for example as a bullet under the role it happened in). When the Example Work shows something related rather than the item itself, describe only what the candidate actually did. Don't claim they did the item exactly.
 - Never invent experience, numbers, employers, dates or tools. Keep the candidate's voice and the resume's tense and style.
 - Prefer rewriting the most relevant existing line over adding one. Keep each change small.
 - "why" says in one sentence how the edit helps with the item. The reader may never have thought about recruiting: use plain, friendly language with no jargon.
@@ -84,7 +84,7 @@ function itemsForPrompt(requests: SuggestionRequest[]): string {
           ? ["   Only reword what the resume already says about this."]
           : r.basis === "example_work"
             ? [
-                "   Source: an Example Work the candidate just wrote about a project where they did this.",
+                "   Source: an Example Work the candidate just wrote about a project that shows this item or something related to it.",
                 ...r.sources.flatMap((s) => [
                   `   Title: ${s.label}`,
                   ...s.quotes.map((q) => `   <example_work>\n${q}\n   </example_work>`),
