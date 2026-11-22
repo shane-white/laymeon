@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookUser, Check, FileText, Lightbulb, PenLine, Pencil, SkipForward, Undo2, X } from "lucide-react";
+import { BookUser, Check, FileText, Lightbulb, Pencil, SkipForward, Undo2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -126,7 +126,7 @@ function EvidenceList({ evidence }: { evidence: SuggestionEvidence[] }) {
   );
 }
 
-/** Writing the text for an edited or own-text decision. */
+/** Writing the text for an edited decision. */
 function TextEditor({
   initial,
   label,
@@ -187,7 +187,7 @@ interface SuggestionDetailsProps {
  * Example Work prompt for a gap. A decision can be changed or undone.
  */
 export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: SuggestionDetailsProps) {
-  const [editing, setEditing] = useState<"edited" | "own_text" | null>(null);
+  const [editing, setEditing] = useState(false);
   const { suggestion, decision } = item;
   const allowed = allowedDecisions(item);
   const decidedText = userText(decision);
@@ -225,14 +225,14 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
         </p>
         {editing ? (
           <TextEditor
-            key={editing}
-            label={editing === "edited" ? "Edit the proposed text" : "Write your own text"}
-            initial={editing === "edited" ? (decidedText ?? suggestion?.text ?? "") : decision.status === "own_text" ? decision.text : ""}
+            label="Edit the proposed text"
+            // The user's earlier text when there is one, including a saved own-text decision.
+            initial={decidedText ?? suggestion?.text ?? ""}
             onSave={(text) => {
-              onDecide({ status: editing, text });
-              setEditing(null);
+              onDecide({ status: "edited", text });
+              setEditing(false);
             }}
-            onCancel={() => setEditing(null)}
+            onCancel={() => setEditing(false)}
           />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -242,13 +242,8 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
               </Button>
             )}
             {allowed.includes("edited") && (
-              <Button size="sm" variant="outline" onClick={() => setEditing("edited")}>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
-              </Button>
-            )}
-            {allowed.includes("own_text") && (
-              <Button size="sm" variant="outline" onClick={() => setEditing("own_text")}>
-                <PenLine /> Write my own
               </Button>
             )}
             {allowed.includes("rejected") && (
