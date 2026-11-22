@@ -107,7 +107,7 @@ function Block({ block, ...selectable }: { block: ViewBlock } & Selectable) {
 function Markers({ markers, ...selectable }: { markers: ViewMarker[] } & Selectable) {
   if (markers.length === 0) return null;
   return (
-    <section className="mt-6 flex flex-col gap-2 rounded-md border border-dashed p-3">
+    <section className="mb-6 flex flex-col gap-2 rounded-md border border-dashed p-3">
       <h3 className="text-xs font-semibold">Not on your Resume yet</h3>
       <ul className="flex flex-col gap-1 text-sm">
         {markers.map((marker) => (
@@ -216,14 +216,14 @@ export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt 
       {notice}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto @2xl:flex-row @2xl:overflow-hidden">
         <div ref={resumeRef} className="px-4 py-4 sm:px-6 @2xl:min-h-0 @2xl:flex-1 @2xl:overflow-y-auto">
+          <div className="mx-auto max-w-2xl">
+            <Markers markers={view.markers} {...selectable} />
+          </div>
           <article aria-label="Your Resume" className="mx-auto flex max-w-2xl flex-col gap-1 text-sm leading-relaxed">
             {view.blocks.map((block, i) => (
               <Block key={i} block={block} {...selectable} />
             ))}
           </article>
-          <div className="mx-auto max-w-2xl">
-            <Markers markers={view.markers} {...selectable} />
-          </div>
         </div>
         <aside
           ref={panelRef}
