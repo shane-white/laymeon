@@ -79,7 +79,7 @@ _Avoid_: Job match, analysis
 Something a Job asks for, either must-have or nice-to-have, and how well the Resume meets it: strong, partial or missing.
 
 **Screener**:
-A hard Requirement that filters applicants out on its own, such as years of experience, a degree or a clearance.
+A hard Requirement that filters applicants out on its own, such as years of experience, a degree, a license or certification, a security clearance, or a required location. A location Screener (on-site, in-office or region-limited) can't be met by changing the Resume, so the Tailoring leaves it out.
 
 **Search words**:
 The terms software that screens applications would search a Resume for.
@@ -95,6 +95,13 @@ _Avoid_: Revision, tailored resume
 **Suggestion**:
 A proposed edit to one Resume for one Job, aimed at one Requirement or Screener: either rewriting text already on the Resume or adding new text, backed by Evidence. The user accepts, edits or rejects each one.
 _Avoid_: Recommendation, fix, change
+
+**Decision**:
+What the user chooses for one item in a Tailoring: Accept, Edit, Reject, Skip or I don't have this. A Decision can be undone.
+
+**Not had**:
+A Decision that the user lacks a missing Requirement or a Screener the Resume doesn't show, made with "I don't have this". It closes the item for this Tailoring, and nothing goes on the Resume.
+_Avoid_: Rejected, skipped, N/A
 
 **Analyses**:
 The older free-text suggestions on a Job for the cover letter and the interview. Its free-text suggestions for the resume were retired: the Tailoring replaces them.
