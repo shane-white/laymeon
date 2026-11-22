@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, CircleDashed, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleDashed, Flag, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { putsTextOnResume } from "@/lib/tailoring/decisions";
@@ -135,12 +135,61 @@ function Markers({ markers, ...selectable }: { markers: ViewMarker[] } & Selecta
   );
 }
 
+/** What the view gives the outputs menu: the button that opens it, and the side it opens on. */
+export interface OutputsMenuProps {
+  side: "top" | "bottom";
+  children: ReactNode;
+}
+
+interface StepFooterProps {
+  /** The selected item's place, from 1, or null with none selected. */
+  number: number | null;
+  total: number;
+  onStep: (direction: "next" | "previous") => void;
+  outputs: (props: OutputsMenuProps) => ReactNode;
+  className?: string;
+}
+
+/**
+ * Previous and Next around the selected item's place: `‹ Previous  3 of 12  Next ›`.
+ * On the last item, Next becomes Finish, which opens the outputs menu.
+ */
+function StepFooter({ number, total, onStep, outputs, className }: StepFooterProps) {
+  return (
+    <div className={cn("items-center justify-between gap-2 border-t bg-background px-4 py-2", className)}>
+      <Button variant="outline" size="sm" onClick={() => onStep("previous")} disabled={number === null || number === 1}>
+        <ChevronLeft /> Previous
+      </Button>
+      <span className="text-xs font-medium text-muted-foreground">
+        {number ?? "–"} of {total}
+      </span>
+      {number === total ? (
+        outputs({
+          side: "top",
+          children: (
+            <Button size="sm">
+              <Flag /> Finish
+            </Button>
+          ),
+        })
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => onStep("next")}>
+          Next <ChevronRight />
+        </Button>
+      )}
+    </div>
+  );
+}
+
 interface TailoringViewProps {
   tailoring: Tailoring;
   /** Shown above the Resume, such as the Earlier-version notice. */
   notice?: ReactNode;
-  /** Shown in the header, such as the buttons to copy the prompt or download the Resume with the accepted Suggestions. */
-  actions?: ReactNode;
+  /**
+   * The menu of what the user takes away (the prompt to copy and the Resume to
+   * download), opened by the given button: the top bar's, or Finish on the last item.
+   */
+  outputs: (props: OutputsMenuProps) => ReactNode;
   onDecide: (itemId: string, decision: Decision) => void;
   gapPrompt: (props: GapPromptProps) => ReactNode;
 }
@@ -149,7 +198,7 @@ interface TailoringViewProps {
  * The Resume with every item marked in place, and the details panel for the
  * selected one: beside the Resume when there's room, below it when there isn't.
  */
-export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt }: TailoringViewProps) {
+export function TailoringView({ tailoring, notice, outputs, onDecide, gapPrompt }: TailoringViewProps) {
   const view = useMemo(() => resumeView(tailoring), [tailoring]);
   const { items } = tailoring;
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -188,6 +237,17 @@ export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt 
   }
 
   const selectable = { selectedId, onSelect: (itemId: string) => select(itemId, "resume") };
+  // Side by side, the footer is pinned to the bottom of the panel; stacked, to the bottom of the view.
+  const footer = (className: string) =>
+    items.length > 0 && (
+      <StepFooter
+        number={index === -1 ? null : index + 1}
+        total={items.length}
+        onStep={step}
+        outputs={outputs}
+        className={className}
+      />
+    );
 
   return (
     <div className="@container flex h-full flex-col">
@@ -198,20 +258,14 @@ export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt 
           </span>{" "}
           accepted
         </span>
-        {actions}
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => step("previous")}
-            disabled={!stepItem(items, selectedId, "previous") || index === -1}
-          >
-            <ChevronLeft /> Previous
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => step("next")} disabled={!stepItem(items, selectedId, "next")}>
-            Next <ChevronRight />
-          </Button>
-        </div>
+        {outputs({
+          side: "bottom",
+          children: (
+            <Button size="sm" variant={accepted > 0 ? "default" : "outline"}>
+              Use your edits <ChevronDown />
+            </Button>
+          ),
+        })}
       </div>
       {notice}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto @2xl:flex-row @2xl:overflow-hidden">
@@ -228,26 +282,28 @@ export function TailoringView({ tailoring, notice, actions, onDecide, gapPrompt 
         <aside
           ref={panelRef}
           aria-label="Suggestion details"
-          className="scroll-mt-2 border-t px-4 py-4 @2xl:min-h-0 @2xl:w-80 @2xl:shrink-0 @2xl:overflow-y-auto @2xl:border-t-0 @2xl:border-l @4xl:w-96"
+          className="scroll-mt-2 border-t @2xl:flex @2xl:min-h-0 @2xl:w-80 @2xl:shrink-0 @2xl:flex-col @2xl:border-t-0 @2xl:border-l @4xl:w-96"
         >
-          {selected ? (
-            <SuggestionDetails
-              key={selected.id}
-              item={selected}
-              number={index + 1}
-              total={items.length}
-              onDecide={(decision) => onDecide(selected.id, decision)}
-              gapPrompt={gapPrompt}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {items.length === 0
-                ? "Your Resume already covers this Job's Requirements and Screeners. There's nothing to tailor."
-                : "Select a highlight, or press Next, to see its Suggestion."}
-            </p>
-          )}
+          <div className="px-4 py-4 @2xl:min-h-0 @2xl:flex-1 @2xl:overflow-y-auto">
+            {selected ? (
+              <SuggestionDetails
+                key={selected.id}
+                item={selected}
+                onDecide={(decision) => onDecide(selected.id, decision)}
+                gapPrompt={gapPrompt}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {items.length === 0
+                  ? "Your Resume already covers this Job's Requirements and Screeners. There's nothing to tailor."
+                  : "Select a highlight, or press Next, to see its Suggestion."}
+              </p>
+            )}
+          </div>
+          {footer("hidden @2xl:flex")}
         </aside>
       </div>
+      {footer("flex @2xl:hidden")}
     </div>
   );
 }

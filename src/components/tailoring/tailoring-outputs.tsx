@@ -1,13 +1,21 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Copy, Download } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { copyPrompt, downloadName, tailoredMarkdown } from "@/lib/tailoring/outputs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { copyPrompt, downloadName, outputEditCounts, tailoredMarkdown } from "@/lib/tailoring/outputs";
 import type { Tailoring } from "@/lib/tailoring/tailoring";
+import type { OutputsMenuProps } from "./tailoring-view";
 import { acceptedCount } from "./view";
 
-interface TailoringOutputsProps {
+interface TailoringOutputsProps extends OutputsMenuProps {
   tailoring: Tailoring;
   resumeName: string | null;
   company: string | null;
@@ -25,19 +33,42 @@ function saveFile(name: string, text: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+const editCount = (count: number) => `${count} edit${count === 1 ? "" : "s"}`;
+
+interface OutputProps {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  onSelect: () => void;
+}
+
+function Output({ icon, title, description, onSelect }: OutputProps) {
+  return (
+    <DropdownMenuItem className="items-start py-2" onSelect={onSelect}>
+      <span className="mt-0.5">{icon}</span>
+      <span className="flex flex-col gap-0.5">
+        <span className="font-medium">{title}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
+      </span>
+    </DropdownMenuItem>
+  );
+}
+
 /**
  * What the user takes away from the Tailoring, using only accepted
  * Suggestions: a prompt for another AI to make the edits to the original
- * file, or the Resume with the edits made, as Markdown to download.
+ * file, or the Resume with the edits made, as Markdown to download. A menu
+ * opened by `children`, the button the view gives it.
  */
-export function TailoringOutputs({ tailoring, resumeName, company }: TailoringOutputsProps) {
+export function TailoringOutputs({ tailoring, resumeName, company, side, children }: TailoringOutputsProps) {
   const { accepted } = acceptedCount(tailoring.items);
+  const counts = outputEditCounts(tailoring);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(copyPrompt(tailoring));
       toast.success(
-        accepted === 0
+        counts.prompt === 0
           ? "Prompt copied, but it has no edits yet. Accept a Suggestion to add one."
           : "Prompt copied. Paste it into an AI assistant along with your original resume file.",
       );
@@ -51,18 +82,27 @@ export function TailoringOutputs({ tailoring, resumeName, company }: TailoringOu
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={copy}
-        title="Copy a prompt that tells another AI to make your accepted edits to your original file"
-      >
-        <Copy /> Copy prompt
-      </Button>
-      <Button variant="outline" size="sm" onClick={download} title="Download your Resume with the accepted edits, as Markdown">
-        <Download /> Download Markdown
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side={side} className="w-80 max-w-[calc(100vw-2rem)]">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          {accepted === 0
+            ? "You haven't accepted a Suggestion yet"
+            : `Uses your ${accepted} accepted Suggestion${accepted === 1 ? "" : "s"}`}
+        </DropdownMenuLabel>
+        <Output
+          icon={<Copy />}
+          title="Copy prompt"
+          description={`For another AI to make these edits to your original file, keeping its formatting. ${editCount(counts.prompt)}.`}
+          onSelect={() => void copy()}
+        />
+        <Output
+          icon={<Download />}
+          title="Download Markdown"
+          description={`Your Resume with the edits made, as a .md file. ${editCount(counts.markdown)}.`}
+          onSelect={download}
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

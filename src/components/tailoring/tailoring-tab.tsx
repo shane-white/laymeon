@@ -183,7 +183,7 @@ export function TailoringTab({ job }: { job: UserJob }) {
     <TailoringView
       tailoring={tailoring}
       notice={earlierVersion ? <EarlierVersionNotice blocker={startBlocker} onStart={onStart} /> : null}
-      actions={<TailoringOutputs tailoring={tailoring} resumeName={resumeName} company={company} />}
+      outputs={(props) => <TailoringOutputs tailoring={tailoring} resumeName={resumeName} company={company} {...props} />}
       onDecide={decide}
       gapPrompt={({ item }) => (
         <ExampleWorkPrompt

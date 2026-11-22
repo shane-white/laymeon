@@ -175,8 +175,6 @@ export interface GapPromptProps {
 
 interface SuggestionDetailsProps {
   item: TailoringItem;
-  number: number;
-  total: number;
   onDecide: (decision: Decision) => void;
   /** The Example Work prompt for a gap. */
   gapPrompt: (props: GapPromptProps) => ReactNode;
@@ -187,7 +185,7 @@ interface SuggestionDetailsProps {
  * proposed text, why and Evidence) with the decisions it allows, and the
  * Example Work prompt for a gap. A decision can be changed or undone.
  */
-export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: SuggestionDetailsProps) {
+export function SuggestionDetails({ item, onDecide, gapPrompt }: SuggestionDetailsProps) {
   const [editing, setEditing] = useState(false);
   const { suggestion, decision } = item;
   const allowed = allowedDecisions(item);
@@ -197,9 +195,6 @@ export function SuggestionDetails({ item, number, total, onDecide, gapPrompt }: 
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {number} of {total}
-          </span>
           <TargetBadges target={item.target} />
         </div>
         <h3 className="text-sm font-semibold">{item.target.text}</h3>
