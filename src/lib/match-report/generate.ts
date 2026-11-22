@@ -22,7 +22,7 @@ const REQUIREMENTS_RULE =
   "Requirements: list every distinct requirement in the posting, one per entry. Mark must_have only when the posting says it is required (required, must, minimum, or listed under requirements/qualifications); preferred, bonus, plus, or nice-to-have items are nice_to_have.";
 
 const SCREENERS_RULE =
-  "Screeners: include only hard requirements the posting actually states that a resume is expected to show: minimum years of experience, degree, license or certification, security clearance, or a required location for an on-site or region-limited job. Leave the list empty if there are none.";
+  "Screeners: include only hard requirements the posting actually states that a resume is expected to show: minimum years of experience, degree, license or certification, security clearance, or a required location for an on-site, in-office or region-limited job. Give each screener its kind: years, degree, credential (a license or certification), clearance or location. Leave the list empty if there are none.";
 
 const ELIGIBILITY_QUESTIONS =
   "eligibility questions applicants answer for themselves, which resumes don't usually cover: work authorization, visa sponsorship, citizenship or residency status, criminal history, background checks, drug tests, age, or willingness to travel, relocate or work certain shifts";
