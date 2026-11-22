@@ -7,12 +7,12 @@ import type { Decision, ExampleWorkInput, FailureKind, TailoringResult, Tailorin
 /** What a successful Tailoring request sends back. */
 export type TailoringResponse = Omit<TailoringState, "ok">;
 
-/** The body of a request to save a decision: `{ itemId, decision }`. */
+/** The body of a request to save a decision: `{ itemId, decision }`. Own text is no longer taken: saved own-text decisions still load, but new ones are edits. */
 export const decisionRequestSchema = z.object({
   itemId: z.string().min(1),
   decision: z.discriminatedUnion("status", [
     z.object({ status: z.enum(["undecided", "accepted", "rejected", "skipped"]) }),
-    z.object({ status: z.enum(["edited", "own_text"]), text: z.string() }),
+    z.object({ status: z.literal("edited"), text: z.string() }),
   ]),
 }) satisfies z.ZodType<{ itemId: string; decision: Decision }>;
 

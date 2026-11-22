@@ -25,12 +25,13 @@ export function acceptedText(item: TailoringItem): string | null {
 
 /**
  * The decisions the user can make on an item, besides undoing one: an item
- * with a Suggestion can be accepted, edited, given own text or rejected; a gap
- * can be skipped.
+ * with a Suggestion can be accepted, edited or rejected; a gap can be skipped.
+ * Own text is no longer offered: editing covers it, though saved own-text
+ * decisions still load.
  */
 export function allowedDecisions(item: TailoringItem): Exclude<Decision["status"], "undecided">[] {
   return [
-    ...(item.suggestion ? (["accepted", "edited", "own_text", "rejected"] as const) : []),
+    ...(item.suggestion ? (["accepted", "edited", "rejected"] as const) : []),
     ...(item.gap ? (["skipped"] as const) : []),
   ];
 }

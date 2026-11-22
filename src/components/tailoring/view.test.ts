@@ -235,8 +235,8 @@ describe("withDecision", () => {
 });
 
 describe("allowedDecisions", () => {
-  it("lets a Suggestion be accepted, edited, given own text or rejected", () => {
-    expect(allowedDecisions(item("a", { suggestion: rewrite("SQL", "PostgreSQL") }))).toEqual(["accepted", "edited", "own_text", "rejected"]);
+  it("lets a Suggestion be accepted, edited or rejected", () => {
+    expect(allowedDecisions(item("a", { suggestion: rewrite("SQL", "PostgreSQL") }))).toEqual(["accepted", "edited", "rejected"]);
   });
 
   it("lets a gap only be skipped, and a partial item with a rewording Suggestion both", () => {
@@ -244,7 +244,6 @@ describe("allowedDecisions", () => {
     expect(allowedDecisions(item("b", { gap: true, suggestion: rewrite("SQL", "PostgreSQL") }))).toEqual([
       "accepted",
       "edited",
-      "own_text",
       "rejected",
       "skipped",
     ]);
