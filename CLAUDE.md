@@ -21,13 +21,18 @@ Work for this repo is tracked in Linear in the **LayMeOn** team (key `LAY`). Use
 - When starting on several issues in one session (such as the sub-issues of a parent), first move them all to **Todo** so progress is easy to follow, then move each one forward as you work on it. Leave issues that are already In Progress or further along as they are.
 - Name branches with the issue ID, e.g. `lay-12-fix-sidebar-scroll`.
 - When a parent's sub-issues depend on each other, record it with Linear's blocking links (`blocks` / `blockedBy`), not with numbered titles or the order they're listed in. A sub-issue is ready when every issue blocking it is Done or merged into the parent's branch.
-- Sub-issues of one parent share the parent's branch and PR (e.g. `lay-81-document-lifecycle`). Work every ready sub-issue, in parallel where possible: each in its own worktree and branch off the parent's branch, merged back into it when finished. Commit each with its own sub-issue ID, and open the PR once every sub-issue is merged into the parent's branch.
+- Sub-issues of one parent share the parent's branch and PR (e.g. `lay-81-document-lifecycle`). Work ready sub-issues in parallel only when they touch different files: each in its own worktree and branch off the parent's branch, merged back into it when finished. Work the rest one at a time, directly on the parent's branch in the main checkout: a chain of dependent sub-issues, or ones that edit the same files. Each worktree needs its own `npm install` and `.next` cache, which is slow on Windows, so a worktree has to buy real parallel work. Commit each sub-issue with its own ID, and open the PR once every sub-issue is in the parent's branch.
 - Reference the issue ID in commit messages (e.g. `LAY-12: fix sidebar scroll`).
 - When a PR is opened, move every issue it covers to **In Review**. When it merges, move them to **Done**.
 - If work surfaces a follow-up or bug you aren't fixing now, file it as a new issue in **Backlog** instead of leaving a TODO in the code.
 - Team statuses: Backlog, Todo, In Progress, In Review, Done, Canceled, Duplicate.
 
 ## Agent skills
+
+### When to use the workflow skills
+
+- Use `tdd` for logic in `src/lib`. Make copy, styling and layout changes directly and check them in the running app.
+- Run `mp-code-review` once per parent PR, on the parent's branch, rather than once per sub-issue.
 
 ### Domain docs
 
