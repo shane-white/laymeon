@@ -239,8 +239,10 @@ describe("allowedDecisions", () => {
     expect(allowedDecisions(item("a", { suggestion: rewrite("SQL", "PostgreSQL") }))).toEqual(["accepted", "edited", "rejected"]);
   });
 
-  it("lets a gap only be skipped, and a partial item with a rewording Suggestion both", () => {
-    expect(allowedDecisions(item("a", { gap: true }))).toEqual(["skipped"]);
+  it("lets a missing gap be skipped or Not had, a partial gap only skipped, and a partial item with a rewording Suggestion both", () => {
+    expect(allowedDecisions(item("a", { gap: true }))).toEqual(["skipped", "not_had"]);
+    const partial = { kind: "requirement", text: "SQL", importance: "must_have", category: "skill", match: "partial" } as const;
+    expect(allowedDecisions(item("c", { gap: true, target: partial }))).toEqual(["skipped"]);
     expect(allowedDecisions(item("b", { gap: true, suggestion: rewrite("SQL", "PostgreSQL") }))).toEqual([
       "accepted",
       "edited",

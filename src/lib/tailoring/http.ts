@@ -11,7 +11,7 @@ export type TailoringResponse = Omit<TailoringState, "ok">;
 export const decisionRequestSchema = z.object({
   itemId: z.string().min(1),
   decision: z.discriminatedUnion("status", [
-    z.object({ status: z.enum(["undecided", "accepted", "rejected", "skipped"]) }),
+    z.object({ status: z.enum(["undecided", "accepted", "rejected", "skipped", "not_had"]) }),
     z.object({ status: z.literal("edited"), text: z.string() }),
   ]),
 }) satisfies z.ZodType<{ itemId: string; decision: Decision }>;

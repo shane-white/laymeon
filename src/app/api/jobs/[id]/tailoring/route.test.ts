@@ -128,6 +128,14 @@ describe("/api/jobs/[id]/tailoring", () => {
       }
     });
 
+    it("takes a Not had decision, and checks it against the item", async () => {
+      // The item is a partial Requirement, which can't be Not had.
+      const itemId = await startedItemId();
+      const response = await PATCH(patch({ itemId, decision: { status: "not_had" } }), params());
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ kind: "invalid_decision" });
+    });
+
     it("says why a decision can't be made on the item", async () => {
       const itemId = await startedItemId();
       expect((await PATCH(patch({ itemId: "gone", decision: { status: "accepted" } }), params())).status).toBe(404);

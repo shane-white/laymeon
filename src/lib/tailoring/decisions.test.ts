@@ -9,6 +9,7 @@ import {
   requirement,
   rewrite,
   scriptedSteps,
+  screener,
   tailoringJob,
   withReport,
 } from "./testing";
@@ -141,6 +142,37 @@ describe("deciding on a gap", () => {
     const { deps, roadmapping } = await setup();
     expect(await decide(deps, "job-1", roadmapping, { status: "skipped" })).toMatchObject({ ok: true });
     expect(await decide(deps, "job-1", roadmapping, { status: "accepted" })).toMatchObject({ ok: true });
+  });
+
+  it("can mark a missing Requirement as Not had, and undo that", async () => {
+    const { deps, kubernetes } = await setup();
+    expect(await decide(deps, "job-1", kubernetes, { status: "not_had" })).toMatchObject({ ok: true });
+    expect(await decisionOf(deps, kubernetes)).toEqual({ status: "not_had" });
+    await decide(deps, "job-1", kubernetes, { status: "undecided" });
+    expect(await decisionOf(deps, kubernetes)).toEqual({ status: "undecided" });
+  });
+
+  it("can mark a Screener the Resume doesn't show as Not had", async () => {
+    const job = withReport(tailoringJob(), { screeners: [screener("US work authorization")] });
+    const deps: TailoringDeps = {
+      jobs: memoryJobs(job),
+      store: memoryTailoringStore(),
+      steps: scriptedSteps({ markdown: MARKDOWN }),
+      careerStory: memoryCareerStory(story.profile),
+      exampleWorks: memoryExampleWorks(),
+    };
+    const started = await startTailoring(deps, "job-1");
+    const itemId = started.ok ? started.tailoring!.items[0].id : "";
+    expect(await decide(deps, "job-1", itemId, { status: "not_had" })).toMatchObject({ ok: true });
+    expect(await decisionOf(deps, itemId)).toEqual({ status: "not_had" });
+  });
+
+  it("can't mark a partial Requirement or an item with a Suggestion as Not had", async () => {
+    const { deps, payments, roadmapping } = await setup();
+    for (const itemId of [payments, roadmapping]) {
+      expect(await decide(deps, "job-1", itemId, { status: "not_had" })).toMatchObject({ ok: false, kind: "invalid_decision" });
+      expect(await decisionOf(deps, itemId)).toEqual({ status: "undecided" });
+    }
   });
 
   it("can't skip an item that isn't a gap", async () => {

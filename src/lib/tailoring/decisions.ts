@@ -25,13 +25,21 @@ export function acceptedText(item: TailoringItem): string | null {
 
 /**
  * The decisions the user can make on an item, besides undoing one: an item
- * with a Suggestion can be accepted, edited or rejected; a gap can be skipped.
- * Own text is no longer offered: editing covers it, though saved own-text
+ * with a Suggestion can be accepted, edited or rejected; a gap can be skipped;
+ * a gap with no Suggestion that's a missing Requirement or a Screener can be
+ * marked Not had. Own text is no longer offered: editing covers it, though saved own-text
  * decisions still load.
  */
 export function allowedDecisions(item: TailoringItem): Exclude<Decision["status"], "undecided">[] {
   return [
     ...(item.suggestion ? (["accepted", "edited", "rejected"] as const) : []),
     ...(item.gap ? (["skipped"] as const) : []),
+    ...(canBeNotHad(item) ? (["not_had"] as const) : []),
   ];
+}
+
+/** A gap with no Suggestion that's a missing Requirement or a Screener the Resume doesn't show. */
+function canBeNotHad(item: TailoringItem): boolean {
+  if (!item.gap || item.suggestion) return false;
+  return item.target.kind === "screener" || item.target.match === "missing";
 }

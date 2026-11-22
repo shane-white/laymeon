@@ -72,7 +72,9 @@ export type Suggestion = (
  * - `own_text`: the user's own text in the Suggestion's place. No longer made (Edit
  *   covers it), but saved Tailorings may still hold it.
  * - `rejected`: nothing goes on the Resume.
- * - `skipped`: a gap the user chose not to fill.
+ * - `skipped`: a gap the user chose not to fill for now.
+ * - `not_had`: Not had: the user lacks a missing Requirement or a Screener the
+ *   Resume doesn't show. It closes the item, and nothing goes on the Resume.
  * Only accepted, edited and own text change the Resume.
  */
 export type Decision =
@@ -81,7 +83,8 @@ export type Decision =
   | { status: "edited"; text: string }
   | { status: "own_text"; text: string }
   | { status: "rejected" }
-  | { status: "skipped" };
+  | { status: "skipped" }
+  | { status: "not_had" };
 
 /** The most text an edited or own-text decision can hold. */
 export const MAX_DECISION_TEXT_LENGTH = 2000;
