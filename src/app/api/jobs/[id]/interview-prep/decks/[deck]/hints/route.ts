@@ -2,7 +2,7 @@ import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { DECK_KEYS, type DeckKey } from "@/lib/interview-prep/interview-prep";
 import { updateHints } from "@/lib/interview-prep/practice/operations";
-import { signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { signedInUser, unauthorized } from "@/lib/http";
 import { NextResponse, type NextRequest } from "next/server";
 
 // One Claude call per hint, a few at a time.

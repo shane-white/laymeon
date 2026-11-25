@@ -1,7 +1,7 @@
 import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { getInterviewPrep } from "@/lib/interview-prep/lifecycle";
-import { signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { signedInUser, unauthorized } from "@/lib/http";
 import type { NextRequest } from "next/server";
 
 type Params = { params: Promise<{ id: string }> };

@@ -1,5 +1,6 @@
 import { tailoringDeps } from "@/lib/tailoring/deps";
-import { decisionRequestSchema, requestBody, signedInUser, tailoringResponse, unauthorized } from "@/lib/tailoring/http";
+import { decisionRequestSchema, tailoringResponse } from "@/lib/tailoring/http";
+import { requestBody, signedInUser, unauthorized } from "@/lib/http";
 import { decide, getTailoring, startOver, startTailoring } from "@/lib/tailoring/lifecycle";
 import { NextResponse, type NextRequest } from "next/server";
 

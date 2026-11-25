@@ -1,5 +1,6 @@
 import { tailoringDeps } from "@/lib/tailoring/deps";
-import { exampleWorkRequestSchema, requestBody, signedInUser, tailoringResponse, unauthorized } from "@/lib/tailoring/http";
+import { exampleWorkRequestSchema, tailoringResponse } from "@/lib/tailoring/http";
+import { requestBody, signedInUser, unauthorized } from "@/lib/http";
 import { fillGap } from "@/lib/tailoring/lifecycle";
 import type { NextRequest } from "next/server";
 

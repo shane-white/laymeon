@@ -3,7 +3,7 @@ import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { DECK_KEYS } from "@/lib/interview-prep/interview-prep";
 import { addOwnQuestion } from "@/lib/interview-prep/practice/operations";
-import { requestBody, signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { requestBody, signedInUser, unauthorized } from "@/lib/http";
 import type { NextRequest } from "next/server";
 
 // Writing the hint is one Claude call.

@@ -2,7 +2,7 @@ import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { SECTION_KEYS, type SectionKey } from "@/lib/interview-prep/interview-prep";
 import { prepareSection } from "@/lib/interview-prep/lifecycle";
-import { signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { signedInUser, unauthorized } from "@/lib/http";
 import { NextResponse, type NextRequest } from "next/server";
 
 // A section's research (web searches and Claude calls) can take a few minutes.

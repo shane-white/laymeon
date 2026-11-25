@@ -1,7 +1,7 @@
 import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { writeHint } from "@/lib/interview-prep/practice/operations";
-import { signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { signedInUser, unauthorized } from "@/lib/http";
 import type { NextRequest } from "next/server";
 
 // Writing the hint is one Claude call.

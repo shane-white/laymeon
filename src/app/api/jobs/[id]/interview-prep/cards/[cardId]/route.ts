@@ -2,7 +2,7 @@ import { z } from "zod";
 import { interviewPrepDeps } from "@/lib/interview-prep/deps";
 import { interviewPrepResponse } from "@/lib/interview-prep/http";
 import { markCard, removeCard } from "@/lib/interview-prep/practice/operations";
-import { requestBody, signedInUser, unauthorized } from "@/lib/tailoring/http";
+import { requestBody, signedInUser, unauthorized } from "@/lib/http";
 import type { NextRequest } from "next/server";
 
 type Params = { params: Promise<{ id: string; cardId: string }> };
