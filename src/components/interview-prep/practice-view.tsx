@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DECK_KEYS, DECK_NAMES, MARK_NAMES, type DeckKey, type PracticeCard, type PracticeData } from "@/lib/interview-prep/interview-prep";
-import { canRemove, hasEarlierHint, markCounts } from "@/lib/interview-prep/practice/cards";
+import { canRemove, hasEarlierHint, hintIsWriting, markCounts } from "@/lib/interview-prep/practice/cards";
 import { pickSession, type SessionSource } from "@/lib/interview-prep/practice/session";
 import { AddQuestionDialog } from "./add-question-dialog";
 import { CardBack, MarkButtons, MarkDot, Tip, TIPS } from "./practice-parts";
@@ -104,6 +104,7 @@ function CardRow({
 }) {
   // An own question is shown before the server has saved it; it can't be changed until then.
   const saved = isSaved(card);
+  const writing = hintIsWriting(card, new Date().toISOString());
   return (
     <li>
       <button
@@ -118,6 +119,11 @@ function CardRow({
           <Badge variant="secondary" className="text-[10px]">
             yours
           </Badge>
+        )}
+        {!open && writing && (
+          <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" /> Writing a hint…
+          </span>
         )}
         <span className="sr-only shrink-0 text-right text-xs text-muted-foreground sm:not-sr-only sm:w-24">
           {MARK_NAMES[card.mark]}
