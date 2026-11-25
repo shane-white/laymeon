@@ -56,7 +56,7 @@ What Claude reads out of one Document for the Career Story: jobs, accomplishment
 
 **Rebuild**:
 Making the Career Story again from the current Documents, after a Document change that touches Source material.
-_Avoid_: Refresh, regenerate
+_Avoid_: Refresh, regenerate (for a Rebuild; redoing one Interview Prep section is a Refresh)
 
 **User change**:
 A correction the user makes to the Career Story (an edit, removal, addition or merge) that is kept and re-applied after every Rebuild.
@@ -119,6 +119,12 @@ A group of Practice cards on one theme, such as behavioral questions or question
 
 **Practice session**:
 Going through Practice cards one at a time, either one Deck or a Quick mix of a few cards from every Deck, marking each as you go. It ends with a count of the marks, never a score.
+
+**Quick mix**:
+A Practice session of 5 cards picked from every Deck, starting with cards to Practice more and cards Not tried yet.
+
+**Refresh**:
+Researching one Interview Prep section again (its interview process, the company briefing or Practice). The section keeps what it had until the new research is ready, and Practice cards are only ever added, never removed.
 
 ### Resume Review
 
