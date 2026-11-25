@@ -50,17 +50,23 @@ export function JobStatusSelect({
     updateStatus.mutate({ id: userJobId, status: value });
 
     const { statusFilter, showStatus } = useJobListView.getState();
-    if (isJobStatus(value) && !matchesStatusFilter(value, statusFilter)) {
-      toast(`Moved to ${statusLabel(value)}. Hidden by your filter.`, {
-        action: { label: "Show", onClick: () => showStatus(value) },
-      });
-    }
+    const hidden = isJobStatus(value) && !matchesStatusFilter(value, statusFilter);
+    const moved = isJobStatus(value) ? `Moved to ${statusLabel(value)}. Hidden by your filter.` : "";
 
+    // One toast: the offer says the Job is hidden too, and starting shows it.
     if (shouldOfferInterviewPrep({ from: currentStatus, to: value, hasInterviewPrep })) {
-      toast(INTERVIEW_PREP_OFFER, {
+      toast(hidden ? `${moved} ${INTERVIEW_PREP_OFFER}` : INTERVIEW_PREP_OFFER, {
         duration: 10000,
-        action: { label: "Start preparing", onClick: startPreparing },
+        action: {
+          label: "Start preparing",
+          onClick: () => {
+            if (hidden) showStatus(value);
+            startPreparing();
+          },
+        },
       });
+    } else if (hidden) {
+      toast(moved, { action: { label: "Show", onClick: () => showStatus(value) } });
     }
   }
 
