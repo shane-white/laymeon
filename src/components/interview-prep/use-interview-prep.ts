@@ -3,7 +3,7 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { InterviewPrepResponse } from "@/lib/interview-prep/http";
-import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type SectionKey } from "@/lib/interview-prep/interview-prep";
+import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type DeckKey, type Mark, type SectionKey } from "@/lib/interview-prep/interview-prep";
 import { emptySection, emptySections } from "@/lib/interview-prep/sections";
 
 /** The query key for a Job's Interview Prep (`user_job_listings.id`). */
@@ -88,5 +88,50 @@ export function usePrepareSection(jobId: string) {
   return {
     refresh: (section: SectionKey) => mutation.mutate(section),
     prepareAll: () => SECTION_KEYS.forEach((section) => mutation.mutate(section)),
+  };
+}
+
+/**
+ * The Practice operations: mark a card, More like this, add your own question
+ * and write a hint again. Each response's Practice section replaces the one
+ * shown; the other sections may still be researching in their own requests.
+ */
+export function usePracticeActions(jobId: string) {
+  const queryClient = useQueryClient();
+  const key = interviewPrepKey(jobId);
+  const base = `/api/jobs/${jobId}/interview-prep`;
+
+  const mutation = useMutation({
+    mutationFn: async ({ url, method, body, fallback }: { url: string; method: string; body?: unknown; fallback: string }) =>
+      readResponse(
+        await fetch(url, {
+          method,
+          headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        }),
+        fallback,
+      ),
+    onSuccess: (data) => {
+      queryClient.setQueryData<InterviewPrepResponse>(key, (old) => {
+        if (!old?.prep || !data.prep) return data;
+        return { ...old, prep: { ...old.prep, sections: { ...old.prep.sections, practice: data.prep.sections.practice } } };
+      });
+    },
+    onError: (err) => {
+      toast.error(err.message);
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+
+  return {
+    pending: mutation.isPending,
+    mark: (cardId: string, mark: Mark) =>
+      mutation.mutate({ url: `${base}/cards/${cardId}`, method: "PATCH", body: { mark }, fallback: "Couldn't save the mark." }),
+    moreLikeThis: (deck: DeckKey) =>
+      mutation.mutate({ url: `${base}/decks/${deck}/more`, method: "POST", fallback: "Couldn't add more questions." }),
+    addOwnQuestion: (deck: DeckKey, question: string) =>
+      mutation.mutate({ url: `${base}/cards`, method: "POST", body: { deck, question }, fallback: "Couldn't add your question." }),
+    writeHint: (cardId: string) =>
+      mutation.mutate({ url: `${base}/cards/${cardId}/hint`, method: "POST", fallback: "Couldn't write the hint." }),
   };
 }

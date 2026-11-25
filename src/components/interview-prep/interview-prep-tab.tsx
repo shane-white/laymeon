@@ -136,18 +136,20 @@ function Failure({ section, onRetry }: { section: Section<unknown>; onRetry: () 
   );
 }
 
-function SectionContent<K extends SectionKey>({ sectionKey, data }: { sectionKey: K; data: SectionData[K] }) {
+function SectionContent<K extends SectionKey>({ jobId, sectionKey, data }: { jobId: string; sectionKey: K; data: SectionData[K] }) {
   if (sectionKey === "process") return <ProcessView data={data as SectionData["process"]} />;
   if (sectionKey === "company") return <CompanyView data={data as SectionData["company"]} />;
-  return <PracticeView data={data as SectionData["practice"]} />;
+  return <PracticeView jobId={jobId} data={data as SectionData["practice"]} />;
 }
 
 function SectionPanel({
+  jobId,
   sectionKey,
   section,
   company,
   onRefresh,
 }: {
+  jobId: string;
   sectionKey: SectionKey;
   section: Section<SectionData[SectionKey]>;
   company: string;
@@ -175,7 +177,7 @@ function SectionPanel({
     <div className="px-6 py-4">
       <SectionHeader title={sectionTitle(sectionKey, company)} section={section} onRefresh={onRefresh} />
       {section.status === "failed" && <Failure section={section} onRetry={onRefresh} />}
-      {section.data && <SectionContent sectionKey={sectionKey} data={section.data} />}
+      {section.data && <SectionContent jobId={jobId} sectionKey={sectionKey} data={section.data} />}
     </div>
   );
 }
@@ -237,16 +239,18 @@ export function InterviewPrepTab({ job }: { job: UserJob }) {
     );
   }
 
-  return <PreparedView prep={prep} legacySuggestions={legacySuggestions} company={company} onRefresh={refresh} />;
+  return <PreparedView jobId={job.id} prep={prep} legacySuggestions={legacySuggestions} company={company} onRefresh={refresh} />;
 }
 
 /** Mounted once the Job has an Interview Prep, so it opens on one section and stays there until the user switches. */
 function PreparedView({
+  jobId,
   prep,
   legacySuggestions,
   company,
   onRefresh,
 }: {
+  jobId: string;
   prep: InterviewPrep;
   legacySuggestions: string | null;
   company: string;
@@ -258,7 +262,7 @@ function PreparedView({
     <div className="flex min-h-0 flex-1 flex-col">
       <Switcher prep={prep} active={active} onSelect={setActive} />
       <div className="h-0 flex-1 overflow-auto">
-        <SectionPanel sectionKey={active} section={section} company={company} onRefresh={() => onRefresh(active)} />
+        <SectionPanel jobId={jobId} sectionKey={active} section={section} company={company} onRefresh={() => onRefresh(active)} />
         {/* Kept until a section is ready, so a Prepare that fails doesn't hide them. */}
         {legacySuggestions && !section.data && <LegacySuggestions text={legacySuggestions} />}
       </div>
