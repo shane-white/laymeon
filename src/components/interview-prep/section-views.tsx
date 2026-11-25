@@ -8,7 +8,7 @@
  * - `CompanyView`: LAY-121
  * - `PracticeView`: LAY-122..125 (Decks, marks, More like this, add your own question, Practice session)
  */
-import type { CompanyData, PracticeData, ProcessData, Source } from "@/lib/interview-prep/interview-prep";
+import type { PracticeData, ProcessData, Source } from "@/lib/interview-prep/interview-prep";
 import { DECK_KEYS, type DeckKey } from "@/lib/interview-prep/interview-prep";
 
 function SourceLinks({ sources }: { sources: Source[] }) {
@@ -67,45 +67,7 @@ export function ProcessView({ data }: { data: ProcessData }) {
   );
 }
 
-export function CompanyView({ data }: { data: CompanyData }) {
-  return (
-    <div className="space-y-6 text-sm">
-      <section>
-        <Subheading>What they do</Subheading>
-        <p>
-          {data.whatTheyDo.text} <SourceLinks sources={data.whatTheyDo.sources} />
-        </p>
-      </section>
-      {data.news.length > 0 && (
-        <section>
-          <Subheading>Recent news</Subheading>
-          <ul className="space-y-3">
-            {data.news.map((item, i) => (
-              <li key={i}>
-                <p>
-                  <span className="text-muted-foreground">{item.date} ·</span> {item.headline} <SourceLinks sources={item.sources} />
-                </p>
-                <p className="text-xs text-muted-foreground">How this might come up: {item.howItMightComeUp}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {data.values.length > 0 && (
-        <section>
-          <Subheading>What they say they value</Subheading>
-          <ul className="space-y-1">
-            {data.values.map((value, i) => (
-              <li key={i}>
-                {value.text} <SourceLinks sources={value.sources} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
-  );
-}
+export { CompanyView } from "./company-view";
 
 const DECK_NAMES: Record<DeckKey, string> = {
   behavioral: "Behavioral",

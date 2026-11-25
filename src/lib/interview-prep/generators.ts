@@ -10,15 +10,17 @@
  * section is saved as failed with the error's message, so keep messages fit
  * to show the user.
  */
+import { claudeCompanyModel } from "./company/claude";
+import { researchCompany } from "./company/research";
+import { firecrawlCompanyWeb } from "./company/web";
 import { SectionNotImplementedError, type SectionGenerator, type SectionGenerators } from "./interview-prep";
 
 export const generateProcess: SectionGenerator<"process"> = async () => {
   throw new SectionNotImplementedError("process");
 };
 
-export const generateCompany: SectionGenerator<"company"> = async () => {
-  throw new SectionNotImplementedError("company");
-};
+export const generateCompany: SectionGenerator<"company"> = ({ job }) =>
+  researchCompany(job, { web: firecrawlCompanyWeb(), model: claudeCompanyModel(), now: () => new Date() });
 
 export const generatePractice: SectionGenerator<"practice"> = async () => {
   throw new SectionNotImplementedError("practice");
