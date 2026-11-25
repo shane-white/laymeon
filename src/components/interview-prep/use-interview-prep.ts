@@ -1,14 +1,17 @@
 "use client";
 
-import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { InterviewPrepResponse } from "@/lib/interview-prep/http";
-import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type DeckKey, type Mark, type SectionKey } from "@/lib/interview-prep/interview-prep";
+import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type DeckKey, type Mark, type PracticeCard, type SectionKey } from "@/lib/interview-prep/interview-prep";
+import { hintIsWriting } from "@/lib/interview-prep/practice/cards";
 import { emptySection, emptySections } from "@/lib/interview-prep/sections";
 
 /** The query key for a Job's Interview Prep (`user_job_listings.id`). */
 export const interviewPrepKey = (jobId: string) => ["interview-prep", jobId] as const;
 const sectionMutationKey = (jobId: string) => ["interview-prep-section", jobId] as const;
+const practiceMutationKey = (jobId: string) => ["interview-prep-practice", jobId] as const;
+const moreMutationKey = (jobId: string) => ["interview-prep-practice-more", jobId] as const;
 
 /** How often to check on a section researching in a request this tab didn't send (e.g. after a reload). */
 const POLL_MS = 5000;
@@ -22,13 +25,19 @@ async function readResponse(res: Response, fallback: string): Promise<InterviewP
 /** The Job's Interview Prep, and its older Interview Suggestions if it still has them. */
 export function useInterviewPrep(jobId: string) {
   const sending = useIsMutating({ mutationKey: sectionMutationKey(jobId) });
+  const changingPractice =
+    useIsMutating({ mutationKey: practiceMutationKey(jobId) }) + useIsMutating({ mutationKey: moreMutationKey(jobId) });
   return useQuery<InterviewPrepResponse>({
     queryKey: interviewPrepKey(jobId),
     queryFn: async () => readResponse(await fetch(`/api/jobs/${jobId}/interview-prep`), "Couldn't load this Job's Interview Prep."),
     refetchInterval: (query) => {
       const prep = query.state.data?.prep;
       const researching = !!prep && SECTION_KEYS.some((key) => prep.sections[key].status === "researching");
-      return researching && sending === 0 ? POLL_MS : false;
+      if (researching && sending === 0) return POLL_MS;
+      // A hint being written in a request this tab didn't send (e.g. after a reload).
+      const now = new Date().toISOString();
+      const writingHint = !!prep?.sections.practice.data?.cards.some((card) => hintIsWriting(card, now));
+      return writingHint && changingPractice === 0 ? POLL_MS : false;
     },
   });
 }
@@ -91,47 +100,126 @@ export function usePrepareSection(jobId: string) {
   };
 }
 
+
+/** The ID prefix of an own question shown before the server has saved it. */
+const UNSAVED_PREFIX = "adding-";
+
+/** Whether a card is saved, so it can be marked, removed or have its hint written again. */
+export const isSaved = (card: Pick<PracticeCard, "id">) => !card.id.startsWith(UNSAVED_PREFIX);
+
+type PracticeRequest = { url: string; method: string; body?: unknown; fallback: string };
+
+async function sendPractice({ url, method, body, fallback }: PracticeRequest): Promise<InterviewPrepResponse> {
+  return readResponse(
+    await fetch(url, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+    fallback,
+  );
+}
+
 /**
- * The Practice operations: mark a card, More like this, add your own question
- * and write a hint again. Each response's Practice section replaces the one
- * shown; the other sections may still be researching in their own requests.
+ * The Practice operations: mark a card, remove one, More like this, add your
+ * own question and write a hint again. Marks, removals and own questions show
+ * straight away. A response's Practice section replaces the one shown only
+ * when no other Practice request is still running, since the last one to
+ * finish saw every change; the other sections may still be researching in
+ * their own requests.
  */
 export function usePracticeActions(jobId: string) {
   const queryClient = useQueryClient();
   const key = interviewPrepKey(jobId);
   const base = `/api/jobs/${jobId}/interview-prep`;
 
-  const mutation = useMutation({
-    mutationFn: async ({ url, method, body, fallback }: { url: string; method: string; body?: unknown; fallback: string }) =>
-      readResponse(
-        await fetch(url, {
-          method,
-          headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        }),
-        fallback,
-      ),
-    onSuccess: (data) => {
+  const changeCards = (change: (cards: PracticeCard[]) => PracticeCard[]) =>
+    queryClient.setQueryData<InterviewPrepResponse>(key, (old) => {
+      const practice = old?.prep?.sections.practice;
+      if (!old?.prep || !practice?.data) return old;
+      const next = { ...practice, data: { cards: change(practice.data.cards) } };
+      return { ...old, prep: { ...old.prep, sections: { ...old.prep.sections, practice: next } } };
+    });
+
+  const callbacks = {
+    onSuccess: (data: InterviewPrepResponse) => {
+      const running = queryClient.isMutating({ mutationKey: practiceMutationKey(jobId) }) + queryClient.isMutating({ mutationKey: moreMutationKey(jobId) });
+      // This request is still counted as running here.
+      if (running > 1) return;
       queryClient.setQueryData<InterviewPrepResponse>(key, (old) => {
         if (!old?.prep || !data.prep) return data;
         return { ...old, prep: { ...old.prep, sections: { ...old.prep.sections, practice: data.prep.sections.practice } } };
       });
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast.error(err.message);
       void queryClient.invalidateQueries({ queryKey: key });
     },
+  };
+
+  const mutation = useMutation({
+    mutationKey: practiceMutationKey(jobId),
+    mutationFn: ({ request }: { request: PracticeRequest; optimistic?: () => void }) => sendPractice(request),
+    onMutate: async ({ optimistic }) => {
+      if (!optimistic) return;
+      await queryClient.cancelQueries({ queryKey: key });
+      optimistic();
+    },
+    ...callbacks,
+  });
+
+  const more = useMutation({
+    mutationKey: moreMutationKey(jobId),
+    mutationFn: (deck: DeckKey) => sendPractice({ url: `${base}/decks/${deck}/more`, method: "POST", fallback: "Couldn't add more questions." }),
+    ...callbacks,
+  });
+
+  const addingMore = useMutationState({
+    filters: { mutationKey: moreMutationKey(jobId), status: "pending" },
+    select: (m) => m.state.variables as DeckKey,
   });
 
   return {
-    pending: mutation.isPending,
+    /** The Decks More like this is adding cards to now. */
+    addingMore,
     mark: (cardId: string, mark: Mark) =>
-      mutation.mutate({ url: `${base}/cards/${cardId}`, method: "PATCH", body: { mark }, fallback: "Couldn't save the mark." }),
-    moreLikeThis: (deck: DeckKey) =>
-      mutation.mutate({ url: `${base}/decks/${deck}/more`, method: "POST", fallback: "Couldn't add more questions." }),
+      mutation.mutate({
+        request: { url: `${base}/cards/${cardId}`, method: "PATCH", body: { mark }, fallback: "Couldn't save the mark." },
+        optimistic: () => changeCards((cards) => cards.map((c) => (c.id === cardId ? { ...c, mark } : c))),
+      }),
+    remove: (cardId: string) =>
+      mutation.mutate({
+        request: { url: `${base}/cards/${cardId}`, method: "DELETE", fallback: "Couldn't remove the card." },
+        optimistic: () => changeCards((cards) => cards.filter((c) => c.id !== cardId)),
+      }),
+    moreLikeThis: (deck: DeckKey) => more.mutate(deck),
+    // Shown at once as "Writing a hint…"; the response replaces it with the saved card.
     addOwnQuestion: (deck: DeckKey, question: string) =>
-      mutation.mutate({ url: `${base}/cards`, method: "POST", body: { deck, question }, fallback: "Couldn't add your question." }),
+      mutation.mutate({
+        request: { url: `${base}/cards`, method: "POST", body: { deck, question }, fallback: "Couldn't add your question." },
+        optimistic: () =>
+          changeCards((cards) => [
+            ...cards,
+            {
+              id: `${UNSAVED_PREFIX}${crypto.randomUUID()}`,
+              deck,
+              question: question.trim(),
+              own: true,
+              mark: "not_tried",
+              hint: null,
+              hintStatus: "writing",
+              hintRequestedAt: new Date().toISOString(),
+              hintBasis: null,
+            },
+          ]),
+      }),
     writeHint: (cardId: string) =>
-      mutation.mutate({ url: `${base}/cards/${cardId}/hint`, method: "POST", fallback: "Couldn't write the hint." }),
+      mutation.mutate({
+        request: { url: `${base}/cards/${cardId}/hint`, method: "POST", fallback: "Couldn't write the hint." },
+        optimistic: () =>
+          changeCards((cards) =>
+            cards.map((c) => (c.id === cardId ? { ...c, hintStatus: "writing", hintRequestedAt: new Date().toISOString() } : c)),
+          ),
+      }),
   };
 }
