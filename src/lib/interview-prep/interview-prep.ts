@@ -46,11 +46,17 @@ export interface ProcessData {
   commonForRole: string | null;
 }
 
-/** LAY-121 fills this in. About the company only: no talking points tied to the user. */
+/**
+ * A briefing about the company only: no talking points tied to the user. Every
+ * item links to its sources, and a part with nothing sourced is empty (null)
+ * rather than padded.
+ */
 export interface CompanyData {
-  whatTheyDo: { text: string; sources: Source[] };
-  /** From the last 6 months. */
+  /** Products, customers, business model, and rough size and stage. Null when nothing sourced was found. */
+  whatTheyDo: { text: string; sources: Source[] } | null;
+  /** From the last 6 months, newest first. `date` is an ISO date (YYYY-MM-DD), approximate when the news gave "3 months ago". */
   news: { date: string; headline: string; howItMightComeUp: string; sources: Source[] }[];
+  /** Quoted word for word from the company's own site. */
   values: { text: string; sources: Source[] }[];
 }
 
