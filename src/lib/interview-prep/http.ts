@@ -8,8 +8,11 @@ export type InterviewPrepResponse = Omit<InterviewPrepState, "ok">;
 const STATUS: Record<FailureKind, number> = {
   not_found: 404,
   already_researching: 409,
+  invalid: 400,
+  no_career_story: 409,
   load_failed: 500,
   save_failed: 500,
+  write_failed: 502,
 };
 
 /** A success is sent as an `InterviewPrepResponse`; a failure as `{ error, kind }` with the status for its kind. */

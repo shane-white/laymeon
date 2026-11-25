@@ -18,6 +18,12 @@ import {
   type SectionGenerators,
   type SectionInput,
   type SectionKey,
+  type Section,
+  type DeckKey,
+  type Hint,
+  type PracticeCard,
+  type PracticeCardWriter,
+  type PracticeContext,
 } from "./interview-prep";
 
 /** A Job at Acme with a Resume and older Interview Suggestions unless overridden. */
@@ -47,25 +53,35 @@ export function memoryJobs(...initial: InterviewPrepJob[]): InterviewPrepJobs & 
   };
 }
 
-export function memoryStore(): InterviewPrepStore & { set(prep: InterviewPrep): void } {
+export function memoryStore(): InterviewPrepStore & {
+  set(prep: InterviewPrep): void;
+  /** Saves a section as given. */
+  saveSection<K extends SectionKey>(jobId: string, key: K, section: Section<SectionData[K]>): Promise<InterviewPrep>;
+} {
   const preps = new Map<string, InterviewPrep>();
-  return {
+  const store: ReturnType<typeof memoryStore> = {
     async find(jobId) {
       return preps.get(jobId) ?? null;
     },
-    async saveSection(jobId, key, section) {
+    // Reads and writes with no await in between, so it's atomic like the real one.
+    async updateSection(jobId, key, update) {
       const prep = preps.get(jobId) ?? {
         jobId,
         version: INTERVIEW_PREP_VERSION,
         sections: emptySections(),
         updatedAt: "",
       };
+      const section = update(prep.sections[key]);
       const saved = { ...prep, sections: { ...prep.sections, [key]: section }, updatedAt: new Date().toISOString() };
       preps.set(jobId, saved);
       return saved;
     },
     set: (prep) => preps.set(prep.jobId, prep),
+    saveSection(jobId, key, section) {
+      return store.updateSection(jobId, key, () => section);
+    },
   };
+  return store;
 }
 
 export function memoryCareerStory(profile: CareerProfile | null = buildProfile([], "2026-11-01T00:00:00.000Z")): InterviewPrepCareerStory {
@@ -105,14 +121,77 @@ export function scriptedGenerators(
 
 export const NOW = "2026-11-25T12:00:00.000Z";
 
+export const sampleHint: Hint = {
+  probing: "Whether you own your mistakes.",
+  outline: ["What went wrong", "What you did"],
+  experiences: [],
+};
+
+/** A ready card with no mark. */
+export function practiceCard(overrides: Partial<PracticeCard> = {}): PracticeCard {
+  return {
+    id: "card-1",
+    deck: "behavioral",
+    question: "Tell me about a mistake.",
+    own: false,
+    mark: "not_tried",
+    hint: sampleHint,
+    hintStatus: "ready",
+    hintRequestedAt: null,
+    hintBasis: "basis-1",
+    ...overrides,
+  };
+}
+
+/**
+ * A Practice card writer that numbers its cards ("written-1"…) with the
+ * question "<deck> question <n>", and records what it was asked. `hint`
+ * throws `failHint` when set. `before` runs before each answer, so a test can
+ * act while cards are being written.
+ */
+export function scriptedPracticeWriter(options: { failHint?: Error; failWrite?: Error; before?: () => Promise<void> } = {}) {
+  let n = 0;
+  const calls: { write: { deck: DeckKey; count: number; avoid: string[]; context: PracticeContext }[]; hint: { deck: DeckKey; question: string; context: PracticeContext }[] } = {
+    write: [],
+    hint: [],
+  };
+  const writer: PracticeCardWriter = {
+    async write(context, request) {
+      calls.write.push({ ...request, context });
+      await options.before?.();
+      if (options.failWrite) throw options.failWrite;
+      return Array.from({ length: request.count }, () => {
+        n++;
+        return practiceCard({ id: `written-${n}`, deck: request.deck, question: `${request.deck} question ${n}` });
+      });
+    },
+    async hint(context, request) {
+      calls.hint.push({ ...request, context });
+      await options.before?.();
+      if (options.failHint) throw options.failHint;
+      return { hint: { ...sampleHint, probing: `Listening for: ${request.question}` }, hintBasis: "basis-2" };
+    },
+  };
+  return { writer, calls };
+}
+
 export function setup({
   job = interviewPrepJob(),
   generators = scriptedGenerators().generators,
   careerStory = memoryCareerStory(),
+  practice = scriptedPracticeWriter().writer,
   now = () => NOW,
-}: Partial<{ job: InterviewPrepJob; generators: SectionGenerators; careerStory: InterviewPrepCareerStory; now: () => string }> = {}) {
+  sleep = async () => {},
+}: Partial<{
+  job: InterviewPrepJob;
+  generators: SectionGenerators;
+  careerStory: InterviewPrepCareerStory;
+  practice: PracticeCardWriter;
+  now: () => string;
+  sleep: (ms: number) => Promise<void>;
+}> = {}) {
   const jobs = memoryJobs(job);
   const store = memoryStore();
-  const deps: InterviewPrepDeps = { jobs, store, generators, careerStory, now };
+  const deps: InterviewPrepDeps = { jobs, store, generators, careerStory, practice, now, sleep };
   return { deps, jobs, store };
 }

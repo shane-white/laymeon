@@ -7,6 +7,7 @@
  * `generators.ts`; the production adapters are in `supabase-store.ts`,
  * `supabase-jobs.ts` and `deps.ts`, and the test adapters in `testing.ts`.
  */
+import type { CareerStoryRef } from "@/lib/profile/for-prompt";
 import type { CareerProfile } from "@/lib/profile/schema";
 
 /** Bump when the stored shape of an Interview Prep changes. */
@@ -67,15 +68,43 @@ export type DeckKey = (typeof DECK_KEYS)[number];
 /** A Practice card's mark. Nothing is scored. */
 export type Mark = "not_tried" | "feels_good" | "practice_more";
 
+/** A Career Story item behind an experience on a hint, with its Evidence. */
+export interface HintSource {
+  /** The Career Story item: its section, key and a short label such as "Product Manager at Ledgerly". */
+  ref: CareerStoryRef;
+  /** Word-for-word quotes from the user's Documents that back the item. Empty for an item the user stated themselves. */
+  evidence: { documentName: string | null; quote: string }[];
+}
+
+/** An experience from the Career Story that fits a question. */
+export interface HintExperience {
+  /** One line on the experience and how it fits, e.g. "Checkout redesign at Ledgerly: you argued for a usability test". */
+  text: string;
+  /**
+   * Whether this Job's Resume shows it: false is flagged "not on your resume".
+   * Null when the Job has no Resume to compare against, so nothing is flagged.
+   */
+  onResume: boolean | null;
+  /** The Career Story items it comes from. Never empty. */
+  backedBy: HintSource[];
+}
+
 /** The back of a Practice card, built from the Career Story (LAY-122). */
 export interface Hint {
-  /** What the interviewer is probing for. */
+  /** What they're listening for. */
   probing: string;
-  /** A rough outline of an answer. */
+  /** A rough shape: an outline of an answer, in a few steps. */
   outline: string[];
-  /** Experiences from the Career Story that fit. `onResume` is false when this Job's Resume doesn't show it. */
-  experiences: { text: string; onResume: boolean }[];
+  /** From your experience. Empty for questions to ask them, and when nothing in the Career Story fits. */
+  experiences: HintExperience[];
 }
+
+/**
+ * - `writing`: the hint is being written (an own question just added, or a hint being rewritten).
+ * - `ready`: `hint` holds it.
+ * - `failed`: writing it failed; it can be tried again.
+ */
+export type HintStatus = "writing" | "ready" | "failed";
 
 /** A likely interview question (LAY-122..125). */
 export interface PracticeCard {
@@ -86,16 +115,19 @@ export interface PracticeCard {
   /** The user added it. Only the user removes their own cards or marked cards. */
   own: boolean;
   mark: Mark;
-  /** Null while the hint is still being written. */
+  /** Null until the first hint is written. Kept while a new one is written. */
   hint: Hint | null;
+  hintStatus: HintStatus;
+  /** When the hint now being written was asked for, so one stuck writing can be retried. Null when not writing. */
+  hintRequestedAt: string | null;
   /**
-   * A hash of the Career Story the hint was built from. When it differs from
-   * the Career Story's now, the hint is an Earlier version.
+   * `careerStoryHash` of the Career Story the hint was built from. When it
+   * differs from the Career Story's now, the hint is an Earlier version (LAY-125).
    */
   hintBasis: string | null;
 }
 
-/** LAY-122 fills this in. Decks are only ever added to. */
+/** Decks are only ever added to. Cards are in the order they were added. */
 export interface PracticeData {
   cards: PracticeCard[];
 }
@@ -154,8 +186,18 @@ export interface InterviewPrepStore {
   /**
    * Saves one section and leaves the others as they are, creating the
    * Interview Prep if the Job has none. Returns the whole Interview Prep.
+   *
+   * `update` gets the section as saved now and returns it changed. If another
+   * request saves in between, it's run again on that newer save, so two
+   * requests changing the same section (a mark saved while new cards are
+   * written) never undo each other. It may run more than once, so keep it
+   * free of side effects; anything it throws is passed on.
    */
-  saveSection<K extends SectionKey>(jobId: string, key: K, section: Section<SectionData[K]>): Promise<InterviewPrep>;
+  updateSection<K extends SectionKey>(
+    jobId: string,
+    key: K,
+    update: (current: Section<SectionData[K]>) => Section<SectionData[K]>,
+  ): Promise<InterviewPrep>;
 }
 
 export interface InterviewPrepCareerStory {
@@ -170,6 +212,18 @@ export interface SectionInput<K extends SectionKey> {
   careerStory: CareerProfile | null;
   /** The section's last good result, so a refresh can build on it (Decks are only added to). */
   previous: SectionData[K] | null;
+  /**
+   * The Process and Company research, waiting a while for any of it still
+   * researching (Prepare runs all three sections at once). Practice uses it
+   * for its company Decks.
+   */
+  research(): Promise<Research>;
+}
+
+/** The Process and Company research a Practice card can draw on. Null where there's none. */
+export interface Research {
+  process: ProcessData | null;
+  company: CompanyData | null;
 }
 
 /** Researches one section. Throws on failure; `SectionNotImplementedError` until it's built. */
@@ -197,8 +251,27 @@ export interface InterviewPrepDeps {
   store: InterviewPrepStore;
   generators: SectionGenerators;
   careerStory: InterviewPrepCareerStory;
+  /** Writes Practice cards and their hints, for More like this and the user's own questions. */
+  practice: PracticeCardWriter;
   /** The time now, as an ISO string. */
   now: () => string;
+  /** Waits, while Practice waits on the Process and Company research. */
+  sleep: (ms: number) => Promise<void>;
+}
+
+/** What writing Practice cards needs to know. */
+export interface PracticeContext {
+  job: InterviewPrepJob;
+  careerStory: CareerProfile;
+  research: Research;
+}
+
+/** Writes Practice cards from the Career Story (`practice/writer.ts`). Throws with a message fit to show the user. */
+export interface PracticeCardWriter {
+  /** Up to `count` new cards for a Deck, with hints, repeating none of the questions in `avoid`. */
+  write(context: PracticeContext, request: { deck: DeckKey; count: number; avoid: string[] }): Promise<PracticeCard[]>;
+  /** A hint for a question, and the basis it was built from. */
+  hint(context: PracticeContext, request: { deck: DeckKey; question: string }): Promise<{ hint: Hint; hintBasis: string }>;
 }
 
 /** What the Interview Prep tab shows. */
@@ -210,6 +283,18 @@ export interface InterviewPrepState {
   legacySuggestions: string | null;
 }
 
-export type FailureKind = "not_found" | "already_researching" | "load_failed" | "save_failed";
+/**
+ * - `invalid`: the request doesn't make sense (an empty question, an unknown Deck).
+ * - `no_career_story`: a Practice operation that writes hints, for a user with no Career Story.
+ * - `write_failed`: writing Practice cards or a hint failed.
+ */
+export type FailureKind =
+  | "not_found"
+  | "already_researching"
+  | "invalid"
+  | "no_career_story"
+  | "load_failed"
+  | "save_failed"
+  | "write_failed";
 
 export type InterviewPrepResult = InterviewPrepState | { ok: false; kind: FailureKind; message: string };

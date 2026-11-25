@@ -33,6 +33,24 @@ function fromRow(row: InterviewPrepRow): InterviewPrep {
   };
 }
 
+/** Saves are retried on a newer row this many times before giving up. */
+const MAX_ATTEMPTS = 5;
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Now, or just after `readAt` if that's not earlier, so a save always changes
+ * `updated_at`, even two in the same millisecond.
+ */
+function laterThan(readAt: string): string {
+  const read = Date.parse(readAt);
+  return new Date(Number.isNaN(read) ? Date.now() : Math.max(Date.now(), read + 1)).toISOString();
+}
+
+/**
+ * Each save reads the row, applies the change to the section and writes it
+ * back only if `updated_at` hasn't moved, trying again on the newer row if it
+ * has. So a save never undoes one made at the same time by another request.
+ */
 export function supabaseInterviewPrepStore(supabase: SupabaseClient, userId: string): InterviewPrepStore {
   return {
     async find(jobId) {
@@ -46,18 +64,43 @@ export function supabaseInterviewPrepStore(supabase: SupabaseClient, userId: str
       return data ? fromRow(data) : null;
     },
 
-    async saveSection(jobId, key, section) {
-      // An upsert updates only the columns it sends, so the other sections stay as they are.
-      const { data, error } = await supabase
-        .from("interview_preps")
-        .upsert(
-          { user_id: userId, user_job_id: jobId, [key]: section, updated_at: new Date().toISOString() },
-          { onConflict: "user_job_id" },
-        )
-        .select(COLUMNS)
-        .single<InterviewPrepRow>();
-      if (error) throw new Error(`Couldn't save the Interview Prep: ${error.message}`);
-      return fromRow(data);
+    async updateSection(jobId, key, update) {
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const { data: row, error } = await supabase
+          .from("interview_preps")
+          .select(COLUMNS)
+          .eq("user_id", userId)
+          .eq("user_job_id", jobId)
+          .maybeSingle<InterviewPrepRow>();
+        if (error) throw new Error(`Couldn't load the Interview Prep: ${error.message}`);
+
+        if (!row) {
+          const section = update(emptySection());
+          const { data, error: insertError } = await supabase
+            .from("interview_preps")
+            .insert({ user_id: userId, user_job_id: jobId, [key]: section })
+            .select(COLUMNS)
+            .single<InterviewPrepRow>();
+          // Another request created it first: run the change on that one.
+          if (insertError?.code === UNIQUE_VIOLATION) continue;
+          if (insertError) throw new Error(`Couldn't save the Interview Prep: ${insertError.message}`);
+          return fromRow(data);
+        }
+
+        const section = update(fromRow(row).sections[key]);
+        // Only if no other save has changed the row since it was read.
+        const { data, error: updateError } = await supabase
+          .from("interview_preps")
+          .update({ [key]: section, updated_at: laterThan(row.updated_at) })
+          .eq("user_id", userId)
+          .eq("user_job_id", jobId)
+          .eq("updated_at", row.updated_at)
+          .select(COLUMNS)
+          .maybeSingle<InterviewPrepRow>();
+        if (updateError) throw new Error(`Couldn't save the Interview Prep: ${updateError.message}`);
+        if (data) return fromRow(data);
+      }
+      throw new Error("Couldn't save the Interview Prep: it kept changing while we saved. Try again.");
     },
   };
 }

@@ -22,19 +22,22 @@ function stuck(section: Section<unknown>, now: string): boolean {
   return Number.isNaN(started) || Date.parse(now) - started > RESEARCH_TIME_LIMIT_MS;
 }
 
+/** The section, shown as failed if it's stuck researching past the time limit. */
+export function withStuckSectionFailed<T>(section: Section<T>, now: string): Section<T> {
+  if (!stuck(section, now)) return section;
+  return {
+    ...section,
+    status: "failed",
+    startedAt: null,
+    failure: { reason: "error", message: "Research stopped before it finished. Try again." },
+  };
+}
+
 /** The Interview Prep with any section stuck researching past the time limit shown as failed. */
 export function withStuckResearchFailed(prep: InterviewPrep, now: string): InterviewPrep {
   const sections = { ...prep.sections };
   for (const key of SECTION_KEYS) {
-    const section = sections[key];
-    if (stuck(section, now)) {
-      sections[key] = {
-        ...section,
-        status: "failed",
-        startedAt: null,
-        failure: { reason: "error", message: "Research stopped before it finished. Try again." },
-      } as never;
-    }
+    sections[key] = withStuckSectionFailed(sections[key] as Section<unknown>, now) as never;
   }
   return { ...prep, sections };
 }
