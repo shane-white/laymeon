@@ -6,19 +6,22 @@
  * buttons. More like this and Add your own question add cards. Quick mix and
  * Practice this deck open a Practice session (LAY-124) over the list; its
  * marks go through the same mark action, so the list updates underneath.
+ * When the Career Story has changed since some hints were written, a note
+ * offers Update hints (LAY-125).
  */
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DECK_KEYS, type DeckKey, type PracticeCard, type PracticeData } from "@/lib/interview-prep/interview-prep";
-import { canRemove, markCounts } from "@/lib/interview-prep/practice/cards";
+import { canRemove, hasEarlierHint, markCounts } from "@/lib/interview-prep/practice/cards";
 import { pickSession, type SessionSource } from "@/lib/interview-prep/practice/session";
 import { AddQuestionDialog } from "./add-question-dialog";
 import { CardBack, DECK_NAMES, MARK_LABELS, MarkButtons, MarkDot, Tip, TIPS } from "./practice-parts";
 import { PracticeSession } from "./practice-session";
-import { isSaved, usePracticeActions } from "./use-interview-prep";
+import { isSaved, useInterviewPrep, usePracticeActions } from "./use-interview-prep";
 
 export { DECK_NAMES } from "./practice-parts";
 
@@ -35,6 +38,37 @@ function Blurb() {
       or <strong className={strong}>Practice more</strong>. When you&rsquo;re ready to practice out loud, start a{" "}
       <strong className={strong}>Quick mix</strong> or practice one deck.
     </p>
+  );
+}
+
+/**
+ * Says some hints were written from an earlier Career Story, and offers to
+ * write them again. While Update hints runs, it says so instead.
+ */
+function EarlierHintsNotice({ count, updating, onUpdate }: { count: number; updating: boolean; onUpdate: () => void }) {
+  const one = count === 1;
+  return (
+    <Alert>
+      {updating ? <Loader2 className="animate-spin" /> : <AlertTriangle />}
+      <AlertTitle>
+        {updating ? "Updating hints…" : one ? "1 hint is an Earlier version" : `${count} hints are an Earlier version`}
+      </AlertTitle>
+      <AlertDescription className="flex flex-col items-start gap-2">
+        {updating ? (
+          <span>Writing them again from your Career Story now. Your questions and marks stay as they are.</span>
+        ) : (
+          <>
+            <span>
+              Your Career Story has changed since {one ? "it was" : "they were"} written. Update hints writes{" "}
+              {one ? "it" : "them"} again; your questions and marks stay as they are.
+            </span>
+            <Button variant="outline" size="sm" onClick={onUpdate}>
+              <RefreshCw /> Update hints
+            </Button>
+          </>
+        )}
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -205,6 +239,8 @@ interface Session {
 
 export function PracticeView({ jobId, data }: { jobId: string; data: PracticeData }) {
   const actions = usePracticeActions(jobId);
+  const careerStoryHash = useInterviewPrep(jobId).data?.careerStoryHash ?? null;
+  const earlier = data.cards.filter((c) => isSaved(c) && hasEarlierHint(c, careerStoryHash)).length;
   // One card open at a time.
   const [openCard, setOpenCard] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -228,6 +264,9 @@ export function PracticeView({ jobId, data }: { jobId: string; data: PracticeDat
             <AddQuestionDialog onAdd={actions.addOwnQuestion} />
           </div>
         </div>
+        {(earlier > 0 || actions.updatingHints) && (
+          <EarlierHintsNotice count={earlier} updating={actions.updatingHints} onUpdate={actions.updateHints} />
+        )}
         {DECK_KEYS.map((deck) => (
           <Deck
             key={deck}

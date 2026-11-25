@@ -4,7 +4,7 @@ import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient 
 import { toast } from "sonner";
 import type { InterviewPrepResponse } from "@/lib/interview-prep/http";
 import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type DeckKey, type Mark, type PracticeCard, type SectionKey } from "@/lib/interview-prep/interview-prep";
-import { hintIsWriting } from "@/lib/interview-prep/practice/cards";
+import { hasEarlierHint, hintIsWriting } from "@/lib/interview-prep/practice/cards";
 import { emptySection, emptySections } from "@/lib/interview-prep/sections";
 
 /** The query key for a Job's Interview Prep (`user_job_listings.id`). */
@@ -12,6 +12,10 @@ export const interviewPrepKey = (jobId: string) => ["interview-prep", jobId] as 
 const sectionMutationKey = (jobId: string) => ["interview-prep-section", jobId] as const;
 const practiceMutationKey = (jobId: string) => ["interview-prep-practice", jobId] as const;
 const moreMutationKey = (jobId: string) => ["interview-prep-practice-more", jobId] as const;
+const hintsMutationKey = (jobId: string) => ["interview-prep-practice-hints", jobId] as const;
+
+/** The Practice requests running now, of every kind. */
+const practiceKeys = (jobId: string) => [practiceMutationKey(jobId), moreMutationKey(jobId), hintsMutationKey(jobId)];
 
 /** How often to check on a section researching in a request this tab didn't send (e.g. after a reload). */
 const POLL_MS = 5000;
@@ -26,7 +30,9 @@ async function readResponse(res: Response, fallback: string): Promise<InterviewP
 export function useInterviewPrep(jobId: string) {
   const sending = useIsMutating({ mutationKey: sectionMutationKey(jobId) });
   const changingPractice =
-    useIsMutating({ mutationKey: practiceMutationKey(jobId) }) + useIsMutating({ mutationKey: moreMutationKey(jobId) });
+    useIsMutating({ mutationKey: practiceMutationKey(jobId) }) +
+    useIsMutating({ mutationKey: moreMutationKey(jobId) }) +
+    useIsMutating({ mutationKey: hintsMutationKey(jobId) });
   return useQuery<InterviewPrepResponse>({
     queryKey: interviewPrepKey(jobId),
     queryFn: async () => readResponse(await fetch(`/api/jobs/${jobId}/interview-prep`), "Couldn't load this Job's Interview Prep."),
@@ -65,6 +71,7 @@ export function usePrepareSection(jobId: string) {
         const current = prep.sections[section] ?? emptySection();
         return {
           legacySuggestions: old?.legacySuggestions ?? null,
+          careerStoryHash: old?.careerStoryHash ?? null,
           prep: {
             ...prep,
             sections: {
@@ -82,6 +89,7 @@ export function usePrepareSection(jobId: string) {
         if (!old?.prep || !data.prep) return data;
         return {
           legacySuggestions: data.legacySuggestions,
+          careerStoryHash: data.careerStoryHash,
           prep: { ...old.prep, sections: { ...old.prep.sections, [section]: data.prep.sections[section] } },
         };
       });
@@ -122,7 +130,7 @@ async function sendPractice({ url, method, body, fallback }: PracticeRequest): P
 
 /**
  * The Practice operations: mark a card, remove one, More like this, add your
- * own question and write a hint again. Marks, removals and own questions show
+ * own question, write a hint again, and Update hints. Marks, removals and own questions show
  * straight away. A response's Practice section replaces the one shown only
  * when no other Practice request is still running, since the last one to
  * finish saw every change; the other sections may still be researching in
@@ -143,12 +151,20 @@ export function usePracticeActions(jobId: string) {
 
   const callbacks = {
     onSuccess: (data: InterviewPrepResponse) => {
-      const running = queryClient.isMutating({ mutationKey: practiceMutationKey(jobId) }) + queryClient.isMutating({ mutationKey: moreMutationKey(jobId) });
+      const running = practiceKeys(jobId).reduce((n, mutationKey) => n + queryClient.isMutating({ mutationKey }), 0);
       // This request is still counted as running here.
-      if (running > 1) return;
+      if (running > 1) {
+        // The Career Story's hash doesn't depend on the cards, so it's taken from any response.
+        queryClient.setQueryData<InterviewPrepResponse>(key, (old) => old && { ...old, careerStoryHash: data.careerStoryHash });
+        return;
+      }
       queryClient.setQueryData<InterviewPrepResponse>(key, (old) => {
         if (!old?.prep || !data.prep) return data;
-        return { ...old, prep: { ...old.prep, sections: { ...old.prep.sections, practice: data.prep.sections.practice } } };
+        return {
+          ...old,
+          careerStoryHash: data.careerStoryHash,
+          prep: { ...old.prep, sections: { ...old.prep.sections, practice: data.prep.sections.practice } },
+        };
       });
     },
     onError: (err: Error) => {
@@ -174,6 +190,19 @@ export function usePracticeActions(jobId: string) {
     ...callbacks,
   });
 
+  // Update hints: the cards whose hint is an Earlier version show "Writing a hint…" until it's done.
+  const hints = useMutation({
+    mutationKey: hintsMutationKey(jobId),
+    mutationFn: () => sendPractice({ url: `${base}/hints`, method: "POST", fallback: "Couldn't update the hints." }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const hash = queryClient.getQueryData<InterviewPrepResponse>(key)?.careerStoryHash ?? null;
+      const asked = new Date().toISOString();
+      changeCards((cards) => cards.map((c) => (hasEarlierHint(c, hash) ? { ...c, hintStatus: "writing", hintRequestedAt: asked } : c)));
+    },
+    ...callbacks,
+  });
+
   const addingMore = useMutationState({
     filters: { mutationKey: moreMutationKey(jobId), status: "pending" },
     select: (m) => m.state.variables as DeckKey,
@@ -182,6 +211,9 @@ export function usePracticeActions(jobId: string) {
   return {
     /** The Decks More like this is adding cards to now. */
     addingMore,
+    /** Whether Update hints is running. */
+    updatingHints: hints.isPending,
+    updateHints: () => hints.mutate(),
     mark: (cardId: string, mark: Mark) =>
       mutation.mutate({
         request: { url: `${base}/cards/${cardId}`, method: "PATCH", body: { mark }, fallback: "Couldn't save the mark." },
