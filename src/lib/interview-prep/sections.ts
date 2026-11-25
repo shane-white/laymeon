@@ -42,6 +42,24 @@ export function withStuckResearchFailed(prep: InterviewPrep, now: string): Inter
   return { ...prep, sections };
 }
 
+/**
+ * A freshly loaded Interview Prep, merged with what's shown while section
+ * requests are still in flight. A load can land before a request has saved
+ * "researching" (or anything at all), and must not undo it: sections being
+ * researched keep their shown state until their own request answers.
+ */
+export function withSectionsInFlight(
+  fetched: InterviewPrep | null,
+  shown: InterviewPrep | null,
+  inFlight: readonly SectionKey[],
+): InterviewPrep | null {
+  if (inFlight.length === 0 || !shown) return fetched;
+  if (!fetched) return shown;
+  const sections = { ...fetched.sections };
+  for (const key of inFlight) sections[key] = shown.sections[key] as never;
+  return { ...fetched, sections };
+}
+
 /** The section the tab opens on: Practice once it exists, Process otherwise. */
 export function initialSection(prep: InterviewPrep | null): SectionKey {
   return prep?.sections.practice.data ? "practice" : "process";

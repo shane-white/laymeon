@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { InterviewPrepResponse } from "@/lib/interview-prep/http";
 import { INTERVIEW_PREP_VERSION, SECTION_KEYS, type DeckKey, type Mark, type PracticeCard, type SectionKey } from "@/lib/interview-prep/interview-prep";
 import { hasEarlierHint, hintIsWriting } from "@/lib/interview-prep/practice/cards";
-import { emptySection, emptySections } from "@/lib/interview-prep/sections";
+import { emptySection, emptySections, withSectionsInFlight } from "@/lib/interview-prep/sections";
 
 /** The query key for a Job's Interview Prep (`user_job_listings.id`). */
 export const interviewPrepKey = (jobId: string) => ["interview-prep", jobId] as const;
@@ -28,6 +28,7 @@ async function readResponse(res: Response, fallback: string): Promise<InterviewP
 
 /** The Job's Interview Prep, and its older Interview Suggestions if it still has them. */
 export function useInterviewPrep(jobId: string) {
+  const queryClient = useQueryClient();
   const sending = useIsMutating({ mutationKey: sectionMutationKey(jobId) });
   const changingPractice =
     useIsMutating({ mutationKey: practiceMutationKey(jobId) }) +
@@ -35,7 +36,17 @@ export function useInterviewPrep(jobId: string) {
     useIsMutating({ mutationKey: hintsMutationKey(jobId) });
   return useQuery<InterviewPrepResponse>({
     queryKey: interviewPrepKey(jobId),
-    queryFn: async () => readResponse(await fetch(`/api/jobs/${jobId}/interview-prep`), "Couldn't load this Job's Interview Prep."),
+    queryFn: async () => {
+      const data = await readResponse(await fetch(`/api/jobs/${jobId}/interview-prep`), "Couldn't load this Job's Interview Prep.");
+      // E.g. Start preparing from the jobs list, then the tab mounts and loads
+      // before the section requests have saved anything.
+      const inFlight = queryClient
+        .getMutationCache()
+        .findAll({ mutationKey: sectionMutationKey(jobId), status: "pending" })
+        .map((m) => m.state.variables as SectionKey);
+      const shown = queryClient.getQueryData<InterviewPrepResponse>(interviewPrepKey(jobId))?.prep ?? null;
+      return { ...data, prep: withSectionsInFlight(data.prep, shown, inFlight) };
+    },
     refetchInterval: (query) => {
       const prep = query.state.data?.prep;
       const researching = !!prep && SECTION_KEYS.some((key) => prep.sections[key].status === "researching");
