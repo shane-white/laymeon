@@ -33,6 +33,7 @@ import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
 import { JobDocumentSelect } from "@/components/jobs/job-document-select";
 import { TailoringTab } from "@/components/tailoring/tailoring-tab";
+import { InterviewPrepTab } from "@/components/interview-prep/interview-prep-tab";
 import { toast } from "sonner";
 
 interface JobDetailProps {
@@ -43,7 +44,8 @@ const TAB_OPTIONS = [
   { key: "match_analysis" as const, label: "Resume Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to see how well your resume matches this job: must-have requirements, search words recruiters use, and what to fix first. Requires an uploaded resume." },
   { key: "resume_suggestions" as const, label: "Resume Suggestions" },
   { key: "cover_letter_suggestions" as const, label: "Cover Letter Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get cover letter suggestions for this job. Requires an uploaded resume." },
-  { key: "interview_suggestions" as const, label: "Interview Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get interview preparation suggestions for this job. Requires an uploaded resume." },
+  // Interview Prep; the key is the older tab's, so tabs saved in localStorage still open.
+  { key: "interview_suggestions" as const, label: "Interview Prep" },
   { key: "notes" as const, label: "Notes" },
 ] as const;
 
@@ -211,13 +213,11 @@ function JobDetailContent({ job }: { job: UserJob }) {
           <TailoringTab job={job} />
         </TabsContent>
 
-        {(
-          [
-            "match_analysis",
-            "cover_letter_suggestions",
-            "interview_suggestions",
-          ] as const
-        ).map((type) => {
+        <TabsContent value="interview_suggestions" className="flex min-h-0 flex-1 flex-col">
+          <InterviewPrepTab job={job} />
+        </TabsContent>
+
+        {(["match_analysis", "cover_letter_suggestions"] as const).map((type) => {
           const opt = TAB_OPTIONS.find((o) => o.key === type)!;
           return (
             <TabsContent key={type} value={type} className="flex min-h-0 flex-1 flex-col">
