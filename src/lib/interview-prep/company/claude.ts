@@ -1,8 +1,7 @@
 /** The Company section's Claude steps in production. */
 import type Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
+import { askStructured } from "@/lib/anthropic/structured";
 import type { BriefAnswer, BriefInput, BriefSource, CompanyIdentity, CompanyModel, IdentifyInput } from "./company";
 
 const UNTRUSTED =
@@ -54,68 +53,10 @@ export interface CompanyStep {
   usage: Anthropic.Usage;
 }
 
-interface Call<T> {
-  step: CompanyStep["step"];
-  system: string;
-  schema: z.ZodType<T>;
-  effort: "low" | "medium";
-  check?: (data: T) => string[];
-}
-
-type Attempt<T> = { response: Anthropic.Message; data: T | null; problems: string[] };
-
-async function attempt<T>(
-  call: Call<T>,
-  messages: Anthropic.MessageParam[],
-  onStep?: (step: CompanyStep) => void,
-): Promise<Attempt<T>> {
-  const response = await anthropic.messages.create({
-    model: CLAUDE_MODEL,
-    // Thinking counts toward max_tokens alongside the answer itself.
-    max_tokens: 16000,
-    system: call.system,
-    output_config: { effort: call.effort, format: zodOutputFormat(call.schema) },
-    messages,
-  });
-  onStep?.({ step: call.step, model: response.model, usage: response.usage });
-
-  let output: unknown;
-  try {
-    output = JSON.parse(getResponseText(response));
-  } catch {
-    output = undefined;
-  }
-  const parsed = call.schema.safeParse(output);
-  if (!parsed.success) return { response, data: null, problems: [z.prettifyError(parsed.error)] };
-  return { response, data: parsed.data, problems: call.check?.(parsed.data) ?? [] };
-}
-
-/**
- * Asks Claude for structured output, asking once more if it's malformed or has
- * problems. A second answer that's well formed is kept even with problems.
- */
-async function request<T>(call: Call<T>, content: string, onStep?: (step: CompanyStep) => void): Promise<T> {
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content }];
-  const first = await attempt(call, messages, onStep);
-  if (first.data && first.problems.length === 0) return first.data;
-
-  const retry = await attempt(
-    call,
-    [
-      ...messages,
-      // The whole first answer, thinking blocks included, then the problems.
-      { role: "assistant", content: first.response.content },
-      {
-        role: "user",
-        content: `Your answer has these problems. Fix them and return the full answer again:\n${first.problems.map((p) => `- ${p}`).join("\n")}`,
-      },
-    ],
-    onStep,
-  );
-  if (retry.data) return retry.data;
-  if (first.data) return first.data;
-  throw new Error("We couldn't write the company briefing. Try refreshing.");
-}
+const ERRORS = {
+  callFailed: "We couldn't research the company just now. Try refreshing in a minute.",
+  badAnswer: "We couldn't write the company briefing. Try refreshing.",
+};
 
 function attribute(value: string): string {
   return value.replace(/["<>\n]/g, " ");
@@ -166,20 +107,30 @@ ${blocks}`;
 
 /** The Company section's Claude steps, through the Anthropic API. */
 export function claudeCompanyModel(onStep?: (step: CompanyStep) => void): CompanyModel {
+  const reportAs = (step: CompanyStep["step"]) => (usage: Anthropic.Usage, model: string) => onStep?.({ step, model, usage });
   return {
     identify(input): Promise<CompanyIdentity> {
-      return request(
-        { step: "identify", system: IDENTIFY_PROMPT, schema: identifySchema, effort: "low" },
-        identifyMessage(input),
-        onStep,
-      );
+      return askStructured({
+        label: "Company identify",
+        system: IDENTIFY_PROMPT,
+        schema: identifySchema,
+        effort: "low",
+        content: identifyMessage(input),
+        onUsage: reportAs("identify"),
+        errors: ERRORS,
+      });
     },
     brief(input, check): Promise<BriefAnswer> {
-      return request(
-        { step: "brief", system: BRIEF_PROMPT, schema: briefSchema, effort: "medium", check },
-        briefMessage(input),
-        onStep,
-      );
+      return askStructured({
+        label: "Company brief",
+        system: BRIEF_PROMPT,
+        schema: briefSchema,
+        effort: "medium",
+        content: briefMessage(input),
+        check,
+        onUsage: reportAs("brief"),
+        errors: ERRORS,
+      });
     },
   };
 }

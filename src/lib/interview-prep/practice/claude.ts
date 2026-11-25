@@ -1,8 +1,7 @@
 /** Practice cards' Claude step in production. */
 import type Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
+import { askStructured } from "@/lib/anthropic/structured";
 import type { DeckKey, Research } from "../interview-prep";
 import type { CardAnswer, CardsRequest, PracticeModel } from "./writer";
 
@@ -111,54 +110,23 @@ export interface ClaudePracticeOptions {
   onUsage?: (usage: Anthropic.Usage, model: string) => void;
 }
 
-type Attempt = { response: Anthropic.Message; cards: CardAnswer[] | null; problems: string };
-
-async function attempt(messages: Anthropic.MessageParam[], options: ClaudePracticeOptions): Promise<Attempt> {
-  let response: Anthropic.Message;
-  try {
-    response = await anthropic.messages.create({
-      model: options.model ?? CLAUDE_MODEL,
-      // Thinking counts toward max_tokens alongside the answer itself.
-      max_tokens: 16000,
-      system: PRACTICE_SYSTEM_PROMPT,
-      output_config: { effort: "medium", format: zodOutputFormat(answerSchema) },
-      messages,
-    });
-  } catch (error) {
-    console.error("Practice cards: Claude call failed", error);
-    throw new Error("We couldn't write Practice cards just now. Try again in a few minutes.");
-  }
-  options.onUsage?.(response.usage, response.model);
-
-  let output: unknown;
-  try {
-    output = JSON.parse(getResponseText(response));
-  } catch {
-    output = undefined;
-  }
-  const parsed = answerSchema.safeParse(output);
-  if (!parsed.success) return { response, cards: null, problems: z.prettifyError(parsed.error) };
-  return { response, cards: parsed.data.cards, problems: "" };
-}
+const WRITE_FAILED = "We couldn't write Practice cards just now. Try again in a few minutes.";
 
 /** Practice cards through the Anthropic API, asking once more if the answer doesn't fit the format. */
 export function claudePracticeModel(options: ClaudePracticeOptions = {}): PracticeModel {
   return {
-    async cards(request) {
-      const messages: Anthropic.MessageParam[] = [{ role: "user", content: practiceUserMessage(request) }];
-      const first = await attempt(messages, options);
-      if (first.cards) return first.cards;
-      const retry = await attempt(
-        [
-          ...messages,
-          // The whole first answer goes back unchanged (thinking blocks included), then the errors.
-          { role: "assistant", content: first.response.content },
-          { role: "user", content: `Your answer has these problems. Fix them and return the full answer again:\n${first.problems}` },
-        ],
-        options,
-      );
-      if (retry.cards) return retry.cards;
-      throw new Error("We couldn't write Practice cards just now. Try again in a few minutes.");
+    async cards(request): Promise<CardAnswer[]> {
+      const answer = await askStructured({
+        label: "Practice cards",
+        system: PRACTICE_SYSTEM_PROMPT,
+        schema: answerSchema,
+        effort: "medium",
+        content: practiceUserMessage(request),
+        model: options.model,
+        onUsage: options.onUsage,
+        errors: { callFailed: WRITE_FAILED, badAnswer: WRITE_FAILED },
+      });
+      return answer.cards;
     },
   };
 }

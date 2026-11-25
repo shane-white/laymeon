@@ -1,8 +1,6 @@
 /** Process research's production adapters: Firecrawl for the web, Claude to read it. */
 import type Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { z } from "zod";
-import { anthropic, CLAUDE_MODEL, getResponseText } from "@/lib/anthropic/client";
+import { askStructured } from "@/lib/anthropic/structured";
 import { PROCESS_SYSTEM_PROMPT, processAnswerSchema, processUserMessage } from "./prompt";
 import type { ProcessAnswer, ProcessRequest, ProcessResearchDeps, WebResult } from "./research";
 
@@ -61,55 +59,19 @@ export interface ClaudeProcessOptions {
   onUsage?: (usage: Anthropic.Usage, model: string) => void;
 }
 
-type Attempt = { response: Anthropic.Message; answer: ProcessAnswer | null; problems: string };
-
-async function attempt(messages: Anthropic.MessageParam[], options: ClaudeProcessOptions): Promise<Attempt> {
-  let response: Anthropic.Message;
-  try {
-    response = await anthropic.messages.create({
-      model: options.model ?? CLAUDE_MODEL,
-      // Thinking counts toward max_tokens alongside the answer itself.
-      max_tokens: 16000,
-      system: PROCESS_SYSTEM_PROMPT,
-      output_config: { effort: "medium", format: zodOutputFormat(processAnswerSchema) },
-      messages,
-    });
-  } catch (error) {
-    console.error("Process research: Claude call failed", error);
-    throw new Error(CLAUDE_FAILED_MESSAGE);
-  }
-  options.onUsage?.(response.usage, response.model);
-
-  let output: unknown;
-  try {
-    output = JSON.parse(getResponseText(response));
-  } catch {
-    output = undefined;
-  }
-  const parsed = processAnswerSchema.safeParse(output);
-  if (!parsed.success) return { response, answer: null, problems: z.prettifyError(parsed.error) };
-  return { response, answer: parsed.data, problems: "" };
-}
-
 /** Asks Claude to read the sources, retrying once if its answer doesn't fit the format. */
 export function claudeProcessAsk(options: ClaudeProcessOptions = {}): ProcessResearchDeps["ask"] {
-  return async (request: ProcessRequest) => {
-    const messages: Anthropic.MessageParam[] = [{ role: "user", content: processUserMessage(request) }];
-    const first = await attempt(messages, options);
-    if (first.answer) return first.answer;
-
-    const retry = await attempt(
-      [
-        ...messages,
-        // The whole first answer goes back unchanged (thinking blocks included), then the errors.
-        { role: "assistant", content: first.response.content },
-        { role: "user", content: `Your answer has these problems. Fix them and return the full answer again:\n${first.problems}` },
-      ],
-      options,
-    );
-    if (retry.answer) return retry.answer;
-    throw new Error(BAD_ANSWER_MESSAGE);
-  };
+  return (request: ProcessRequest): Promise<ProcessAnswer> =>
+    askStructured({
+      label: "Process research",
+      system: PROCESS_SYSTEM_PROMPT,
+      schema: processAnswerSchema,
+      effort: "medium",
+      content: processUserMessage(request),
+      model: options.model,
+      onUsage: options.onUsage,
+      errors: { callFailed: CLAUDE_FAILED_MESSAGE, badAnswer: BAD_ANSWER_MESSAGE },
+    });
 }
 
 export function processResearchDeps(options: ClaudeProcessOptions = {}): ProcessResearchDeps {
