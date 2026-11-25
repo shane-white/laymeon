@@ -60,7 +60,7 @@ function StartState({ company, onPrepare }: { company: string; onPrepare: () => 
     <Centered>
       <p className="max-w-md text-sm text-muted-foreground">
         Interview Prep looks up how {company} interviews, briefs you on the company, and builds practice questions with
-        hints from your Career Story. Nothing is scored.
+        hints from your Career Story.
       </p>
       <Button onClick={onPrepare}>Prepare</Button>
     </Centered>
