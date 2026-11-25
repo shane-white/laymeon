@@ -3,7 +3,7 @@
  * pages against the real Claude model, so runs cost no Firecrawl credits and
  * see the same web every time.
  *
- * Each fixture in scripts/fixtures/process/<name>.json gives a `job`
+ * Each fixture in scripts/fixtures/interview-prep-process/<name>.json gives a `job`
  * (company, title, description), the search `results` every query returns,
  * the fetched `pages` by URL, and `expected`:
  * - `found`: whether sourced stages or tips should come back. When false, the
@@ -15,7 +15,7 @@
  * It also reports how many tips Claude gave that weren't really in their
  * source (code drops them), and dates it gave that the source doesn't show.
  *
- * Usage: npm run eval:process -- [--runs 3] [fixture-name ...]
+ * Usage: npm run eval:interview-prep-process -- [--runs 3] [fixture-name ...]
  * Needs ANTHROPIC_API_KEY in .env.local.
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -31,7 +31,7 @@ interface Fixture {
   expected: { found: boolean; minStages?: number; forbiddenUrls?: string[] };
 }
 
-const FIXTURES_DIR = join(process.cwd(), "scripts", "fixtures", "process");
+const FIXTURES_DIR = join(process.cwd(), "scripts", "fixtures", "interview-prep-process");
 const NOW = new Date("2026-11-25T12:00:00Z");
 
 function parseArgs(argv: string[]): { runs: number; names: string[] } {

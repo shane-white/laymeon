@@ -11,7 +11,8 @@
     "eval:match-report": "tsx --env-file=.env.local scripts/match-report-eval.ts",
     "eval:profile": "tsx --env-file=.env.local scripts/profile-eval.ts",
     "eval:resume-review": "tsx --env-file=.env.local scripts/resume-review-eval.ts",
-    "eval:process": "tsx --env-file=.env.local scripts/process-eval.ts",
+    "eval:interview-prep-company": "tsx --env-file=.env.local scripts/interview-prep-company-eval.ts",
+    "eval:interview-prep-process": "tsx --env-file=.env.local scripts/interview-prep-process-eval.ts",
     "check:sources": "tsx scripts/check-source-links.ts"
   },
   "dependencies": {

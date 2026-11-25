@@ -1,0 +1,89 @@
+{
+  "now": "2026-11-25T12:00:00.000Z",
+  "job": {
+    "title": "Senior Product Designer",
+    "company": "Acme",
+    "description": "Acme builds payments software for small online stores. As a Senior Product Designer you'll own checkout and onboarding for our self-serve merchants."
+  },
+  "nameResults": [
+    {
+      "url": "https://www.acmepay.com/",
+      "title": "Acme | Payments for small online stores",
+      "snippet": "Accept cards, wallets and bank payments in minutes. Trusted by 40,000 merchants.",
+      "dateText": null
+    },
+    {
+      "url": "https://www.linkedin.com/company/acmepay",
+      "title": "Acme | LinkedIn",
+      "snippet": "Acme | 412 followers. Payments software for small online stores. Company size: 201-500 employees.",
+      "dateText": null
+    },
+    {
+      "url": "https://acme-band.example/",
+      "title": "Acme - the band",
+      "snippet": "Acme are a four-piece punk band from Leeds. New album out now.",
+      "dateText": null
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Acme_Corporation",
+      "title": "Acme Corporation - Wikipedia",
+      "snippet": "The Acme Corporation is a fictional corporation in the Looney Tunes cartoons.",
+      "dateText": null
+    }
+  ],
+  "newsResults": [
+    {
+      "url": "https://techcrunch.example/2026/acme-self-serve",
+      "title": "Acme launches a self-serve plan for tiny shops",
+      "snippet": "Payments startup Acme opened a self-serve plan with no monthly fee, aimed at stores selling under $10k a month.",
+      "dateText": "3 weeks ago"
+    },
+    {
+      "url": "https://finance.example/acme-series-c",
+      "title": "Acme raises $60M Series C led by Example Ventures",
+      "snippet": "Acme, which sells payments software to small online stores, raised a $60 million Series C.",
+      "dateText": "4 months ago"
+    },
+    {
+      "url": "https://music.example/acme-album",
+      "title": "Acme's new album is their loudest yet",
+      "snippet": "The Leeds punk band Acme return with a ten-track record.",
+      "dateText": "1 month ago"
+    },
+    {
+      "url": "https://old.example/acme-founded",
+      "title": "Acme opens its first office",
+      "snippet": "Payments startup Acme opened an office in Austin.",
+      "dateText": "2 years ago"
+    }
+  ],
+  "siteResults": [
+    {
+      "url": "https://www.acmepay.com/about",
+      "title": "About Acme",
+      "snippet": "Our mission is to make getting paid boring.",
+      "dateText": null
+    },
+    {
+      "url": "https://www.acmepay.com/careers",
+      "title": "Careers at Acme",
+      "snippet": "How we work.",
+      "dateText": null
+    }
+  ],
+  "pages": {
+    "https://www.acmepay.com/": "# Payments for small online stores\n\nAccept cards, wallets and bank payments in minutes. No setup fee.\n\nTrusted by 40,000 merchants.\n\n[Start free](https://www.acmepay.com/signup)",
+    "https://www.acmepay.com/about": "# About Acme\n\nOur mission is to make getting paid boring, so small stores can focus on what they sell.\n\nFounded in 2019 in Austin, Acme now has about 400 people across the US and Europe.\n\n## What we value\n\n- **Default to clarity.** Write it down, keep it short.\n- **Small teams, big ownership.** Every team owns a problem end to end.\n- **Merchants first.** If it doesn't help a store get paid, we don't build it.",
+    "https://www.acmepay.com/careers": null
+  },
+  "expected": {
+    "newsUrls": [
+      "https://techcrunch.example/2026/acme-self-serve",
+      "https://finance.example/acme-series-c"
+    ],
+    "minValues": 2,
+    "whatTheyDoMentions": [
+      "payments"
+    ]
+  }
+}
