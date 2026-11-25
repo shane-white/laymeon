@@ -41,7 +41,7 @@ export function JobStatusSelect({
   // Prepare costs searches and tokens, so it's only offered, never started for the user.
   function startPreparing() {
     prepareAll();
-    useJobTabRequest.getState().openTab(userJobId, "interview_suggestions");
+    useJobTabRequest.getState().openTab(userJobId, "interview_prep");
     onShowJob();
   }
 

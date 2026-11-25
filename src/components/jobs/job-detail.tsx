@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { formatLocation, formatSeniorityLevel } from "@/lib/jobs/details";
 import { useAnalyzeJob, type UserJob } from "@/hooks/use-jobs";
-import { getInitialTabs, type TabKey } from "@/lib/job-tabs";
+import { getInitialTabs, parseStoredTabs, type TabKey } from "@/lib/job-tabs";
 import { useDocuments } from "@/hooks/use-documents";
 import { useJobTabRequest } from "@/hooks/use-job-tab-request";
 import { statusColors } from "@/lib/jobs/statuses";
@@ -45,20 +45,16 @@ const TAB_OPTIONS = [
   { key: "match_analysis" as const, label: "Resume Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to see how well your resume matches this job: must-have requirements, search words recruiters use, and what to fix first. Requires an uploaded resume." },
   { key: "resume_suggestions" as const, label: "Resume Suggestions" },
   { key: "cover_letter_suggestions" as const, label: "Cover Letter Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get cover letter suggestions for this job. Requires an uploaded resume." },
-  // Interview Prep; the key is the older tab's, so tabs saved in localStorage still open.
-  { key: "interview_suggestions" as const, label: "Interview Prep" },
+  { key: "interview_prep" as const, label: "Interview Prep" },
   { key: "notes" as const, label: "Notes" },
 ] as const;
 
 function getStoredTabs(jobId: string): TabKey[] | null {
   try {
-    const stored = localStorage.getItem(`job-tabs-${jobId}`);
-    if (stored) {
-      const parsed = JSON.parse(stored) as TabKey[];
-      if (Array.isArray(parsed) && parsed.includes("description")) return parsed;
-    }
-  } catch {}
-  return null;
+    return parseStoredTabs(localStorage.getItem(`job-tabs-${jobId}`));
+  } catch {
+    return null;
+  }
 }
 
 function storeJobTabs(jobId: string, tabs: TabKey[]) {
@@ -242,7 +238,7 @@ function JobDetailContent({ job }: { job: UserJob }) {
           <TailoringTab job={job} />
         </TabsContent>
 
-        <TabsContent value="interview_suggestions" className="flex min-h-0 flex-1 flex-col">
+        <TabsContent value="interview_prep" className="flex min-h-0 flex-1 flex-col">
           <InterviewPrepTab job={job} />
         </TabsContent>
 
