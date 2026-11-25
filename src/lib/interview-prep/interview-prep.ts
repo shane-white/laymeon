@@ -65,8 +65,23 @@ export interface CompanyData {
 export const DECK_KEYS = ["behavioral", "role", "company", "ask"] as const;
 export type DeckKey = (typeof DECK_KEYS)[number];
 
+/** Each Deck's name, as the user sees it. */
+export const DECK_NAMES: Record<DeckKey, string> = {
+  behavioral: "Behavioral",
+  role: "Role & technical",
+  company: "About this company",
+  ask: "Questions to ask them",
+};
+
 /** A Practice card's mark. Nothing is scored. */
 export type Mark = "not_tried" | "feels_good" | "practice_more";
+
+/** Each mark's name, as the user sees it. */
+export const MARK_NAMES: Record<Mark, string> = {
+  not_tried: "Not tried yet",
+  feels_good: "Feels good",
+  practice_more: "Practice more",
+};
 
 /** A Career Story item behind an experience on a hint, with its Evidence. */
 export interface HintSource {

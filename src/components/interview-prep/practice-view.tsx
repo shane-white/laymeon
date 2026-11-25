@@ -15,15 +15,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DECK_KEYS, type DeckKey, type PracticeCard, type PracticeData } from "@/lib/interview-prep/interview-prep";
+import { DECK_KEYS, DECK_NAMES, MARK_NAMES, type DeckKey, type PracticeCard, type PracticeData } from "@/lib/interview-prep/interview-prep";
 import { canRemove, hasEarlierHint, markCounts } from "@/lib/interview-prep/practice/cards";
 import { pickSession, type SessionSource } from "@/lib/interview-prep/practice/session";
 import { AddQuestionDialog } from "./add-question-dialog";
-import { CardBack, DECK_NAMES, MARK_LABELS, MarkButtons, MarkDot, Tip, TIPS } from "./practice-parts";
+import { CardBack, MarkButtons, MarkDot, Tip, TIPS } from "./practice-parts";
 import { PracticeSession } from "./practice-session";
 import { isSaved, useInterviewPrep, usePracticeActions } from "./use-interview-prep";
-
-export { DECK_NAMES } from "./practice-parts";
 
 /** Whether any of the cards can be practiced: a session only uses cards with a hint. */
 const canPractice = (cards: PracticeCard[]) => cards.some((c) => c.hint !== null);
@@ -124,7 +122,7 @@ function CardRow({
           </Badge>
         )}
         <span className="sr-only shrink-0 text-right text-xs text-muted-foreground sm:not-sr-only sm:w-24">
-          {MARK_LABELS[card.mark]}
+          {MARK_NAMES[card.mark]}
         </span>
         {open ? (
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />

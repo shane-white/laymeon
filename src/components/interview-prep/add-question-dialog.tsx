@@ -14,9 +14,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DECK_KEYS, type DeckKey } from "@/lib/interview-prep/interview-prep";
+import { DECK_KEYS, DECK_NAMES, type DeckKey } from "@/lib/interview-prep/interview-prep";
 import { MAX_QUESTION_CHARS } from "@/lib/interview-prep/practice/operations";
-import { DECK_NAMES, Tip, TIPS } from "./practice-parts";
+import { Tip, TIPS } from "./practice-parts";
 
 /** The Add your own question button and its dialog: a question and the Deck to put it in. */
 export function AddQuestionDialog({ onAdd }: { onAdd: (deck: DeckKey, question: string) => void }) {

@@ -4,6 +4,8 @@
  */
 import {
   DECK_KEYS,
+  DECK_NAMES,
+  MARK_NAMES,
   type CompanyData,
   type DeckKey,
   type InterviewPrep,
@@ -13,19 +15,6 @@ import {
   type Section,
   type Source,
 } from "./interview-prep";
-
-const DECK_NAMES: Record<DeckKey, string> = {
-  behavioral: "Behavioral",
-  role: "Role & technical",
-  company: "About this company",
-  ask: "Questions to ask them",
-};
-
-const MARK_NAMES: Record<Mark, string> = {
-  not_tried: "Not tried yet",
-  feels_good: "Feels good",
-  practice_more: "Practice more",
-};
 
 const WEB_TAG = "web_research";
 

@@ -2,7 +2,7 @@
 
 /**
  * Pieces of a Practice card shared by the Practice list (LAY-123) and the
- * Practice session (LAY-124): Deck names, tooltip copy, the hint on a card's
+ * Practice session (LAY-124): tooltip copy, the hint on a card's
  * back, the mark buttons and the mark dot. Tooltips need a `TooltipProvider`
  * above them; `PracticeView` has one.
  */
@@ -11,22 +11,9 @@ import { Check, Loader2, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { DeckKey, Mark, PracticeCard } from "@/lib/interview-prep/interview-prep";
+import { MARK_NAMES, type Mark, type PracticeCard } from "@/lib/interview-prep/interview-prep";
 import { hintIsWriting } from "@/lib/interview-prep/practice/cards";
 import { cn } from "@/lib/utils";
-
-export const DECK_NAMES: Record<DeckKey, string> = {
-  behavioral: "Behavioral",
-  role: "Role & technical",
-  company: "About this company",
-  ask: "Questions to ask them",
-};
-
-export const MARK_LABELS: Record<Mark, string> = {
-  not_tried: "Not tried yet",
-  feels_good: "Feels good",
-  practice_more: "Practice more",
-};
 
 export const TIPS = {
   feelsGood: "You'd be comfortable answering this.",
@@ -85,7 +72,7 @@ export function MarkButtons({ mark, onMark, disabled }: { mark: Mark; onMark: (m
             disabled={disabled}
             onClick={() => onMark(value)}
           >
-            <Icon /> {MARK_LABELS[value]}
+            <Icon /> {MARK_NAMES[value]}
           </Button>
         </Tip>
       ))}

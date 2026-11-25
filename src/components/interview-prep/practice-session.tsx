@@ -10,10 +10,10 @@ import { useState } from "react";
 import { ChevronRight, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import type { Mark, PracticeCard } from "@/lib/interview-prep/interview-prep";
+import { DECK_NAMES, type Mark, type PracticeCard } from "@/lib/interview-prep/interview-prep";
 import { markCounts } from "@/lib/interview-prep/practice/cards";
 import { cn } from "@/lib/utils";
-import { CardBack, DECK_NAMES, MarkButtons } from "./practice-parts";
+import { CardBack, MarkButtons } from "./practice-parts";
 
 export function PracticeSession({
   cards,
