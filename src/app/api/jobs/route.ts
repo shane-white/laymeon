@@ -31,6 +31,7 @@ export async function GET() {
       analysis_documents,
       sort_order,
       created_at,
+      interview_preps ( user_job_id ),
       job_listing:job_listings (
         id,
         url,
@@ -53,7 +54,14 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  // The Interview Prep is fetched on its own; the list only says whether there is one.
+  // PostgREST embeds the one-to-one table as an object or null (an array if it can't tell).
+  const jobs = data.map(({ interview_preps, ...job }) => ({
+    ...job,
+    has_interview_prep: Array.isArray(interview_preps) ? interview_preps.length > 0 : !!interview_preps,
+  }));
+
+  return NextResponse.json(jobs);
 }
 
 export async function POST(request: NextRequest) {

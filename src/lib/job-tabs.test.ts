@@ -7,6 +7,7 @@ const emptyJob = {
   match_report: null,
   cover_letter_suggestions: null,
   interview_suggestions: null,
+  has_interview_prep: false,
   notes: null,
 };
 
@@ -25,6 +26,10 @@ describe("getTabsWithContent", () => {
     ).toEqual(["match_analysis"]);
   });
 
+  it("shows the Interview Prep tab once the Job has an Interview Prep", () => {
+    expect(getTabsWithContent({ ...emptyJob, has_interview_prep: true })).toEqual(["interview_suggestions"]);
+  });
+
   it("returns tabs in menu order", () => {
     expect(
       getTabsWithContent({
@@ -32,6 +37,7 @@ describe("getTabsWithContent", () => {
         match_report: null,
         cover_letter_suggestions: "c",
         interview_suggestions: "i",
+        has_interview_prep: false,
         notes: "n",
       }),
     ).toEqual([

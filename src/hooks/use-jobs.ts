@@ -27,7 +27,10 @@ export interface UserJob {
   match_analysis: string | null;
   match_report: MatchReport | null;
   cover_letter_suggestions: string | null;
+  /** The older free-text Interview Suggestions, shown read-only until the Job has an Interview Prep. */
   interview_suggestions: string | null;
+  /** Whether the Job has an Interview Prep (fetched on its own, see `use-interview-prep.ts`). */
+  has_interview_prep: boolean;
   notes: string | null;
   resume_document_id: string | null;
   cover_letter_document_id: string | null;

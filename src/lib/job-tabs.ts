@@ -1,6 +1,9 @@
 import type { AnalysisType, UserJob } from "@/hooks/use-jobs";
 
-/** "resume_suggestions" is the Tailoring view; the key stays so tabs saved in localStorage still open. */
+/**
+ * "resume_suggestions" is the Tailoring view and "interview_suggestions" is
+ * Interview Prep; the keys stay so tabs saved in localStorage still open.
+ */
 export type TabKey = "description" | AnalysisType | "resume_suggestions" | "notes";
 
 type JobContent = Pick<
@@ -9,6 +12,7 @@ type JobContent = Pick<
   | "match_report"
   | "cover_letter_suggestions"
   | "interview_suggestions"
+  | "has_interview_prep"
   | "notes"
 >;
 
@@ -21,7 +25,7 @@ export function getTabsWithContent(job: JobContent): TabKey[] {
   const tabs: TabKey[] = [];
   if (hasText(job.match_analysis) || job.match_report) tabs.push("match_analysis");
   if (hasText(job.cover_letter_suggestions)) tabs.push("cover_letter_suggestions");
-  if (hasText(job.interview_suggestions)) tabs.push("interview_suggestions");
+  if (hasText(job.interview_suggestions) || job.has_interview_prep) tabs.push("interview_suggestions");
   if (hasText(job.notes)) tabs.push("notes");
   return tabs;
 }
