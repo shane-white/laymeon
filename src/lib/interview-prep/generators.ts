@@ -13,11 +13,11 @@
 import { claudeCompanyModel } from "./company/claude";
 import { researchCompany } from "./company/research";
 import { firecrawlCompanyWeb } from "./company/web";
+import { processResearchDeps } from "./process/production";
+import { researchProcess } from "./process/research";
 import { SectionNotImplementedError, type SectionGenerator, type SectionGenerators } from "./interview-prep";
 
-export const generateProcess: SectionGenerator<"process"> = async () => {
-  throw new SectionNotImplementedError("process");
-};
+export const generateProcess: SectionGenerator<"process"> = ({ job }) => researchProcess(job, processResearchDeps());
 
 export const generateCompany: SectionGenerator<"company"> = ({ job }) =>
   researchCompany(job, { web: firecrawlCompanyWeb(), model: claudeCompanyModel(), now: () => new Date() });
