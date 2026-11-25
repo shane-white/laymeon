@@ -206,6 +206,22 @@ describe("updateHints", () => {
     ]);
   });
 
+  it("rewrites only one Deck's Earlier version hints when given a Deck", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps, store } = setup({ careerStory, practice: writer });
+    const other = practiceCard({ id: "role-1", deck: "role", question: "How do you design an API?", hintBasis: "before" });
+    await withCards(store, [practiceCard({ id: "old-1", hintBasis: "before" }), other]);
+    expect(await updateHints(deps, "job-1", "behavioral")).toMatchObject({ ok: true });
+    expect(calls.hint.map((c) => c.question)).toEqual(["Tell me about a mistake."]);
+    expect(await cardsOf(deps)).toEqual([expect.objectContaining({ id: "old-1", hintBasis: "basis-2" }), other]);
+  });
+
+  it("refuses an unknown Deck", async () => {
+    const { deps, store } = setup({ careerStory });
+    await withCards(store, [practiceCard({ hintBasis: "before" })]);
+    expect(await updateHints(deps, "job-1", "nope" as never)).toMatchObject({ ok: false, kind: "invalid" });
+  });
+
   it("keeps marks and cards saved while the hints are being written", async () => {
     const late = {} as { deps: InterviewPrepDeps };
     let acted = false;

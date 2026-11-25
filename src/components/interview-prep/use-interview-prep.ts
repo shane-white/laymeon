@@ -190,15 +190,18 @@ export function usePracticeActions(jobId: string) {
     ...callbacks,
   });
 
-  // Update hints: the cards whose hint is an Earlier version show "Writing a hint…" until it's done.
+  // Update hints, one Deck at a time: the Deck's cards whose hint is an Earlier version show "Writing a hint…" until it's done.
   const hints = useMutation({
     mutationKey: hintsMutationKey(jobId),
-    mutationFn: () => sendPractice({ url: `${base}/hints`, method: "POST", fallback: "Couldn't update the hints." }),
-    onMutate: async () => {
+    mutationFn: (deck: DeckKey) =>
+      sendPractice({ url: `${base}/decks/${deck}/hints`, method: "POST", fallback: "Couldn't update the hints." }),
+    onMutate: async (deck) => {
       await queryClient.cancelQueries({ queryKey: key });
       const hash = queryClient.getQueryData<InterviewPrepResponse>(key)?.careerStoryHash ?? null;
       const asked = new Date().toISOString();
-      changeCards((cards) => cards.map((c) => (hasEarlierHint(c, hash) ? { ...c, hintStatus: "writing", hintRequestedAt: asked } : c)));
+      changeCards((cards) =>
+        cards.map((c) => (c.deck === deck && hasEarlierHint(c, hash) ? { ...c, hintStatus: "writing", hintRequestedAt: asked } : c)),
+      );
     },
     ...callbacks,
   });
@@ -208,12 +211,17 @@ export function usePracticeActions(jobId: string) {
     select: (m) => m.state.variables as DeckKey,
   });
 
+  const updatingHints = useMutationState({
+    filters: { mutationKey: hintsMutationKey(jobId), status: "pending" },
+    select: (m) => m.state.variables as DeckKey,
+  });
+
   return {
     /** The Decks More like this is adding cards to now. */
     addingMore,
-    /** Whether Update hints is running. */
-    updatingHints: hints.isPending,
-    updateHints: () => hints.mutate(),
+    /** The Decks Update hints is writing hints for now. */
+    updatingHints,
+    updateHints: (deck: DeckKey) => hints.mutate(deck),
     mark: (cardId: string, mark: Mark) =>
       mutation.mutate({
         request: { url: `${base}/cards/${cardId}`, method: "PATCH", body: { mark }, fallback: "Couldn't save the mark." },

@@ -134,9 +134,10 @@ const ifStillThere =
  * change: each card's question, mark and Deck stay, the user's own cards
  * included, and so do marks and cards saved meanwhile. A hint that can't be
  * written again keeps its Earlier version, so Update hints can be tried again;
- * when none could be, it fails with why.
+ * when none could be, it fails with why. Given a Deck, only that Deck's hints.
  */
-export async function updateHints(deps: InterviewPrepDeps, jobId: string): Promise<InterviewPrepResult> {
+export async function updateHints(deps: InterviewPrepDeps, jobId: string, deck?: DeckKey): Promise<InterviewPrepResult> {
+  if (deck !== undefined && !isDeck(deck)) return fail("invalid", "Unknown Deck");
   const found = await loaded(deps, jobId);
   if ("ok" in found) return found;
   const loadedCtx = await context(deps, found.job, found.prep);
@@ -145,7 +146,9 @@ export async function updateHints(deps: InterviewPrepDeps, jobId: string): Promi
   const { job } = found;
 
   const basis = careerStoryHash(ctx.careerStory);
-  const earlier = (found.prep?.sections.practice.data?.cards ?? []).filter((c) => hasEarlierHint(c, basis));
+  const earlier = (found.prep?.sections.practice.data?.cards ?? []).filter(
+    (c) => (deck === undefined || c.deck === deck) && hasEarlierHint(c, basis),
+  );
   if (earlier.length === 0) return interviewPrepState(deps, found.job, found.prep, found.job.legacySuggestions, ctx.careerStory);
 
   const started = await savePractice(
