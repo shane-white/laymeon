@@ -12,7 +12,11 @@ import {
   scriptedPracticeWriter,
   setup,
 } from "../testing";
-import { addMoreCards, addOwnQuestion, markCard, removeCard, writeHint } from "./operations";
+import { careerStoryHash } from "@/lib/profile/career-story-hash";
+import { buildProfile } from "@/lib/profile/build";
+import { DECK_KEYS } from "../interview-prep";
+import { practiceGenerator } from "./writer";
+import { addMoreCards, addOwnQuestion, markCard, removeCard, updateHints, writeHint } from "./operations";
 
 type Store = ReturnType<typeof setup>["store"];
 
@@ -177,6 +181,117 @@ describe("writeHint", () => {
   it("fails for a card the Interview Prep doesn't have", async () => {
     const { deps } = setup();
     expect(await writeHint(deps, "job-1", "card-9")).toMatchObject({ ok: false, kind: "not_found" });
+  });
+});
+
+describe("updateHints", () => {
+  const profile = buildProfile([], "2026-11-01T00:00:00.000Z");
+  const now = careerStoryHash(profile);
+  const careerStory = memoryCareerStory(profile);
+
+  it("rewrites only the hints that are an Earlier version, keeping each card's question, mark and Deck", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps, store } = setup({ careerStory, practice: writer });
+    await withCards(store, [
+      practiceCard({ id: "old-1", mark: "practice_more", hintBasis: "before" }),
+      practiceCard({ id: "own-1", deck: "ask", question: "What's the team like?", own: true, hintBasis: "before" }),
+      practiceCard({ id: "current", question: "Why us?", hintBasis: now }),
+    ]);
+    expect(await updateHints(deps, "job-1")).toMatchObject({ ok: true, careerStoryHash: now });
+    expect(calls.hint.map((c) => c.question).sort()).toEqual(["Tell me about a mistake.", "What's the team like?"]);
+    expect(await cardsOf(deps)).toEqual([
+      expect.objectContaining({ id: "old-1", question: "Tell me about a mistake.", mark: "practice_more", deck: "behavioral", hintStatus: "ready", hintBasis: "basis-2", hint: expect.objectContaining({ probing: "Listening for: Tell me about a mistake." }) }),
+      expect.objectContaining({ id: "own-1", question: "What's the team like?", own: true, deck: "ask", hintBasis: "basis-2" }),
+      practiceCard({ id: "current", question: "Why us?", hintBasis: now }),
+    ]);
+  });
+
+  it("keeps marks and cards saved while the hints are being written", async () => {
+    const late = {} as { deps: InterviewPrepDeps };
+    let acted = false;
+    const { writer } = scriptedPracticeWriter({
+      before: async () => {
+        if (acted) return;
+        acted = true;
+        await markCard(late.deps, "job-1", "old-1", "feels_good");
+        await removeCard(late.deps, "job-1", "own-1");
+        await addOwnQuestion(late.deps, "job-1", "ask", "How do you ship?", () => "own-2");
+      },
+    });
+    const built = setup({ careerStory, practice: writer });
+    late.deps = built.deps;
+    await withCards(built.store, [
+      practiceCard({ id: "old-1", hintBasis: "before" }),
+      practiceCard({ id: "own-1", own: true, question: "Mine?", hintBasis: "before" }),
+    ]);
+    expect(await updateHints(built.deps, "job-1")).toMatchObject({ ok: true });
+    expect((await cardsOf(built.deps)).map((c) => [c.id, c.mark, c.hintStatus])).toEqual([
+      ["old-1", "feels_good", "ready"],
+      ["own-2", "not_tried", "ready"],
+    ]);
+  });
+
+  it("keeps a hint that couldn't be written again, still an Earlier version, and says so", async () => {
+    const { writer } = scriptedPracticeWriter({ failHint: new Error("Claude is busy.") });
+    const { deps, store } = setup({ careerStory, practice: writer });
+    await withCards(store, [practiceCard({ hintBasis: "before" })]);
+    expect(await updateHints(deps, "job-1")).toMatchObject({ ok: false, kind: "write_failed", message: "Claude is busy." });
+    expect(await cardsOf(deps)).toEqual([practiceCard({ hintBasis: "before" })]);
+  });
+
+  it("does nothing when every hint is up to date", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps, store } = setup({ careerStory, practice: writer });
+    await withCards(store, [practiceCard({ hintBasis: now })]);
+    expect(await updateHints(deps, "job-1")).toMatchObject({ ok: true });
+    expect(calls.hint).toHaveLength(0);
+  });
+
+  it("needs a Career Story", async () => {
+    const { deps, store } = setup({ careerStory: memoryCareerStory(null) });
+    await withCards(store, [practiceCard({ hintBasis: "before" })]);
+    expect(await updateHints(deps, "job-1")).toMatchObject({ ok: false, kind: "no_career_story" });
+  });
+});
+
+describe("refreshing never removes Practice cards", () => {
+  const decks = () =>
+    DECK_KEYS.map((deck, i) => practiceCard({ id: `${deck}-1`, deck, question: `${deck} first`, mark: i === 0 ? "feels_good" : "not_tried" }));
+
+  it("leaves the Practice cards as they are when Process or Company is refreshed", async () => {
+    const { deps, store } = setup();
+    const cards = [...decks(), practiceCard({ id: "own-1", own: true, question: "Mine?" })];
+    await withCards(store, cards);
+    await prepareSection(deps, "job-1", "process");
+    await prepareSection(deps, "job-1", "company");
+    expect(await cardsOf(deps)).toEqual(cards);
+  });
+
+  it("adds new About this company cards next to the ones there, and keeps every other card", async () => {
+    const { writer } = scriptedPracticeWriter();
+    const { generators } = scriptedGenerators();
+    const { deps, store } = setup({ generators: { ...generators, practice: practiceGenerator(writer) } });
+    const cards = [...decks(), practiceCard({ id: "own-1", deck: "company", own: true, question: "Mine?" })];
+    await withCards(store, cards);
+    await prepareSection(deps, "job-1", "practice");
+    const after = await cardsOf(deps);
+    expect(after.slice(0, cards.length)).toEqual(cards);
+    expect(after.filter((c) => c.deck === "company").map((c) => c.question)).toEqual([
+      "company first",
+      "Mine?",
+      "company question 1",
+      "company question 2",
+      "company question 3",
+    ]);
+  });
+
+  it("keeps the cards there even when a refresh's generator leaves some out", async () => {
+    const { generators } = scriptedGenerators({ practice: { cards: [practiceCard({ id: "new-1", deck: "company", question: "New?" })] } });
+    const { deps, store } = setup({ generators });
+    const cards = decks();
+    await withCards(store, cards);
+    await prepareSection(deps, "job-1", "practice");
+    expect((await cardsOf(deps)).map((c) => c.id)).toEqual([...cards.map((c) => c.id), "new-1"]);
   });
 });
 

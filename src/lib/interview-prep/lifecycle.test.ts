@@ -2,17 +2,69 @@ import { describe, expect, it } from "vitest";
 import { getInterviewPrep, prepareSection } from "./lifecycle";
 import { emptySection } from "./sections";
 import { buildProfile } from "@/lib/profile/build";
-import { interviewPrepJob, memoryCareerStory, NOW, sampleData, scriptedGenerators, setup } from "./testing";
+import { careerStoryHash } from "@/lib/profile/career-story-hash";
+import { interviewPrepJob, memoryCareerStory, NOW, practiceCard, sampleData, sampleHint, scriptedGenerators, setup } from "./testing";
+import type { HintExperience, InterviewPrepJob } from "./interview-prep";
 
 describe("getInterviewPrep", () => {
   it("has no Interview Prep before the first Prepare, and shows the older suggestions", async () => {
     const { deps } = setup({ job: interviewPrepJob({ legacySuggestions: "Old advice" }) });
-    expect(await getInterviewPrep(deps, "job-1")).toEqual({ ok: true, prep: null, legacySuggestions: "Old advice" });
+    expect(await getInterviewPrep(deps, "job-1")).toMatchObject({ ok: true, prep: null, legacySuggestions: "Old advice" });
+  });
+
+  it("gives the Career Story's hash now, so the Deck can tell which hints are an Earlier version", async () => {
+    const profile = buildProfile([], "2026-11-01T00:00:00.000Z");
+    const { deps } = setup({ careerStory: memoryCareerStory(profile) });
+    expect(await getInterviewPrep(deps, "job-1")).toMatchObject({ ok: true, careerStoryHash: careerStoryHash(profile) });
+  });
+
+  it("gives no Career Story hash when the user has no Career Story", async () => {
+    const { deps } = setup({ careerStory: memoryCareerStory(null) });
+    expect(await getInterviewPrep(deps, "job-1")).toMatchObject({ ok: true, careerStoryHash: null });
   });
 
   it("fails when there's no such Job", async () => {
     const { deps } = setup();
     expect(await getInterviewPrep(deps, "job-2")).toMatchObject({ ok: false, kind: "not_found" });
+  });
+});
+
+describe("getInterviewPrep: not on your resume", () => {
+  const experience = (onResume: boolean | null, quote: string | null, label = "ACH payouts"): HintExperience => ({
+    text: "ACH payouts at Ledgerly",
+    onResume,
+    backedBy: [
+      {
+        ref: { section: "accomplishment", key: "a1", label, byUser: quote === null },
+        evidence: quote === null ? [] : [{ documentName: "Old resume", quote }],
+      },
+    ],
+  });
+
+  async function flagsFor(resume: InterviewPrepJob["resume"], experiences: HintExperience[]) {
+    const { deps, store } = setup({ job: interviewPrepJob({ resume }) });
+    const card = practiceCard({ hint: { ...sampleHint, experiences } });
+    await store.saveSection("job-1", "practice", { ...emptySection(), status: "ready", researchedAt: NOW, data: { cards: [card] } });
+    const result = await getInterviewPrep(deps, "job-1");
+    if (!result.ok) throw new Error(result.message);
+    return result.prep?.sections.practice.data?.cards[0].hint?.experiences.map((e) => e.onResume);
+  }
+
+  it("checks each experience against the Job's Resume now, so changing the Resume updates the flags", async () => {
+    const resume = { name: "New resume", text: "## Experience\nBuilt ACH payouts for invoice payments." };
+    expect(await flagsFor(resume, [experience(false, "Built ACH payouts for invoice payments"), experience(true, "Led a team of 12")])).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("checks an item the user stated by its label", async () => {
+    const resume = { name: "New resume", text: "Certified: PCI Professional" };
+    expect(await flagsFor(resume, [experience(false, null, "PCI Professional"), experience(true, null, "Scrum Master")])).toEqual([true, false]);
+  });
+
+  it("flags nothing when the Job has no Resume now", async () => {
+    expect(await flagsFor(null, [experience(false, "Led a team of 12")])).toEqual([null]);
   });
 });
 

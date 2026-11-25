@@ -20,6 +20,6 @@ export function interviewPrepResponse(result: InterviewPrepResult): NextResponse
   if (!result.ok) {
     return NextResponse.json({ error: result.message, kind: result.kind }, { status: STATUS[result.kind] });
   }
-  const { prep, legacySuggestions } = result;
-  return NextResponse.json({ prep, legacySuggestions } satisfies InterviewPrepResponse);
+  const { prep, legacySuggestions, careerStoryHash } = result;
+  return NextResponse.json({ prep, legacySuggestions, careerStoryHash } satisfies InterviewPrepResponse);
 }

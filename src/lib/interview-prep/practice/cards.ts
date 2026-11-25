@@ -3,9 +3,9 @@
  * now and returns them changed, so they run inside `store.updateSection` and
  * never undo another request's change. Safe to import on the client.
  */
-import { normalizeText } from "@/lib/match-report/evidence";
+import { normalizeText, quoteInResume } from "@/lib/match-report/evidence";
 import { RESEARCH_TIME_LIMIT_MS } from "../sections";
-import type { DeckKey, Hint, Mark, PracticeCard, PracticeData } from "../interview-prep";
+import type { DeckKey, Hint, HintSource, InterviewPrepJob, Mark, PracticeCard, PracticeData } from "../interview-prep";
 
 /** Thrown when a change names a card the Practice section doesn't have. */
 export class CardNotFoundError extends Error {
@@ -114,4 +114,57 @@ export function hintIsWriting(card: PracticeCard, now: string): boolean {
   if (card.hintStatus !== "writing") return false;
   const asked = Date.parse(card.hintRequestedAt ?? "");
   return !Number.isNaN(asked) && Date.parse(now) - asked <= RESEARCH_TIME_LIMIT_MS;
+}
+
+/**
+ * Whether a card's hint is an Earlier version: built from a Career Story
+ * other than `careerStoryHash`, the one now. A card without a hint, or with
+ * one being written again, isn't; nor is any card when there's no Career Story.
+ */
+export function hasEarlierHint(card: Pick<PracticeCard, "hint" | "hintBasis" | "hintStatus">, careerStoryHash: string | null): boolean {
+  return (
+    careerStoryHash !== null &&
+    card.hint !== null &&
+    card.hintStatus !== "writing" &&
+    card.hintBasis !== null &&
+    card.hintBasis !== careerStoryHash
+  );
+}
+
+/** The Job's Resume text to check hints against, or null when it has none (or an empty one). */
+export function resumeText(job: Pick<InterviewPrepJob, "resume">): string | null {
+  return job.resume?.text?.trim() ? job.resume.text : null;
+}
+
+/**
+ * Whether the Resume shows any of an experience's Career Story items: one of
+ * their Evidence quotes, or for an item the user stated, its label. Null when
+ * there's no Resume, so nothing is flagged "not on your resume".
+ */
+export function resumeShows(sources: HintSource[], resume: string | null): boolean | null {
+  if (resume === null) return null;
+  return sources.some((s) =>
+    s.evidence.length > 0
+      ? s.evidence.some((e) => quoteInResume(e.quote, resume))
+      : normalizeText(resume).includes(normalizeText(s.ref.label)),
+  );
+}
+
+/**
+ * The cards with each experience's "not on your resume" flag checked against
+ * `resume`, the Job's Resume now. The flag is decided in code from the stored
+ * Evidence, so choosing another Resume, or editing it, updates the flags
+ * without writing the hints again.
+ */
+export function withResumeFlags(data: PracticeData, resume: string | null): PracticeData {
+  return {
+    cards: data.cards.map((card) =>
+      card.hint
+        ? {
+            ...card,
+            hint: { ...card.hint, experiences: card.hint.experiences.map((e) => ({ ...e, onResume: resumeShows(e.backedBy, resume) })) },
+          }
+        : card,
+    ),
+  };
 }

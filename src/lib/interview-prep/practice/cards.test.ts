@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { practiceCard } from "../testing";
-import { markCounts } from "./cards";
+import { hasEarlierHint, markCounts } from "./cards";
 
 describe("markCounts", () => {
   it("counts each mark, leaving out the ones with none", () => {
@@ -21,5 +21,24 @@ describe("markCounts", () => {
 
   it("is empty for no cards", () => {
     expect(markCounts([])).toBe("");
+  });
+});
+
+describe("hasEarlierHint", () => {
+  it("is true for a hint built from a Career Story other than the one now", () => {
+    expect(hasEarlierHint(practiceCard({ hintBasis: "old" }), "new")).toBe(true);
+  });
+
+  it("is false for a hint built from the Career Story now", () => {
+    expect(hasEarlierHint(practiceCard({ hintBasis: "new" }), "new")).toBe(false);
+  });
+
+  it("is false for a card with no hint yet, or one being written again", () => {
+    expect(hasEarlierHint(practiceCard({ hint: null, hintBasis: null, hintStatus: "failed" }), "new")).toBe(false);
+    expect(hasEarlierHint(practiceCard({ hintBasis: "old", hintStatus: "writing" }), "new")).toBe(false);
+  });
+
+  it("is false when there's no Career Story to compare with", () => {
+    expect(hasEarlierHint(practiceCard({ hintBasis: "old" }), null)).toBe(false);
   });
 });

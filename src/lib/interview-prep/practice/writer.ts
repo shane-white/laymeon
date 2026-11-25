@@ -12,7 +12,6 @@ import { careerStoryHash } from "@/lib/profile/career-story-hash";
 import { findItem, type ListSection } from "@/lib/profile/changes";
 import { formatCareerStoryForPrompt, type CareerStoryContext, type CareerStoryRef } from "@/lib/profile/for-prompt";
 import type { CareerProfile, Evidence } from "@/lib/profile/schema";
-import { normalizeText, quoteInResume } from "@/lib/match-report/evidence";
 import {
   DECK_KEYS,
   type DeckKey,
@@ -27,7 +26,7 @@ import {
   type Research,
   type SectionGenerator,
 } from "../interview-prep";
-import { sameQuestion } from "./cards";
+import { resumeShows, resumeText, sameQuestion } from "./cards";
 
 /** How many cards each Deck starts with. */
 export const DECK_START_SIZE: Record<DeckKey, number> = { behavioral: 6, role: 6, company: 5, ask: 5 };
@@ -88,16 +87,6 @@ function sourcesOf(ids: string[], story: CareerStoryContext, profile: CareerProf
   return sources.slice(0, MAX_REFS_PER_EXPERIENCE);
 }
 
-/** Whether the Resume shows any of the items: one of its Evidence quotes, or for an item the user stated, its label. */
-function onResume(sources: HintSource[], resume: string | null): boolean | null {
-  if (resume === null) return null;
-  return sources.some((s) =>
-    s.evidence.length > 0
-      ? s.evidence.some((e) => quoteInResume(e.quote, resume))
-      : normalizeText(resume).includes(normalizeText(s.ref.label)),
-  );
-}
-
 function hintOf(answer: CardAnswer, deck: DeckKey, story: CareerStoryContext, profile: CareerProfile, resume: string | null): Hint | null {
   const probing = answer.probing.trim();
   const outline = answer.outline.map((s) => s.trim()).filter(Boolean).slice(0, MAX_OUTLINE_STEPS);
@@ -108,7 +97,7 @@ function hintOf(answer: CardAnswer, deck: DeckKey, story: CareerStoryContext, pr
       : answer.experiences.flatMap((e) => {
           const text = e.text.trim();
           const backedBy = sourcesOf(e.careerStoryIds, story, profile);
-          return text && backedBy.length ? [{ text, onResume: onResume(backedBy, resume), backedBy }] : [];
+          return text && backedBy.length ? [{ text, onResume: resumeShows(backedBy, resume), backedBy }] : [];
         });
   return { probing, outline, experiences: experiences.slice(0, MAX_EXPERIENCES) };
 }
@@ -123,7 +112,7 @@ export function practiceWriter({ model, newId }: PracticeWriterDeps): PracticeCa
     const story = formatCareerStoryForPrompt(context.careerStory);
     const { title, company, description } = context.job;
     const base = { job: { title, company, description }, careerStory: story.text, research: context.research };
-    const resume = context.job.resume?.text?.trim() ? context.job.resume.text : null;
+    const resume = resumeText(context.job);
     const hint = (answer: CardAnswer, deck: DeckKey) => hintOf(answer, deck, story, context.careerStory, resume);
     return { base, hint, basis: careerStoryHash(context.careerStory) };
   }

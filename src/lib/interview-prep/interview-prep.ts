@@ -83,6 +83,8 @@ export interface HintExperience {
   /**
    * Whether this Job's Resume shows it: false is flagged "not on your resume".
    * Null when the Job has no Resume to compare against, so nothing is flagged.
+   * Checked again against the Job's Resume each time the Interview Prep is
+   * sent (`withResumeFlags`), so a Resume change never makes a hint an Earlier version.
    */
   onResume: boolean | null;
   /** The Career Story items it comes from. Never empty. */
@@ -281,6 +283,11 @@ export interface InterviewPrepState {
   prep: InterviewPrep | null;
   /** The older Interview Suggestions, while the Job has no Interview Prep. */
   legacySuggestions: string | null;
+  /**
+   * `careerStoryHash` of the user's Career Story now, or null if they have
+   * none. A card whose `hintBasis` differs has an Earlier version of its hint.
+   */
+  careerStoryHash: string | null;
 }
 
 /**

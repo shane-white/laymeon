@@ -8,6 +8,7 @@
  * (a mark saved while More like this writes, or while Practice refreshes)
  * never undo each other.
  */
+import { careerStoryHash } from "@/lib/profile/career-story-hash";
 import type { CareerProfile } from "@/lib/profile/schema";
 import {
   DECK_KEYS,
@@ -22,6 +23,7 @@ import {
   type PracticeContext,
   type PracticeData,
 } from "../interview-prep";
+import { interviewPrepState } from "../lifecycle";
 import { emptySection } from "../sections";
 import {
   addCards,
@@ -29,6 +31,7 @@ import {
   CardNotRemovableError,
   failHint,
   finishHint,
+  hasEarlierHint,
   questionsIn,
   removeCard as withoutCard,
   setMark,
@@ -78,17 +81,17 @@ async function context(deps: InterviewPrepDeps, job: InterviewPrepJob, prep: Int
 /** Saves a change to the Practice cards as saved now, creating the section if there is none. */
 async function savePractice(
   deps: InterviewPrepDeps,
-  jobId: string,
+  job: InterviewPrepJob,
   change: (data: PracticeData | null) => PracticeData,
-  legacySuggestions: string | null,
+  careerStory?: CareerProfile,
 ): Promise<InterviewPrepResult> {
   try {
-    const prep = await deps.store.updateSection(jobId, "practice", (current) => {
+    const prep = await deps.store.updateSection(job.id, "practice", (current) => {
       // A section never researched becomes ready with just these cards, so it shows.
       const base = current.status === "not_started" ? { ...emptySection<PracticeData>(), status: "ready" as const } : current;
       return { ...base, data: change(current.data) };
     });
-    return { ok: true, prep, legacySuggestions };
+    return await interviewPrepState(deps, job, prep, job.legacySuggestions, careerStory);
   } catch (err) {
     if (err instanceof CardNotFoundError) return fail("not_found", err.message);
     if (err instanceof CardNotRemovableError) return fail("invalid", err.message);
@@ -105,7 +108,7 @@ export async function removeCard(deps: InterviewPrepDeps, jobId: string, cardId:
   const found = await loaded(deps, jobId);
   if ("ok" in found) return found;
   if (!found.prep?.sections.practice.data?.cards.some((c) => c.id === cardId)) return fail("not_found", new CardNotFoundError().message);
-  return savePractice(deps, jobId, (data) => withoutCard(data, cardId), found.job.legacySuggestions);
+  return savePractice(deps, found.job, (data) => withoutCard(data, cardId));
 }
 
 /** Marks a card Feels good or Practice more; `not_tried` clears the mark. */
@@ -113,7 +116,64 @@ export async function markCard(deps: InterviewPrepDeps, jobId: string, cardId: s
   const found = await loaded(deps, jobId);
   if ("ok" in found) return found;
   if (!found.prep?.sections.practice.data?.cards.some((c) => c.id === cardId)) return fail("not_found", new CardNotFoundError().message);
-  return savePractice(deps, jobId, (data) => setMark(data, cardId, mark), found.job.legacySuggestions);
+  return savePractice(deps, found.job, (data) => setMark(data, cardId, mark));
+}
+
+/** How many hints Update hints writes at once. */
+export const UPDATE_HINTS_AT_ONCE = 4;
+
+/** The change, or the cards as they are when the card was removed meanwhile. */
+const ifStillThere =
+  (cardId: string, change: (data: PracticeData | null) => PracticeData) =>
+  (data: PracticeData | null): PracticeData =>
+    data?.cards.some((c) => c.id === cardId) ? change(data) : { cards: data?.cards ?? [] };
+
+/**
+ * Update hints: writes again every hint that's an Earlier version (built from
+ * a Career Story other than the one now), a few at a time. Only the hints
+ * change: each card's question, mark and Deck stay, the user's own cards
+ * included, and so do marks and cards saved meanwhile. A hint that can't be
+ * written again keeps its Earlier version, so Update hints can be tried again;
+ * when none could be, it fails with why.
+ */
+export async function updateHints(deps: InterviewPrepDeps, jobId: string): Promise<InterviewPrepResult> {
+  const found = await loaded(deps, jobId);
+  if ("ok" in found) return found;
+  const loadedCtx = await context(deps, found.job, found.prep);
+  if ("ok" in loadedCtx) return loadedCtx;
+  const ctx: PracticeContext = loadedCtx;
+  const { job } = found;
+
+  const basis = careerStoryHash(ctx.careerStory);
+  const earlier = (found.prep?.sections.practice.data?.cards ?? []).filter((c) => hasEarlierHint(c, basis));
+  if (earlier.length === 0) return interviewPrepState(deps, found.job, found.prep, found.job.legacySuggestions, ctx.careerStory);
+
+  const started = await savePractice(
+    deps,
+    found.job,
+    (data) => earlier.reduce((cards, card) => ifStillThere(card.id, (d) => startHint(d, card.id, deps.now()))(cards), data ?? { cards: [] }),
+    ctx.careerStory,
+  );
+  if (!started.ok) return started;
+
+  let last: InterviewPrepResult = started;
+  const errors: string[] = [];
+  const queue = [...earlier];
+  async function work() {
+    for (let card = queue.shift(); card; card = queue.shift()) {
+      const { id } = card;
+      try {
+        const { hint, hintBasis } = await deps.practice.hint(ctx, { deck: card.deck, question: card.question });
+        last = await savePractice(deps, job, ifStillThere(id, (d) => finishHint(d, id, hint, hintBasis)), ctx.careerStory);
+      } catch (err) {
+        errors.push(errorMessage(err));
+        last = await savePractice(deps, job, ifStillThere(id, (d) => failHint(d, id)), ctx.careerStory);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(UPDATE_HINTS_AT_ONCE, earlier.length) }, work));
+  if (errors.length === earlier.length) return fail("write_failed", errors[0]);
+  return last;
 }
 
 /** More like this: adds about 5 new cards to a Deck, repeating none of the questions in it. */
@@ -131,22 +191,20 @@ export async function addMoreCards(deps: InterviewPrepDeps, jobId: string, deck:
   } catch (err) {
     return fail("write_failed", errorMessage(err));
   }
-  return savePractice(deps, jobId, (data) => addCards(data, cards), found.job.legacySuggestions);
+  return savePractice(deps, found.job, (data) => addCards(data, cards));
 }
 
 /** Writes a card's hint and saves it, or records that it failed. */
 async function hintFor(
   deps: InterviewPrepDeps,
-  jobId: string,
   ctx: PracticeContext,
   card: Pick<PracticeCard, "id" | "deck" | "question">,
-  legacySuggestions: string | null,
 ): Promise<{ saved: InterviewPrepResult; error: string | null }> {
   try {
     const { hint, hintBasis } = await deps.practice.hint(ctx, { deck: card.deck, question: card.question });
-    return { saved: await savePractice(deps, jobId, (data) => finishHint(data, card.id, hint, hintBasis), legacySuggestions), error: null };
+    return { saved: await savePractice(deps, ctx.job, (data) => finishHint(data, card.id, hint, hintBasis), ctx.careerStory), error: null };
   } catch (err) {
-    return { saved: await savePractice(deps, jobId, (data) => failHint(data, card.id), legacySuggestions), error: errorMessage(err) };
+    return { saved: await savePractice(deps, ctx.job, (data) => failHint(data, card.id), ctx.careerStory), error: errorMessage(err) };
   }
 }
 
@@ -184,9 +242,9 @@ export async function addOwnQuestion(
     hintBasis: null,
   };
   // Own questions are always added, even one like a card already there.
-  const added = await savePractice(deps, jobId, (data) => ({ cards: [...(data?.cards ?? []), card] }), found.job.legacySuggestions);
+  const added = await savePractice(deps, found.job, (data) => ({ cards: [...(data?.cards ?? []), card] }));
   if (!added.ok) return added;
-  return (await hintFor(deps, jobId, ctx, card, found.job.legacySuggestions)).saved;
+  return (await hintFor(deps, ctx, card)).saved;
 }
 
 /**
@@ -202,8 +260,8 @@ export async function writeHint(deps: InterviewPrepDeps, jobId: string, cardId: 
   const ctx = await context(deps, found.job, found.prep);
   if ("ok" in ctx) return ctx;
 
-  const started = await savePractice(deps, jobId, (data) => startHint(data, cardId, deps.now()), found.job.legacySuggestions);
+  const started = await savePractice(deps, found.job, (data) => startHint(data, cardId, deps.now()));
   if (!started.ok) return started;
-  const { saved, error } = await hintFor(deps, jobId, ctx, card, found.job.legacySuggestions);
+  const { saved, error } = await hintFor(deps, ctx, card);
   return error && saved.ok ? fail("write_failed", error) : saved;
 }

@@ -1,11 +1,15 @@
 /** The Interview Prep operations. See `interview-prep.ts` for the types and seams. */
+import { careerStoryHash } from "@/lib/profile/career-story-hash";
+import type { CareerProfile } from "@/lib/profile/schema";
 import {
   SECTION_NEEDS_CAREER_STORY,
   SectionNotImplementedError,
   type FailureReason,
+  type InterviewPrep,
   type InterviewPrepDeps,
   type InterviewPrepJob,
   type InterviewPrepResult,
+  type InterviewPrepState,
   type PracticeData,
   type Research,
   type SectionData,
@@ -13,11 +17,34 @@ import {
   type Section,
   type SectionKey,
 } from "./interview-prep";
-import { addCards } from "./practice/cards";
+import { addCards, resumeText, withResumeFlags } from "./practice/cards";
 import { withStuckResearchFailed, withStuckSectionFailed } from "./sections";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Unknown error";
+}
+
+/**
+ * What a successful operation sends back: the Interview Prep, with its
+ * "not on your resume" flags checked against the Job's Resume now; the older
+ * Interview Suggestions; and the Career Story's hash now (`careerStory`, when
+ * the caller has already loaded it). A Career Story that can't be loaded gives
+ * no hash rather than failing the operation.
+ */
+export async function interviewPrepState(
+  deps: InterviewPrepDeps,
+  job: InterviewPrepJob,
+  prep: InterviewPrep | null,
+  legacySuggestions: string | null,
+  careerStory?: CareerProfile | null,
+): Promise<InterviewPrepState> {
+  const story = careerStory !== undefined ? careerStory : await deps.careerStory.load().catch(() => null);
+  const practice = prep?.sections.practice;
+  const flagged =
+    prep && practice?.data
+      ? { ...prep, sections: { ...prep.sections, practice: { ...practice, data: withResumeFlags(practice.data, resumeText(job)) } } }
+      : prep;
+  return { ok: true, prep: flagged, legacySuggestions, careerStoryHash: story ? careerStoryHash(story) : null };
 }
 
 /** The Job's Interview Prep, and its older Interview Suggestions while it still has them. */
@@ -26,7 +53,7 @@ export async function getInterviewPrep(deps: InterviewPrepDeps, jobId: string): 
     const job = await deps.jobs.find(jobId);
     if (!job) return { ok: false, kind: "not_found", message: "Job not found" };
     const prep = await deps.store.find(jobId);
-    return { ok: true, prep: prep && withStuckResearchFailed(prep, deps.now()), legacySuggestions: job.legacySuggestions };
+    return interviewPrepState(deps, job, prep && withStuckResearchFailed(prep, deps.now()), job.legacySuggestions);
   } catch (err) {
     return { ok: false, kind: "load_failed", message: errorMessage(err) };
   }
@@ -158,7 +185,7 @@ export async function prepareSection<K extends SectionKey>(
       await deps.jobs.clearLegacySuggestions(jobId);
       legacySuggestions = null;
     }
-    return { ok: true, prep, legacySuggestions };
+    return interviewPrepState(deps, job, prep, legacySuggestions);
   } catch (err) {
     return { ok: false, kind: "save_failed", message: errorMessage(err) };
   }

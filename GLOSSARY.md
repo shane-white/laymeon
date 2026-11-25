@@ -42,7 +42,7 @@ Swapping an uploaded Document's file for a new one while it keeps its name, Targ
 _Avoid_: Re-upload, update
 
 **Earlier version**:
-A saved result (a Resume Review, Match Report, Tailoring or a Practice card's hint) made from a Document's Source material before it last changed, or a Tailoring made from a Match Report that has since been rerun.
+A saved result (a Resume Review, Match Report, Tailoring or a Practice card's hint) made from a Document's Source material before it last changed, a Practice card's hint made from the Career Story before it last changed (a Rebuild or a User change), or a Tailoring made from a Match Report that has since been rerun.
 _Avoid_: Stale, outdated
 
 ### Career Story
