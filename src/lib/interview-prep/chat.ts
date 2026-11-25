@@ -74,7 +74,7 @@ function deckBlock(deck: DeckKey, cards: PracticeCard[]): string {
 function practiceBlock(section: Section<{ cards: PracticeCard[] }>): string {
   const cards = section.data?.cards ?? [];
   const heading = "### Practice";
-  if (!cards.length) return [heading, noData(section)].join("\n");
+  if (!cards.length) return [heading, section.data ? "No cards yet." : noData(section)].join("\n");
   const decks = DECK_KEYS.map((deck) => [deck, cards.filter((c) => c.deck === deck)] as const)
     .filter(([, deckCards]) => deckCards.length > 0)
     .map(([deck, deckCards]) => deckBlock(deck, deckCards));

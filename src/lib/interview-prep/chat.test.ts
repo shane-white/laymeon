@@ -99,3 +99,12 @@ describe("formatInterviewPrepForChat sections without data", () => {
     expect(text).toContain("### Practice\nNot researched yet.");
   });
 });
+
+describe("formatInterviewPrepForChat Practice with no cards", () => {
+  it("says a ready Practice section has no cards, not that it isn't researched", () => {
+    const text = formatInterviewPrepForChat(prepWith([]));
+
+    expect(text).toContain("### Practice\nNo cards yet.");
+    expect(text).not.toContain("### Practice\nNot researched yet.");
+  });
+});
