@@ -15,6 +15,14 @@ export class CardNotFoundError extends Error {
   }
 }
 
+/** Thrown when removing a card the user may not remove (see `canRemove`). */
+export class CardNotRemovableError extends Error {
+  constructor() {
+    super("Only your own questions and cards you've marked can be removed.");
+    this.name = "CardNotRemovableError";
+  }
+}
+
 /** Whether two questions are the same, ignoring case, punctuation spacing and markdown. */
 export function sameQuestion(a: string, b: string): boolean {
   const norm = (q: string) => normalizeText(q).replace(/[?.!\s]+$/, "");
@@ -45,9 +53,41 @@ function changeCard(data: PracticeData | null, cardId: string, change: (card: Pr
   return { cards: cards.map((c) => (c.id === cardId ? change(c) : c)) };
 }
 
+/**
+ * How many cards have each mark, such as "4 feel good · 2 to practice more ·
+ * 1 not tried yet". Marks no card has are left out; no cards gives "".
+ */
+export function markCounts(cards: Pick<PracticeCard, "mark">[]): string {
+  const count = (mark: Mark) => cards.filter((c) => c.mark === mark).length;
+  const good = count("feels_good");
+  const more = count("practice_more");
+  const untried = count("not_tried");
+  return [
+    good > 0 && `${good} ${good === 1 ? "feels" : "feel"} good`,
+    more > 0 && `${more} to practice more`,
+    untried > 0 && `${untried} not tried yet`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** Sets a card's mark. `not_tried` clears it. */
 export function setMark(data: PracticeData | null, cardId: string, mark: Mark): PracticeData {
   return changeCard(data, cardId, (c) => ({ ...c, mark }));
+}
+
+/** Whether the user may remove a card: only their own cards, or cards they've marked. */
+export function canRemove(card: Pick<PracticeCard, "own" | "mark">): boolean {
+  return card.own || card.mark !== "not_tried";
+}
+
+/** The cards without `cardId`. Throws when there's no such card, or it can't be removed. */
+export function removeCard(data: PracticeData | null, cardId: string): PracticeData {
+  const cards = data?.cards ?? [];
+  const card = cards.find((c) => c.id === cardId);
+  if (!card) throw new CardNotFoundError();
+  if (!canRemove(card)) throw new CardNotRemovableError();
+  return { cards: cards.filter((c) => c.id !== cardId) };
 }
 
 /** Marks a card's hint as being written, keeping the hint it has until the new one is ready. */

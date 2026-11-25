@@ -23,7 +23,17 @@ import {
   type PracticeData,
 } from "../interview-prep";
 import { emptySection } from "../sections";
-import { addCards, CardNotFoundError, failHint, finishHint, questionsIn, setMark, startHint } from "./cards";
+import {
+  addCards,
+  CardNotFoundError,
+  CardNotRemovableError,
+  failHint,
+  finishHint,
+  questionsIn,
+  removeCard as withoutCard,
+  setMark,
+  startHint,
+} from "./cards";
 
 /** How many cards More like this adds. */
 export const MORE_LIKE_THIS_COUNT = 5;
@@ -81,8 +91,21 @@ async function savePractice(
     return { ok: true, prep, legacySuggestions };
   } catch (err) {
     if (err instanceof CardNotFoundError) return fail("not_found", err.message);
+    if (err instanceof CardNotRemovableError) return fail("invalid", err.message);
     return fail("save_failed", errorMessage(err));
   }
+}
+
+/**
+ * Removes a card the user added or has marked. Cards Practice wrote that the
+ * user hasn't marked stay: only the user removes their own or marked cards.
+ * Checked against the card as saved now, so a mark cleared meanwhile counts.
+ */
+export async function removeCard(deps: InterviewPrepDeps, jobId: string, cardId: string): Promise<InterviewPrepResult> {
+  const found = await loaded(deps, jobId);
+  if ("ok" in found) return found;
+  if (!found.prep?.sections.practice.data?.cards.some((c) => c.id === cardId)) return fail("not_found", new CardNotFoundError().message);
+  return savePractice(deps, jobId, (data) => withoutCard(data, cardId), found.job.legacySuggestions);
 }
 
 /** Marks a card Feels good or Practice more; `not_tried` clears the mark. */

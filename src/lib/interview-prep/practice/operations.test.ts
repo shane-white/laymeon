@@ -12,7 +12,7 @@ import {
   scriptedPracticeWriter,
   setup,
 } from "../testing";
-import { addMoreCards, addOwnQuestion, markCard, writeHint } from "./operations";
+import { addMoreCards, addOwnQuestion, markCard, removeCard, writeHint } from "./operations";
 
 type Store = ReturnType<typeof setup>["store"];
 
@@ -40,6 +40,35 @@ describe("markCard", () => {
     const { deps, store } = setup();
     await withCards(store, [practiceCard()]);
     expect(await markCard(deps, "job-1", "card-2", "feels_good")).toMatchObject({ ok: false, kind: "not_found" });
+  });
+});
+
+describe("removeCard", () => {
+  it("removes the user's own card and keeps the rest", async () => {
+    const { deps, store } = setup();
+    await withCards(store, [practiceCard(), practiceCard({ id: "card-2", own: true, question: "Why us?" })]);
+    expect(await removeCard(deps, "job-1", "card-2")).toMatchObject({ ok: true });
+    expect((await cardsOf(deps)).map((c) => c.id)).toEqual(["card-1"]);
+  });
+
+  it("removes a marked card", async () => {
+    const { deps, store } = setup();
+    await withCards(store, [practiceCard({ mark: "feels_good" })]);
+    await removeCard(deps, "job-1", "card-1");
+    expect(await cardsOf(deps)).toEqual([]);
+  });
+
+  it("refuses a card the user didn't add and hasn't marked", async () => {
+    const { deps, store } = setup();
+    await withCards(store, [practiceCard()]);
+    expect(await removeCard(deps, "job-1", "card-1")).toMatchObject({ ok: false, kind: "invalid" });
+    expect(await cardsOf(deps)).toHaveLength(1);
+  });
+
+  it("fails for a card the Interview Prep doesn't have", async () => {
+    const { deps, store } = setup();
+    await withCards(store, [practiceCard()]);
+    expect(await removeCard(deps, "job-1", "card-9")).toMatchObject({ ok: false, kind: "not_found" });
   });
 });
 
