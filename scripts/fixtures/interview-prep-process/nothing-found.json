@@ -1,0 +1,28 @@
+{
+  "job": {
+    "company": "Quillfeather Analytics",
+    "title": "Data Analyst",
+    "description": "Quillfeather Analytics is a 12-person consultancy helping regional retailers understand their sales data. You'll build dashboards in SQL and Looker and present findings to clients."
+  },
+  "results": [
+    {
+      "url": "https://www.reddit.com/r/datascience/comments/abc123/data_analyst_interview_tips/",
+      "title": "Data analyst interview tips : r/datascience",
+      "snippet": "Most data analyst interviews have a SQL screen and a case study. Practice joins and window functions."
+    },
+    {
+      "url": "https://quillfeather-analytics.example.com/about",
+      "title": "About us | Quillfeather Analytics",
+      "snippet": "Quillfeather Analytics helps regional retailers make sense of their sales. Founded in 2019 in Columbus, Ohio."
+    }
+  ],
+  "pages": {
+    "https://quillfeather-analytics.example.com/about": {
+      "publishedTime": null,
+      "markdown": "# About Quillfeather Analytics\n\nWe help regional retailers make sense of their sales data. Founded in 2019 in Columbus, Ohio, we're a team of 12 analysts and engineers.\n\nOur clients include grocery chains, hardware stores and garden centers across the Midwest."
+    }
+  },
+  "expected": {
+    "found": false
+  }
+}

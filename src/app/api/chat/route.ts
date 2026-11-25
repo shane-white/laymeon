@@ -16,8 +16,16 @@ import {
   describeDocument,
   resolveJobDocuments,
 } from "@/lib/documents/resolve-job-documents";
+import { shouldOfferInterviewPrep } from "@/lib/interview-prep/offer";
+import { formatInterviewPrepForChat } from "@/lib/interview-prep/chat";
+import { interviewPrepDeps } from "@/lib/interview-prep/deps";
+import { DECK_KEYS, type InterviewPrep } from "@/lib/interview-prep/interview-prep";
+import { addOwnQuestion, MAX_QUESTION_CHARS } from "@/lib/interview-prep/practice/operations";
+import { withStuckResearchFailed } from "@/lib/interview-prep/sections";
+import { supabaseInterviewPrepStore } from "@/lib/interview-prep/supabase-store";
 
-export const maxDuration = 60;
+// Adding a Practice card waits for its hint: one more Claude call.
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -80,6 +88,15 @@ export async function POST(req: Request) {
     description: string | null;
   };
 
+  // Undefined when it couldn't be loaded, so the older suggestions aren't shown in its place.
+  let interviewPrep: InterviewPrep | null | undefined;
+  try {
+    const saved = await supabaseInterviewPrepStore(supabase, user.id).find(userJobId);
+    interviewPrep = saved && withStuckResearchFailed(saved, new Date().toISOString());
+  } catch (err) {
+    console.error("Failed to load the Interview Prep for chat", err);
+  }
+
   const title = userJob.custom_job_title || listing.extracted_job_title;
   const company =
     userJob.custom_job_company || listing.extracted_company_name || "Unknown";
@@ -110,8 +127,11 @@ ${listing.description || "No description available."}`;
   if (userJob.cover_letter_suggestions) {
     systemPrompt += `\n\n## Existing Cover Letter Suggestions\n${userJob.cover_letter_suggestions}`;
   }
-  if (userJob.interview_suggestions) {
-    systemPrompt += `\n\n## Existing Interview Suggestions\n${userJob.interview_suggestions}`;
+  if (interviewPrep) {
+    systemPrompt += `\n\n## Interview Prep\n${formatInterviewPrepForChat(interviewPrep)}`;
+  } else if (interviewPrep === null && userJob.interview_suggestions) {
+    // Shown read-only until the Job has an Interview Prep.
+    systemPrompt += `\n\n## Older Interview Suggestions (read-only)\n${userJob.interview_suggestions}`;
   }
   if (userJob.notes) {
     systemPrompt += `\n\n## User Notes\n${userJob.notes}`;
@@ -121,7 +141,10 @@ ${listing.description || "No description available."}`;
 - Answer questions about the job, company, and application process.
 - Use the search_web tool when the user asks about company information, salary data, interview experiences, or other external information.
 - Use update_job_status when the user asks to change their application status.
-- Use update_analysis when the user asks to edit or regenerate analysis sections.
+- Use update_analysis when the user asks to edit or regenerate cover letter suggestions.
+- Use the Interview Prep to help the user practice. For example, offer to talk through cards they marked Practice more.
+- Use add_practice_card when the user asks for a question to practice, such as "add a question about my career gap". Add one card per question they ask for, and none they didn't ask for.
+- You can't change the Process or Company research, the hints or the marks. To refresh the research, tell the user to click Refresh in the Interview Prep tab.
 - Format responses in markdown when appropriate.
 - Be concise since you are in a side panel with limited width.`;
 
@@ -164,19 +187,35 @@ ${listing.description || "No description available."}`;
           .eq("id", userJobId)
           .eq("user_id", user.id);
         if (error) return { success: false, error: error.message };
-        return { success: true, newStatus: status };
+        if (status !== "interviewing") return { success: true, newStatus: status };
+
+        // Offer Interview Prep in words only: Prepare costs searches and tokens, and is started from its tab.
+        const { data: prep, error: prepError } = await supabase
+          .from("interview_preps")
+          .select("user_job_id")
+          .eq("user_id", user.id)
+          .eq("user_job_id", userJobId)
+          .maybeSingle();
+        const offer =
+          !prepError &&
+          shouldOfferInterviewPrep({ from: userJob.status, to: status, hasInterviewPrep: !!prep });
+        return {
+          success: true,
+          newStatus: status,
+          ...(offer && {
+            interviewPrep:
+              "This Job has no Interview Prep yet. Ask whether they'd like to start preparing: they can click Prepare in the Interview Prep tab, which looks up the company's interview process and recent news. Don't research it yourself.",
+          }),
+        };
       },
     }),
 
     update_analysis: tool({
       description:
-        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify cover letter suggestions or interview suggestions. Resume changes for this job are made one suggestion at a time in the Resume Suggestions tab, not here. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Resume Match Analysis tab.",
+        "Update or replace an analysis section for the current job. Use when the user asks to edit, regenerate, or modify cover letter suggestions. Interview preparation lives in the Interview Prep, not here. Resume changes for this job are made one suggestion at a time in the Resume Suggestions tab, not here. The match report can't be edited here; to refresh it, tell the user to click Re-analyze on the Resume Match Analysis tab.",
       inputSchema: z.object({
         type: z
-          .enum([
-            "cover_letter_suggestions",
-            "interview_suggestions",
-          ])
+          .enum(["cover_letter_suggestions"])
           .describe("Which analysis section to update"),
         content: z
           .string()
@@ -192,10 +231,43 @@ ${listing.description || "No description available."}`;
         return { success: true, type, updated: true };
       },
     }),
+
+    add_practice_card: tool({
+      description:
+        "Add a question to one of the Interview Prep's Practice Decks, the same way the user adds their own question. A hint built from the user's Career Story is written for it. Use only when the user asks for a question to practice.",
+      inputSchema: z.object({
+        deck: z
+          .enum(DECK_KEYS)
+          .describe(
+            "behavioral: Behavioral. role: Role & technical. company: About this company. ask: Questions to ask them.",
+          ),
+        question: z
+          .string()
+          .max(MAX_QUESTION_CHARS)
+          .describe("The interview question, worded the way an interviewer would ask it"),
+      }),
+      execute: async ({ deck, question }) => {
+        const result = await addOwnQuestion(interviewPrepDeps(supabase, user.id), userJobId, deck, question);
+        if (!result.ok) return { success: false, error: result.message };
+        const text = question.trim();
+        const card = result.prep?.sections.practice.data?.cards.findLast(
+          (c) => c.own && c.deck === deck && c.question === text,
+        );
+        return {
+          success: true,
+          deck,
+          question: text,
+          hint:
+            card?.hintStatus === "ready"
+              ? "Written."
+              : "Not written yet. The user can try again from the card in the Practice tab.",
+        };
+      },
+    }),
   };
 
   // The system prompt is rebuilt from the job on every request, and the tools can
-  // change the job (status, analysis). Claude rejects replayed thinking blocks
+  // change the job (status, analysis, Practice cards). Claude rejects replayed thinking blocks
   // once the system prompt has changed since they were produced, so earlier
   // turns are sent without their reasoning. Reasoning within this turn's tool
   // steps is still passed along.

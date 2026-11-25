@@ -7,11 +7,8 @@ import { loadProfile } from "@/lib/profile/rebuild";
 import { resumeContentHash } from "@/lib/resume-review/content-hash";
 import { NextResponse, type NextRequest } from "next/server";
 
-const VALID_TYPES = [
-  "match_analysis",
-  "cover_letter_suggestions",
-  "interview_suggestions",
-] as const;
+// Interview Suggestions were replaced by Interview Prep (see /api/jobs/[id]/interview-prep).
+const VALID_TYPES = ["match_analysis", "cover_letter_suggestions"] as const;
 
 type AnalysisType = (typeof VALID_TYPES)[number];
 
@@ -26,15 +23,6 @@ const PROMPTS: Record<Exclude<AnalysisType, "match_analysis">, string> = {
 - How to frame relevant experience
 - Company-specific talking points to include
 - Opening and closing suggestions
-
-Be specific and actionable. Format your response in markdown.`,
-
-  interview_suggestions: `Based on the resume and job description below, help the candidate prepare for an interview. Include:
-- Likely interview questions and how to answer them
-- Key experiences to highlight from the resume
-- Technical topics to review
-- Questions the candidate should ask the interviewer
-- Potential weaknesses to prepare for
 
 Be specific and actionable. Format your response in markdown.`,
 };

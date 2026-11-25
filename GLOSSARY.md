@@ -11,7 +11,7 @@ A piece of the user's own writing that LayMeOn keeps: a Resume, a Cover letter o
 _Avoid_: File, upload, attachment
 
 **Resume**:
-A Document that summarises the user's experience for applications. A user can keep several, each aimed at a different Target role.
+A Document that summarizes the user's experience for applications. A user can keep several, each aimed at a different Target role.
 _Avoid_: CV, résumé
 
 **Cover letter**:
@@ -42,7 +42,7 @@ Swapping an uploaded Document's file for a new one while it keeps its name, Targ
 _Avoid_: Re-upload, update
 
 **Earlier version**:
-A saved result (a Resume Review, Match Report or Tailoring) made from a Document's Source material before it last changed, or a Tailoring made from a Match Report that has since been rerun.
+A saved result (a Resume Review, Match Report, Tailoring or a Practice card's hint) made from a Document's Source material before it last changed, a Practice card's hint made from the Career Story before it last changed (a Rebuild or a User change), or a Tailoring made from a Match Report that has since been rerun.
 _Avoid_: Stale, outdated
 
 ### Career Story
@@ -56,7 +56,7 @@ What Claude reads out of one Document for the Career Story: jobs, accomplishment
 
 **Rebuild**:
 Making the Career Story again from the current Documents, after a Document change that touches Source material.
-_Avoid_: Refresh, regenerate
+_Avoid_: Refresh, regenerate (for a Rebuild; redoing one Interview Prep section is a Refresh)
 
 **User change**:
 A correction the user makes to the Career Story (an edit, removal, addition or merge) that is kept and re-applied after every Rebuild.
@@ -104,7 +104,27 @@ A Decision that the user lacks a missing Requirement or a Screener the Resume do
 _Avoid_: Rejected, skipped, N/A
 
 **Analyses**:
-The older free-text suggestions on a Job for the cover letter and the interview. Its free-text suggestions for the resume were retired: the Tailoring replaces them.
+The older free-text suggestions on a Job for the cover letter. Its free-text suggestions for the resume were retired: the Tailoring replaces them, and those for the interview were replaced by Interview Prep.
+
+**Interview Prep**:
+What LayMeOn gathers to help the user prepare for one Job's interviews: the company's interview process, a briefing on the company, and practice.
+_Avoid_: Interview suggestions
+
+**Practice card**:
+A likely interview question in Interview Prep, with a hint on the back: what the interviewer is probing for, a rough outline of an answer, and which of the user's experiences fit. The user can mark it Feels good or Practice more; until then it's Not tried yet. Nothing is scored.
+_Avoid_: Flashcard, quiz question
+
+**Deck**:
+A group of Practice cards on one theme, such as behavioral questions or questions to ask the interviewer.
+
+**Practice session**:
+Going through Practice cards one at a time, either one Deck or a Quick mix of a few cards from every Deck, marking each as you go. It ends with a count of the marks, never a score.
+
+**Quick mix**:
+A Practice session of 5 cards picked from every Deck, starting with cards to Practice more and cards Not tried yet.
+
+**Refresh**:
+Researching one Interview Prep section again (its interview process, the company briefing or Practice). The section keeps what it had until the new research is ready, and Practice cards are only ever added, never removed.
 
 ### Resume Review
 

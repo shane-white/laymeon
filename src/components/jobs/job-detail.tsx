@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,14 +25,16 @@ import {
 } from "lucide-react";
 import { formatLocation, formatSeniorityLevel } from "@/lib/jobs/details";
 import { useAnalyzeJob, type UserJob } from "@/hooks/use-jobs";
-import { getInitialTabs, type TabKey } from "@/lib/job-tabs";
+import { getInitialTabs, parseStoredTabs, type TabKey } from "@/lib/job-tabs";
 import { useDocuments } from "@/hooks/use-documents";
+import { useJobTabRequest } from "@/hooks/use-job-tab-request";
 import { statusColors } from "@/lib/jobs/statuses";
 import { JobDescriptionTab } from "@/components/jobs/job-description-tab";
 import { AnalysisTab } from "@/components/jobs/analysis-tab";
 import { NotesTab } from "@/components/jobs/notes-tab";
 import { JobDocumentSelect } from "@/components/jobs/job-document-select";
 import { TailoringTab } from "@/components/tailoring/tailoring-tab";
+import { InterviewPrepTab } from "@/components/interview-prep/interview-prep-tab";
 import { toast } from "sonner";
 
 interface JobDetailProps {
@@ -43,19 +45,16 @@ const TAB_OPTIONS = [
   { key: "match_analysis" as const, label: "Resume Match Analysis", analyzeLabel: "Analyze", reanalyzeLabel: "Re-analyze", description: "Click 'Analyze' to see how well your resume matches this job: must-have requirements, search words recruiters use, and what to fix first. Requires an uploaded resume." },
   { key: "resume_suggestions" as const, label: "Resume Suggestions" },
   { key: "cover_letter_suggestions" as const, label: "Cover Letter Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get cover letter suggestions for this job. Requires an uploaded resume." },
-  { key: "interview_suggestions" as const, label: "Interview Suggestions", analyzeLabel: "Get Suggestions", reanalyzeLabel: "Regenerate", description: "Click 'Get Suggestions' to get interview preparation suggestions for this job. Requires an uploaded resume." },
+  { key: "interview_prep" as const, label: "Interview Prep" },
   { key: "notes" as const, label: "Notes" },
 ] as const;
 
 function getStoredTabs(jobId: string): TabKey[] | null {
   try {
-    const stored = localStorage.getItem(`job-tabs-${jobId}`);
-    if (stored) {
-      const parsed = JSON.parse(stored) as TabKey[];
-      if (Array.isArray(parsed) && parsed.includes("description")) return parsed;
-    }
-  } catch {}
-  return null;
+    return parseStoredTabs(localStorage.getItem(`job-tabs-${jobId}`));
+  } catch {
+    return null;
+  }
 }
 
 function storeJobTabs(jobId: string, tabs: TabKey[]) {
@@ -78,11 +77,19 @@ export function JobDetail({ job }: JobDetailProps) {
   return <JobDetailContent key={job.id} job={job} />;
 }
 
+/** The tab asked for from elsewhere for this Job, e.g. Interview Prep after starting Prepare from the jobs list. */
+function requestedTab(jobId: string): TabKey | null {
+  const { request } = useJobTabRequest.getState();
+  return request?.jobId === jobId ? request.tab : null;
+}
+
 function JobDetailContent({ job }: { job: UserJob }) {
-  const [openTabs, setOpenTabs] = useState<TabKey[]>(() =>
-    getInitialTabs(job, getStoredTabs(job.id)),
-  );
-  const [activeTab, setActiveTab] = useState<TabKey>("description");
+  const [initialRequest] = useState(() => requestedTab(job.id));
+  const [openTabs, setOpenTabs] = useState<TabKey[]>(() => {
+    const tabs = getInitialTabs(job, getStoredTabs(job.id));
+    return initialRequest && !tabs.includes(initialRequest) ? [...tabs, initialRequest] : tabs;
+  });
+  const [activeTab, setActiveTab] = useState<TabKey>(initialRequest ?? "description");
   const analyzeJob = useAnalyzeJob();
   const { data: documents } = useDocuments();
 
@@ -106,12 +113,32 @@ function JobDetailContent({ job }: { job: UserJob }) {
     (t) => !openTabs.includes(t.key),
   );
 
-  function addTab(key: TabKey) {
-    const next = [...openTabs, key];
-    setOpenTabs(next);
+  function showTab(key: TabKey) {
+    setOpenTabs((tabs) => {
+      if (tabs.includes(key)) return tabs;
+      const next = [...tabs, key];
+      storeJobTabs(job.id, next);
+      return next;
+    });
     setActiveTab(key);
-    storeJobTabs(job.id, next);
   }
+
+  // Take a tab request made before this Job was shown, then listen for later ones.
+  useEffect(() => {
+    if (initialRequest) {
+      useJobTabRequest.getState().clear();
+      storeJobTabs(job.id, openTabs);
+    }
+    return useJobTabRequest.subscribe(() => {
+      const tab = requestedTab(job.id);
+      if (!tab) return;
+      useJobTabRequest.getState().clear();
+      showTab(tab);
+    });
+    // Runs once per Job: JobDetailContent is keyed on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -193,7 +220,7 @@ function JobDetailContent({ job }: { job: UserJob }) {
                 {availableTabs.map((t) => (
                   <DropdownMenuItem
                     key={t.key}
-                    onClick={() => addTab(t.key)}
+                    onClick={() => showTab(t.key)}
                   >
                     {t.label}
                   </DropdownMenuItem>
@@ -211,13 +238,11 @@ function JobDetailContent({ job }: { job: UserJob }) {
           <TailoringTab job={job} />
         </TabsContent>
 
-        {(
-          [
-            "match_analysis",
-            "cover_letter_suggestions",
-            "interview_suggestions",
-          ] as const
-        ).map((type) => {
+        <TabsContent value="interview_prep" className="flex min-h-0 flex-1 flex-col">
+          <InterviewPrepTab job={job} />
+        </TabsContent>
+
+        {(["match_analysis", "cover_letter_suggestions"] as const).map((type) => {
           const opt = TAB_OPTIONS.find((o) => o.key === type)!;
           return (
             <TabsContent key={type} value={type} className="flex min-h-0 flex-1 flex-col">

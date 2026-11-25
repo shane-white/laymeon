@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { signedInUser } from "@/lib/http";
 import { deleteReview, getReview, ReviewError, runReview } from "@/lib/resume-review/store";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -6,14 +6,6 @@ import { NextResponse, type NextRequest } from "next/server";
 export const maxDuration = 180;
 
 type Params = { params: Promise<{ id: string }> };
-
-async function signedInUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { supabase, user };
-}
 
 /** The resume's saved review, and whether it's out of date. 404 if it hasn't been reviewed. */
 export async function GET(_request: NextRequest, { params }: Params) {

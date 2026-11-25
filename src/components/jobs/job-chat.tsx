@@ -15,6 +15,7 @@ import {
   ArrowRightLeft,
   FileEdit,
   Loader2,
+  SquarePlus,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,6 +26,7 @@ import {
   setConversation,
   startNewConversation,
 } from "@/lib/chat/job-chat-store";
+import { interviewPrepKey } from "@/components/interview-prep/use-interview-prep";
 
 interface JobChatProps {
   job: UserJob | null;
@@ -40,6 +42,7 @@ const TOOL_META: Record<string, { icon: typeof Search; label: string }> = {
   search_web: { icon: Search, label: "Searching the web" },
   update_job_status: { icon: ArrowRightLeft, label: "Updating status" },
   update_analysis: { icon: FileEdit, label: "Updating analysis" },
+  add_practice_card: { icon: SquarePlus, label: "Adding a Practice card" },
 };
 
 export function JobChat({ job }: JobChatProps) {
@@ -64,6 +67,8 @@ function JobChatPanel({ jobId }: { jobId: string }) {
   const { chat } = getJobChatSession(jobId, () => {
     queryClient.invalidateQueries({ queryKey: ["jobs"] });
     queryClient.invalidateQueries({ queryKey: ["job-chat-latest", jobId] });
+    // The chat can add Practice cards.
+    queryClient.invalidateQueries({ queryKey: interviewPrepKey(jobId) });
   });
   const { messages, sendMessage, status, stop, setMessages } = useChat({ chat });
 

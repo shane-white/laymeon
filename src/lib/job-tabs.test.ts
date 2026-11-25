@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getInitialTabs, getTabsWithContent } from "./job-tabs";
+import { getInitialTabs, getTabsWithContent, parseStoredTabs } from "./job-tabs";
 import type { MatchReport } from "@/lib/match-report/schema";
 
 const emptyJob = {
@@ -7,6 +7,7 @@ const emptyJob = {
   match_report: null,
   cover_letter_suggestions: null,
   interview_suggestions: null,
+  has_interview_prep: false,
   notes: null,
 };
 
@@ -25,6 +26,10 @@ describe("getTabsWithContent", () => {
     ).toEqual(["match_analysis"]);
   });
 
+  it("shows the Interview Prep tab once the Job has an Interview Prep", () => {
+    expect(getTabsWithContent({ ...emptyJob, has_interview_prep: true })).toEqual(["interview_prep"]);
+  });
+
   it("returns tabs in menu order", () => {
     expect(
       getTabsWithContent({
@@ -32,12 +37,13 @@ describe("getTabsWithContent", () => {
         match_report: null,
         cover_letter_suggestions: "c",
         interview_suggestions: "i",
+        has_interview_prep: false,
         notes: "n",
       }),
     ).toEqual([
       "match_analysis",
       "cover_letter_suggestions",
-      "interview_suggestions",
+      "interview_prep",
       "notes",
     ]);
   });
@@ -61,9 +67,9 @@ describe("getInitialTabs", () => {
       getInitialTabs({ ...emptyJob, match_analysis: "a", notes: "n" }, [
         "description",
         "notes",
-        "interview_suggestions",
+        "interview_prep",
       ]),
-    ).toEqual(["description", "notes", "interview_suggestions", "match_analysis"]);
+    ).toEqual(["description", "notes", "interview_prep", "match_analysis"]);
   });
 
   it("keeps a stored Resume Suggestions tab", () => {
@@ -78,5 +84,22 @@ describe("getInitialTabs", () => {
       "description",
       "notes",
     ]);
+  });
+});
+
+describe("parseStoredTabs", () => {
+  it("reads the tabs saved in this browser", () => {
+    expect(parseStoredTabs('["description","notes"]')).toEqual(["description", "notes"]);
+  });
+
+  it("opens a tab saved under the older Interview Suggestions key as Interview Prep", () => {
+    expect(parseStoredTabs('["description","interview_suggestions"]')).toEqual(["description", "interview_prep"]);
+  });
+
+  it("ignores nothing saved, a broken value, a list without Description and unknown tabs", () => {
+    expect(parseStoredTabs(null)).toBeNull();
+    expect(parseStoredTabs("{not json")).toBeNull();
+    expect(parseStoredTabs('["notes"]')).toBeNull();
+    expect(parseStoredTabs('["description","gone"]')).toEqual(["description"]);
   });
 });
