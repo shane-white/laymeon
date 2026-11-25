@@ -173,7 +173,12 @@ export function JobListItem({
             </span>
           )}
           <div className="flex items-center gap-1">
-            <JobStatusSelect userJobId={job.id} currentStatus={job.status} />
+            <JobStatusSelect
+              userJobId={job.id}
+              currentStatus={job.status}
+              hasInterviewPrep={job.has_interview_prep}
+              onShowJob={() => onSelect(job.job_listing.id)}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

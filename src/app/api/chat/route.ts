@@ -16,6 +16,7 @@ import {
   describeDocument,
   resolveJobDocuments,
 } from "@/lib/documents/resolve-job-documents";
+import { shouldOfferInterviewPrep } from "@/lib/interview-prep/offer";
 
 export const maxDuration = 60;
 
@@ -164,7 +165,26 @@ ${listing.description || "No description available."}`;
           .eq("id", userJobId)
           .eq("user_id", user.id);
         if (error) return { success: false, error: error.message };
-        return { success: true, newStatus: status };
+        if (status !== "interviewing") return { success: true, newStatus: status };
+
+        // Offer Interview Prep in words only: Prepare costs searches and tokens, and is started from its tab.
+        const { data: prep, error: prepError } = await supabase
+          .from("interview_preps")
+          .select("user_job_id")
+          .eq("user_id", user.id)
+          .eq("user_job_id", userJobId)
+          .maybeSingle();
+        const offer =
+          !prepError &&
+          shouldOfferInterviewPrep({ from: userJob.status, to: status, hasInterviewPrep: !!prep });
+        return {
+          success: true,
+          newStatus: status,
+          ...(offer && {
+            interviewPrep:
+              "This Job has no Interview Prep yet. Ask whether they'd like to start preparing: they can click Prepare in the Interview Prep tab, which looks up the company's interview process and recent news. Don't research it yourself.",
+          }),
+        };
       },
     }),
 
