@@ -83,14 +83,22 @@ export function usePrepareSection(jobId: string) {
       });
     },
     // Only this request's section is taken from its response: the others may
-    // still be researching in their own requests.
+    // still be researching in their own requests. A Company refresh also adds
+    // About this company cards, so its Practice is taken too, unless Practice
+    // is being changed in another request.
     onSuccess: (data, section) => {
       queryClient.setQueryData<InterviewPrepResponse>(key, (old) => {
         if (!old?.prep || !data.prep) return data;
+        const practiceBusy =
+          old.prep.sections.practice.status === "researching" ||
+          practiceKeys(jobId).some((mutationKey) => queryClient.isMutating({ mutationKey }) > 0);
+        const taken: SectionKey[] = section === "company" && !practiceBusy ? ["company", "practice"] : [section];
+        const sections = { ...old.prep.sections };
+        for (const k of taken) Object.assign(sections, { [k]: data.prep.sections[k] });
         return {
           legacySuggestions: data.legacySuggestions,
           careerStoryHash: data.careerStoryHash,
-          prep: { ...old.prep, sections: { ...old.prep.sections, [section]: data.prep.sections[section] } },
+          prep: { ...old.prep, sections },
         };
       });
     },

@@ -274,13 +274,14 @@ describe("refreshing never removes Practice cards", () => {
   const decks = () =>
     DECK_KEYS.map((deck, i) => practiceCard({ id: `${deck}-1`, deck, question: `${deck} first`, mark: i === 0 ? "feels_good" : "not_tried" }));
 
-  it("leaves the Practice cards as they are when Process or Company is refreshed", async () => {
-    const { deps, store } = setup();
+  it("leaves the Practice cards as they are when Process is refreshed", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps, store } = setup({ practice: writer });
     const cards = [...decks(), practiceCard({ id: "own-1", own: true, question: "Mine?" })];
     await withCards(store, cards);
     await prepareSection(deps, "job-1", "process");
-    await prepareSection(deps, "job-1", "company");
     expect(await cardsOf(deps)).toEqual(cards);
+    expect(calls.write).toHaveLength(0);
   });
 
   it("adds new About this company cards next to the ones there, and keeps every other card", async () => {
@@ -308,6 +309,77 @@ describe("refreshing never removes Practice cards", () => {
     await withCards(store, cards);
     await prepareSection(deps, "job-1", "practice");
     expect((await cardsOf(deps)).map((c) => c.id)).toEqual([...cards.map((c) => c.id), "new-1"]);
+  });
+});
+
+describe("refreshing Company adds About this company cards", () => {
+  const news = { date: "2026-11-01", headline: "Opened a Berlin office", howItMightComeUp: "Expansion.", sources: [] };
+  const fresh = { whatTheyDo: { text: "Makes anvils.", sources: [] }, news: [news], values: [] };
+  const existing = () => [
+    practiceCard({ id: "b-1", question: "Tell me about a mistake.", mark: "feels_good" }),
+    practiceCard({ id: "c-1", deck: "company", question: "Why Acme?" }),
+    practiceCard({ id: "own-1", deck: "company", own: true, question: "Mine?" }),
+  ];
+
+  it("adds 3 new cards to About this company from the new research, avoiding the Deck's questions and keeping every card", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { generators } = scriptedGenerators({ company: fresh });
+    const { deps, store } = setup({ generators, practice: writer });
+    const cards = existing();
+    await withCards(store, cards);
+
+    expect(await prepareSection(deps, "job-1", "company")).toMatchObject({ ok: true, prep: { sections: { company: { status: "ready" } } } });
+
+    expect(calls.write).toEqual([expect.objectContaining({ deck: "company", count: 3, avoid: ["Why Acme?", "Mine?"] })]);
+    expect(calls.write[0].context.research.company).toEqual(fresh);
+    const after = await cardsOf(deps);
+    expect(after.slice(0, cards.length)).toEqual(cards);
+    expect(after.slice(cards.length).map((c) => [c.deck, c.question])).toEqual([
+      ["company", "company question 1"],
+      ["company", "company question 2"],
+      ["company", "company question 3"],
+    ]);
+  });
+
+  it("keeps a mark saved while the new cards are being written", async () => {
+    const late = {} as { deps: InterviewPrepDeps };
+    const { writer } = scriptedPracticeWriter({ before: () => markCard(late.deps, "job-1", "c-1", "practice_more").then(() => {}) });
+    const built = setup({ practice: writer });
+    late.deps = built.deps;
+    await withCards(built.store, existing());
+    await prepareSection(built.deps, "job-1", "company");
+    const after = await cardsOf(built.deps);
+    expect(after.find((c) => c.id === "c-1")?.mark).toBe("practice_more");
+    expect(after).toHaveLength(6);
+  });
+
+  it("adds nothing when there's no Practice yet, or the Company research failed", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps } = setup({ practice: writer });
+    await prepareSection(deps, "job-1", "company");
+
+    const failing = setup({ generators: scriptedGenerators({ company: new Error("Search failed") }).generators, practice: writer });
+    await withCards(failing.store, existing());
+    await prepareSection(failing.deps, "job-1", "company");
+
+    expect(calls.write).toHaveLength(0);
+    expect(await cardsOf(failing.deps)).toEqual(existing());
+  });
+
+  it("leaves it to a Practice refresh running at the same time", async () => {
+    const { writer, calls } = scriptedPracticeWriter();
+    const { deps, store } = setup({ practice: writer });
+    await store.saveSection("job-1", "practice", { ...emptySection(), status: "researching", startedAt: NOW, data: { cards: existing() } });
+    await prepareSection(deps, "job-1", "company");
+    expect(calls.write).toHaveLength(0);
+  });
+
+  it("keeps the Company research when writing the cards fails", async () => {
+    const { writer } = scriptedPracticeWriter({ failWrite: new Error("Claude is busy.") });
+    const { deps, store } = setup({ practice: writer });
+    await withCards(store, existing());
+    expect(await prepareSection(deps, "job-1", "company")).toMatchObject({ ok: true, prep: { sections: { company: { status: "ready" } } } });
+    expect(await cardsOf(deps)).toEqual(existing());
   });
 });
 

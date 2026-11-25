@@ -17,7 +17,8 @@ import {
   type Section,
   type SectionKey,
 } from "./interview-prep";
-import { addCards, resumeText, withResumeFlags } from "./practice/cards";
+import { addCards, questionsIn, resumeText, withResumeFlags } from "./practice/cards";
+import { REFRESH_COMPANY_COUNT } from "./practice/writer";
 import { withStuckResearchFailed, withStuckSectionFailed } from "./sections";
 
 function errorMessage(err: unknown): string {
@@ -123,6 +124,31 @@ function mergeResult<K extends SectionKey>(
   return addCards(latest as PracticeData | null, added) as SectionData[K];
 }
 
+/**
+ * After a Company refresh: adds a few About this company cards drawing on the
+ * new research, repeating none of the Deck's questions. Only when Practice
+ * already has cards and isn't researching itself (a Practice refresh draws
+ * on the new research on its own). Cards are only added, to the cards as
+ * saved now. Writing them is extra: if it can't be done, the Interview Prep
+ * is returned as it was, and the Company refresh still succeeded.
+ */
+async function addCompanyCards(deps: InterviewPrepDeps, job: InterviewPrepJob, prep: InterviewPrep): Promise<InterviewPrep> {
+  const { process, company } = prep.sections;
+  const practice = withStuckSectionFailed(prep.sections.practice, deps.now());
+  if (company.status !== "ready" || !practice.data?.cards.length || practice.status === "researching") return prep;
+  try {
+    const careerStory = await deps.careerStory.load();
+    if (!careerStory) return prep;
+    const cards = await deps.practice.write(
+      { job, careerStory, research: { process: process.data, company: company.data } },
+      { deck: "company", count: REFRESH_COMPANY_COUNT, avoid: questionsIn(practice.data, "company") },
+    );
+    return await deps.store.updateSection(job.id, "practice", (current) => ({ ...current, data: addCards(current.data, cards) }));
+  } catch {
+    return prep;
+  }
+}
+
 class AlreadyResearchingError extends Error {}
 
 /**
@@ -133,7 +159,8 @@ class AlreadyResearchingError extends Error {}
  * refresh keeps the last good result and its date.
  *
  * Practice cards saved while Practice is researching (marks, own questions)
- * are kept: the new cards are added to them.
+ * are kept: the new cards are added to them. A Company refresh also adds a
+ * few About this company cards to a Practice that has cards.
  *
  * The Job's older Interview Suggestions are cleared once a section is ready,
  * and not before, so a Prepare that fails doesn't lose them.
@@ -169,7 +196,7 @@ export async function prepareSection<K extends SectionKey>(
   const result = await research(deps, key, job, previous);
 
   try {
-    const prep = await deps.store.updateSection(jobId, key, (current): Section<SectionData[K]> =>
+    let prep = await deps.store.updateSection(jobId, key, (current): Section<SectionData[K]> =>
       result.ok
         ? {
             status: "ready",
@@ -180,6 +207,7 @@ export async function prepareSection<K extends SectionKey>(
           }
         : { ...current, status: "failed", startedAt: null, failure: { reason: result.reason, message: result.message } },
     );
+    if (key === "company") prep = await addCompanyCards(deps, job, prep);
     let legacySuggestions = job.legacySuggestions;
     if (prep.sections[key].status === "ready" && legacySuggestions !== null) {
       await deps.jobs.clearLegacySuggestions(jobId);

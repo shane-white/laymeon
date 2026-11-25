@@ -31,7 +31,7 @@ import { resumeShows, resumeText, sameQuestion } from "./cards";
 /** How many cards each Deck starts with. */
 export const DECK_START_SIZE: Record<DeckKey, number> = { behavioral: 6, role: 6, company: 5, ask: 5 };
 
-/** How many About this company cards a Practice refresh adds once every Deck has cards. */
+/** How many About this company cards a Practice refresh adds once every Deck has cards, and a Company refresh adds to a Practice with cards. */
 export const REFRESH_COMPANY_COUNT = 3;
 
 const MAX_OUTLINE_STEPS = 6;
