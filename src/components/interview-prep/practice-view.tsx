@@ -4,8 +4,8 @@
  * The Practice list (LAY-123): every Deck in one list. Each Deck folds up
  * and shows its mark counts; opening a card shows its hint and the mark
  * buttons. More like this and Add your own question add cards. Quick mix and
- * Practice this deck start a Practice session through `onStartSession`
- * (LAY-124); without it they're disabled.
+ * Practice this deck open a Practice session (LAY-124) over the list; its
+ * marks go through the same mark action, so the list updates underneath.
  */
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, Sparkles, Trash2 } from "lucide-react";
@@ -14,14 +14,16 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DECK_KEYS, type DeckKey, type PracticeCard, type PracticeData } from "@/lib/interview-prep/interview-prep";
 import { canRemove, markCounts } from "@/lib/interview-prep/practice/cards";
+import { pickSession, type SessionSource } from "@/lib/interview-prep/practice/session";
 import { AddQuestionDialog } from "./add-question-dialog";
 import { CardBack, DECK_NAMES, MARK_LABELS, MarkButtons, MarkDot, Tip, TIPS } from "./practice-parts";
+import { PracticeSession } from "./practice-session";
 import { isSaved, usePracticeActions } from "./use-interview-prep";
 
 export { DECK_NAMES } from "./practice-parts";
 
-/** Where a Practice session starts: a Quick mix of every Deck, or one Deck. */
-export type SessionSource = DeckKey | "mix";
+/** Whether any of the cards can be practiced: a session only uses cards with a hint. */
+const canPractice = (cards: PracticeCard[]) => cards.some((c) => c.hint !== null);
 
 type Actions = ReturnType<typeof usePracticeActions>;
 
@@ -127,7 +129,7 @@ function Deck({
   actions: Actions;
   openCard: string | null;
   onOpenCard: (id: string | null) => void;
-  onStartSession?: (source: SessionSource) => void;
+  onStartSession: (source: SessionSource) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const addingMore = actions.addingMore.includes(deck);
@@ -149,8 +151,8 @@ function Deck({
           <Button
             size="sm"
             variant="outline"
-            disabled={!onStartSession || cards.length === 0}
-            onClick={() => onStartSession?.(deck)}
+            disabled={!canPractice(cards)}
+            onClick={() => onStartSession(deck)}
           >
             Practice this deck
           </Button>
@@ -194,19 +196,24 @@ function Deck({
   );
 }
 
-export function PracticeView({
-  jobId,
-  data,
-  onStartSession,
-}: {
-  jobId: string;
-  data: PracticeData;
-  /** Starts a Practice session (LAY-124). Quick mix and Practice this deck are disabled without it. */
-  onStartSession?: (source: SessionSource) => void;
-}) {
+interface Session {
+  ids: string[];
+  title: string;
+  /** Remounts the session each time one starts. */
+  key: number;
+}
+
+export function PracticeView({ jobId, data }: { jobId: string; data: PracticeData }) {
   const actions = usePracticeActions(jobId);
   // One card open at a time.
   const [openCard, setOpenCard] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+
+  function startSession(source: SessionSource) {
+    const ids = pickSession(data.cards, source);
+    if (ids.length === 0) return;
+    setSession({ ids, title: source === "mix" ? "Quick mix" : DECK_NAMES[source], key: Date.now() });
+  }
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex flex-col gap-6 pb-10">
@@ -214,7 +221,7 @@ export function PracticeView({
           <Blurb />
           <div className="flex flex-wrap items-center gap-2">
             <Tip text={TIPS.quickMix}>
-              <Button disabled={!onStartSession || data.cards.length === 0} onClick={() => onStartSession?.("mix")}>
+              <Button disabled={!canPractice(data.cards)} onClick={() => startSession("mix")}>
                 <Sparkles /> Quick mix
               </Button>
             </Tip>
@@ -229,10 +236,20 @@ export function PracticeView({
             actions={actions}
             openCard={openCard}
             onOpenCard={setOpenCard}
-            onStartSession={onStartSession}
+            onStartSession={startSession}
           />
         ))}
       </div>
+      {session && (
+        <PracticeSession
+          key={session.key}
+          cards={data.cards}
+          ids={session.ids}
+          title={session.title}
+          onMark={actions.mark}
+          onClose={() => setSession(null)}
+        />
+      )}
     </TooltipProvider>
   );
 }
