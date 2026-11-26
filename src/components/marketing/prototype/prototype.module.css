@@ -1,0 +1,55 @@
+/* PROTOTYPE (throwaway): tour ribbon options for /prototype/landing. */
+
+.ribbon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--gutter);
+  width: var(--rib);
+}
+
+/* Ride: one SVG over the whole page, between the hero and the tour in paint order. */
+.ride {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Variant switcher: deliberately not part of the design. */
+.switcher {
+  position: fixed;
+  z-index: 100;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font: 600 13px/1 system-ui, sans-serif;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+}
+
+.switcher button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: #eee;
+  color: #111;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.switcher span {
+  padding-inline: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

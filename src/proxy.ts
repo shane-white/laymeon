@@ -36,12 +36,14 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/forgot-password");
   const isApiRoute = pathname.startsWith("/api/");
+  // PROTOTYPE (throwaway): landing page variants at /prototype/landing, public for feedback.
+  const isPublicRoute = pathname.startsWith("/prototype/");
 
   // Let API routes handle their own auth
   if (isApiRoute) return supabaseResponse;
 
   // Redirect unauthenticated users to login
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isPublicRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
@@ -60,6 +62,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js|workbox-.*).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icons|marketing/|manifest.json|sw.js|workbox-.*).*)",
   ],
 };

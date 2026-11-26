@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useCreateJob } from "@/hooks/use-jobs";
+import { takePendingJobUrl } from "@/lib/pending-job";
 import { toast } from "sonner";
 import { Plus, Loader2 } from "lucide-react";
 
@@ -22,6 +23,18 @@ export function AddJobDialog() {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const createJob = useCreateJob();
+
+  // A link pasted on the landing page before sign-up opens here, ready to add.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const pending = takePendingJobUrl();
+      if (pending) {
+        setUrl(pending);
+        setOpen(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   function reset() {
     setUrl("");
