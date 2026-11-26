@@ -14,7 +14,8 @@
     "eval:interview-prep-company": "tsx --env-file=.env.local scripts/interview-prep-company-eval.ts",
     "eval:interview-prep-process": "tsx --env-file=.env.local scripts/interview-prep-process-eval.ts",
     "eval:interview-prep-practice": "tsx --env-file=.env.local scripts/interview-prep-practice-eval.ts",
-    "check:sources": "tsx scripts/check-source-links.ts"
+    "check:sources": "tsx scripts/check-source-links.ts",
+    "generate:topo": "tsx scripts/generate-topo.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
@@ -66,11 +67,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/d3-contour": "^3.0.6",
     "@types/node": "^20.19.35",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "d3-contour": "^4.0.2",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "shadcn": "^3.8.5",

@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/components/marketing/landing.module.css"
+        ],
+        "createdAt": "2026-11-25T21:30:17.248Z",
+        "reason": "agent decided: .tourCorner spans draw the monorail ribbon's curved corner (four colored track lines), not an accent border on a card"
+      }
+    ]
+  }
+}

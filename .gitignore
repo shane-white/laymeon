@@ -44,3 +44,8 @@ next-env.d.ts
 
 # real resumes for npm run eval:resume-review (personal data, never commit)
 /scripts/resumes/
+
+# design scratch output
+Claude outputs/
+.impeccable/hook.cache.json
+.claude/settings.local.json

@@ -1,0 +1,360 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import styles from "./landing.module.css";
+
+/*
+ * An isometric fair-ground guide map: five pavilions, one per stage of
+ * LayMeOn, on a four-line monorail loop around the Career Story dome.
+ * Ground coordinates (x, y, z) project to screen with iso().
+ */
+
+const VIEW = { x: 0, y: 40, w: 800, h: 540 };
+const CX = 400;
+const CY = 350;
+const TRACK_Z = 26;
+const TRACK_RADII = [184, 176, 168, 160];
+const TRACK_COLORS = ["var(--rust)", "var(--amber)", "var(--sage)", "var(--cyan)"];
+const CAR_RADIUS = 172;
+const LOOP_SECONDS = 22;
+
+type Pt = readonly [number, number];
+
+function iso(x: number, y: number, z = 0): Pt {
+  return [CX + (x - y) * 0.866, CY + (x + y) * 0.5 - z];
+}
+
+function poly(...p: Pt[]) {
+  return p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
+}
+
+/** A ground circle of radius r projects to an ellipse with these radii. */
+function ellipseRadii(r: number) {
+  return { rx: r * 1.2247, ry: r * 0.7071 };
+}
+
+function Prism(props: {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  h: number;
+  z?: number;
+  top: string;
+  left: string;
+  right: string;
+}) {
+  const { x, y, w, d, h, z = 0, top, left, right } = props;
+  const x1 = x + w;
+  const y1 = y + d;
+  return (
+    <g>
+      <polygon
+        points={poly(iso(x, y1, z), iso(x1, y1, z), iso(x1, y1, z + h), iso(x, y1, z + h))}
+        fill={left}
+      />
+      <polygon
+        points={poly(iso(x1, y, z), iso(x1, y1, z), iso(x1, y1, z + h), iso(x1, y, z + h))}
+        fill={right}
+      />
+      <polygon
+        points={poly(iso(x, y, z + h), iso(x1, y, z + h), iso(x1, y1, z + h), iso(x, y1, z + h))}
+        fill={top}
+      />
+    </g>
+  );
+}
+
+function Cylinder(props: {
+  gx: number;
+  gy: number;
+  r: number;
+  h: number;
+  body: string;
+  shade: string;
+  top: string;
+  id: string;
+  bands?: { at: number; color: string }[];
+}) {
+  const { gx, gy, r, h, body, shade, top, id, bands = [] } = props;
+  const [cx, by] = iso(gx, gy, 0);
+  const ty = by - h;
+  const { rx, ry } = ellipseRadii(r);
+  const d = `M${cx - rx},${ty} L${cx - rx},${by} A${rx},${ry} 0 0 0 ${cx + rx},${by} L${cx + rx},${ty} Z`;
+  return (
+    <g>
+      <clipPath id={id}>
+        <path d={d} />
+      </clipPath>
+      <path d={d} fill={body} />
+      <rect x={cx + rx * 0.15} y={ty - 1} width={rx} height={h + ry + 2} fill={shade} clipPath={`url(#${id})`} />
+      {bands.map((b) => (
+        <path
+          key={b.at}
+          d={`M${cx - rx},${by - b.at} A${rx},${ry} 0 0 0 ${cx + rx},${by - b.at}`}
+          fill="none"
+          stroke={b.color}
+          strokeWidth={5}
+          clipPath={`url(#${id})`}
+        />
+      ))}
+      <ellipse cx={cx} cy={ty} rx={rx} ry={ry} fill={top} />
+    </g>
+  );
+}
+
+/** Career Story: a striped dome on a drum banded in the four line colors. */
+function Dome() {
+  const r = 72;
+  const drumH = 30;
+  const [cx, by] = iso(0, 0, 0);
+  const ty = by - drumH;
+  const { rx, ry } = ellipseRadii(r);
+  const domePath = `M${cx - rx},${ty} A${rx},${rx} 0 0 1 ${cx + rx},${ty} A${rx},${ry} 0 0 1 ${cx - rx},${ty} Z`;
+  const drumPath = `M${cx - rx},${ty} L${cx - rx},${by} A${rx},${ry} 0 0 0 ${cx + rx},${by} L${cx + rx},${ty} Z`;
+  return (
+    <g>
+      <clipPath id="dome-drum">
+        <path d={drumPath} />
+      </clipPath>
+      <clipPath id="dome-shell">
+        <path d={domePath} />
+      </clipPath>
+      <path d={drumPath} fill="var(--sky-deep)" />
+      {TRACK_COLORS.map((c, i) => (
+        <path
+          key={c}
+          d={`M${cx - rx},${by - 4 - i * 7} A${rx},${ry} 0 0 0 ${cx + rx},${by - 4 - i * 7}`}
+          fill="none"
+          stroke={c}
+          strokeWidth={4}
+          clipPath="url(#dome-drum)"
+        />
+      ))}
+      <path d={domePath} fill="var(--paper)" />
+      <rect x={cx + rx * 0.12} y={ty - rx - 2} width={rx} height={rx + ry + 4} fill="#CFC4AF" clipPath="url(#dome-shell)" />
+      {[0.24, 0.48, 0.7].map((k) => {
+        const hgt = k * rx;
+        const lx = Math.sqrt(rx * rx - hgt * hgt);
+        const ly = lx * (ry / rx);
+        return (
+          <path
+            key={k}
+            d={`M${cx - lx},${ty - hgt} A${lx},${ly} 0 0 0 ${cx + lx},${ty - hgt}`}
+            fill="none"
+            stroke="var(--sky)"
+            strokeWidth={3.5}
+          />
+        );
+      })}
+      <line x1={cx} y1={ty - rx} x2={cx} y2={ty - rx - 26} stroke="var(--paper)" strokeWidth={3} strokeLinecap="round" />
+      <circle cx={cx} cy={ty - rx - 30} r={5} fill="var(--amber)" />
+    </g>
+  );
+}
+
+/** Match Report: a pyramid, two faces in flat orange tones. */
+function Pyramid({ gx, gy, half, h }: { gx: number; gy: number; half: number; h: number }) {
+  const apex = iso(gx, gy, h);
+  const b = iso(gx + half, gy - half);
+  const c = iso(gx + half, gy + half);
+  const d = iso(gx - half, gy + half);
+  return (
+    <g>
+      <polygon points={poly(d, c, apex)} fill="var(--rust)" />
+      <polygon points={poly(c, b, apex)} fill="#82362B" />
+      <line x1={apex[0]} y1={apex[1]} x2={c[0]} y2={c[1]} stroke="#C9705F" strokeWidth={2} />
+    </g>
+  );
+}
+
+/** Interview Prep: a sphere raised on a slim tower. */
+function Tower({ gx, gy }: { gx: number; gy: number }) {
+  const [cx, by] = iso(gx, gy, 0);
+  const towerTop = by - 128;
+  const sr = 36;
+  const sy = towerTop - sr + 8;
+  return (
+    <g>
+      <clipPath id="prep-sphere">
+        <circle cx={cx} cy={sy} r={sr} />
+      </clipPath>
+      <polygon
+        points={poly([cx - 14, by], [cx + 14, by], [cx + 5, towerTop], [cx - 5, towerTop])}
+        fill="#CFC4AF"
+      />
+      <polygon points={poly([cx, by + 4], [cx + 14, by], [cx + 5, towerTop], [cx, towerTop])} fill="#A89D88" />
+      <circle cx={cx} cy={sy} r={sr} fill="var(--amber)" />
+      <rect x={cx + sr * 0.15} y={sy - sr} width={sr} height={sr * 2} fill="#B67F1F" clipPath="url(#prep-sphere)" />
+      {[-12, 0, 12].map((o) => (
+        <line key={o} x1={cx - sr} y1={sy + o} x2={cx + sr} y2={sy + o} stroke="var(--sky)" strokeWidth={3} clipPath="url(#prep-sphere)" />
+      ))}
+    </g>
+  );
+}
+
+function trackArc(r: number, half: "back" | "front") {
+  const { rx, ry } = ellipseRadii(r);
+  const cy = CY - TRACK_Z;
+  return half === "back"
+    ? `M${CX - rx},${cy} A${rx},${ry} 0 0 1 ${CX + rx},${cy}`
+    : `M${CX + rx},${cy} A${rx},${ry} 0 0 1 ${CX - rx},${cy}`;
+}
+
+function Track({ half }: { half: "back" | "front" }) {
+  return (
+    <g fill="none" strokeWidth={5} strokeLinecap="round">
+      {TRACK_RADII.map((r, i) => (
+        <path key={r} d={trackArc(r, half)} stroke={TRACK_COLORS[i]} />
+      ))}
+    </g>
+  );
+}
+
+function Pylons({ half }: { half: "back" | "front" }) {
+  const angles = [0, 45, 90, 135, 180, 225, 270, 315].filter((a) =>
+    half === "back" ? a > 180 : a > 0 && a < 180,
+  );
+  const { rx, ry } = ellipseRadii(CAR_RADIUS);
+  return (
+    <g stroke="#2F3B5C" strokeWidth={4}>
+      {angles.map((a) => {
+        const t = (a * Math.PI) / 180;
+        const x = CX + rx * Math.cos(t);
+        const y = CY + ry * Math.sin(t);
+        return <line key={a} x1={x} y1={y} x2={x} y2={y - TRACK_Z + 6} />;
+      })}
+    </g>
+  );
+}
+
+const Car = ({ innerRef }: { innerRef: React.Ref<SVGGElement> }) => (
+  <g ref={innerRef}>
+    <rect x={-20} y={-8} width={40} height={14} rx={7} fill="var(--paper)" />
+    <rect x={-13} y={-5} width={26} height={5} rx={2.5} fill="var(--sky)" />
+  </g>
+);
+
+const LABELS = [
+  { name: "Documents", x: 179, y: 392, color: "var(--sage)" },
+  { name: "Match Report", x: 150, y: 98, color: "var(--rust)" },
+  { name: "Career Story", x: 400, y: 168, color: "var(--paper)" },
+  { name: "Tailoring", x: 660, y: 70, color: "var(--cyan)" },
+  { name: "Interview Prep", x: 640, y: 258, color: "var(--amber)" },
+];
+
+export function GuideMap() {
+  const backCar = useRef<SVGGElement>(null);
+  const frontCar = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    const { rx, ry } = ellipseRadii(CAR_RADIUS);
+    const cy = CY - TRACK_Z;
+    const place = (t: number) => {
+      const x = CX + rx * Math.cos(t);
+      const y = cy + ry * Math.sin(t) - 5;
+      const angle = (Math.atan2(ry * Math.cos(t), -rx * Math.sin(t)) * 180) / Math.PI + 180;
+      const onBack = Math.sin(t) < 0;
+      const transform = `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle.toFixed(1)})`;
+      backCar.current?.setAttribute("transform", transform);
+      frontCar.current?.setAttribute("transform", transform);
+      backCar.current?.setAttribute("visibility", onBack ? "visible" : "hidden");
+      frontCar.current?.setAttribute("visibility", onBack ? "hidden" : "visible");
+    };
+
+    const start = (130 * Math.PI) / 180;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      place(start);
+      return;
+    }
+
+    let frame = 0;
+    const began = performance.now();
+    const tick = (now: number) => {
+      const t = start + (((now - began) / 1000) / LOOP_SECONDS) * Math.PI * 2;
+      place(t);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const plaza = ellipseRadii(300);
+  const ring = ellipseRadii(236);
+  const walk = (gx: number, gy: number) => {
+    const [x1, y1] = iso(0, 0);
+    const [x2, y2] = iso(gx, gy);
+    return <line x1={x1} y1={y1} x2={x2} y2={y2} />;
+  };
+
+  return (
+    <figure className={styles.map}>
+      <svg
+        viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`}
+        role="img"
+        aria-labelledby="map-title"
+      >
+        <title id="map-title">
+          A guide map of the LayMeOn fair: Documents, Match Report, Tailoring and Interview Prep
+          pavilions on a monorail loop around the Career Story dome.
+        </title>
+        <ellipse cx={CX} cy={CY} rx={plaza.rx} ry={plaza.ry} fill="var(--plaza)" />
+        <ellipse cx={CX} cy={CY} rx={ring.rx} ry={ring.ry} fill="none" stroke="var(--line)" strokeWidth={2} strokeDasharray="2 10" strokeLinecap="round" />
+        <g stroke="#1C2742" strokeWidth={10} strokeLinecap="round">
+          {walk(0, 255)}
+          {walk(-255, 0)}
+          {walk(0, -255)}
+          {walk(255, 0)}
+        </g>
+
+        <Pyramid gx={-255} gy={0} half={58} h={104} />
+        <Cylinder
+          id="tailoring-body"
+          gx={0}
+          gy={-255}
+          r={42}
+          h={112}
+          body="var(--cyan)"
+          shade="#467884"
+          top="#93C2CC"
+          bands={[
+            { at: 34, color: "var(--amber)" },
+            { at: 48, color: "var(--amber)" },
+          ]}
+        />
+
+        <Pylons half="back" />
+        <Track half="back" />
+        <Car innerRef={backCar} />
+
+        <Dome />
+
+        <Pylons half="front" />
+        <Track half="front" />
+        <Car innerRef={frontCar} />
+
+        <g>
+          <Prism x={-45} y={220} w={90} d={70} h={16} top="#9CC296" left="var(--sage)" right="#557C51" />
+          <Prism x={-51} y={216} w={90} d={70} h={16} z={18} top="#9CC296" left="var(--sage)" right="#557C51" />
+          <Prism x={-41} y={222} w={90} d={70} h={16} z={36} top="var(--paper)" left="#CFC4AF" right="#A89D88" />
+        </g>
+        <Tower gx={255} gy={0} />
+      </svg>
+
+      {LABELS.map((l) => (
+        <span
+          key={l.name}
+          aria-hidden
+          className={styles.mapSign}
+          style={{
+            left: `${((l.x - VIEW.x) / VIEW.w) * 100}%`,
+            top: `${((l.y - VIEW.y) / VIEW.h) * 100}%`,
+          }}
+        >
+          <span className={styles.mapSignDot} style={{ background: l.color }} aria-hidden />
+          {l.name}
+        </span>
+      ))}
+    </figure>
+  );
+}
